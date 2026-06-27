@@ -28,6 +28,7 @@ type Job = {
   processed_count: number;
   failed_count: number;
   total_count: number;
+  error_message?: string | null;
 };
 
 type LeanResult = {
@@ -195,6 +196,62 @@ export default function DashboardPage() {
       await refreshUploads();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to start job');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelJob = async () => {
+    const jobId = job?.id ?? selectedUpload?.job_id;
+    if (!jobId) return;
+    if (
+      !window.confirm(
+        'Cancel this job? In-progress rows will reset to pending. You can run again afterward.',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to cancel job');
+      setMessage('Job cancelled.');
+      if (selectedUploadId) {
+        await refreshJob(selectedUploadId);
+        await refreshResults(selectedUploadId);
+      }
+      await refreshUploads();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to cancel job');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteUpload = async () => {
+    if (!selectedUploadId || !selectedUpload) return;
+    if (
+      !window.confirm(
+        `Delete "${selectedUpload.filename}" and all its results? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/uploads/${selectedUploadId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete upload');
+      setMessage(`Deleted ${data.filename}.`);
+      setSelectedUploadId(null);
+      setJob(null);
+      setResults([]);
+      await refreshUploads();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to delete upload');
     } finally {
       setBusy(false);
     }
@@ -481,6 +538,23 @@ export default function DashboardPage() {
               >
                 Export JSON
               </a>
+              {(selectedUpload.job_status === 'running' ||
+                selectedUpload.job_status === 'queued') && (
+                <button
+                  onClick={handleCancelJob}
+                  disabled={busy}
+                  className="rounded-lg border border-amber-400/60 px-4 py-2 text-sm text-amber-100 hover:opacity-80 disabled:opacity-50"
+                >
+                  Cancel job
+                </button>
+              )}
+              <button
+                onClick={handleDeleteUpload}
+                disabled={busy}
+                className="rounded-lg border border-red-400/50 px-4 py-2 text-sm text-red-100 hover:opacity-80 disabled:opacity-50"
+              >
+                Delete upload
+              </button>
             </div>
 
             {job && (

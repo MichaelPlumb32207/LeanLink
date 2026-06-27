@@ -133,7 +133,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
 
       const job = jobRes.rows[0];
-      if (job.status === 'completed' || job.status === 'cancelled') {
+      if (job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') {
         return { job, remaining: 0, done: true as const };
       }
 
