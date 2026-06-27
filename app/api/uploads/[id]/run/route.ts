@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
+import {
+  BATCH_INFERENCE_DISABLED_MESSAGE,
+  isBatchInferenceEnabled,
+} from '@/lib/batch-inference';
 import { withUserDb } from '@/lib/db';
 import { triggerWorker } from '@/lib/job-runner';
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
+    if (!isBatchInferenceEnabled()) {
+      return NextResponse.json(
+        { error: BATCH_INFERENCE_DISABLED_MESSAGE },
+        { status: 403 },
+      );
+    }
+
     const session = await requireUser();
     const userEmail = session.user.email;
     const { id: uploadId } = await context.params;

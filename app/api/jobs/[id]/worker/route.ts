@@ -4,6 +4,10 @@ import { withUserDb } from '@/lib/db';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { VoterHistorySummary } from '@/lib/fl-voter-history';
 import type { BallotFavors } from '@/lib/fl-voter-history';
+import {
+  BATCH_INFERENCE_DISABLED_MESSAGE,
+  isBatchInferenceEnabled,
+} from '@/lib/batch-inference';
 import { inferLean } from '@/lib/inference';
 import { getWorkerDeadlineMs, triggerWorker, WORKER_BATCH_CLAIM_SIZE } from '@/lib/job-runner';
 
@@ -109,6 +113,10 @@ async function markRowFailed(userId: string, rowId: string, message: string) {
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!isBatchInferenceEnabled()) {
+    return NextResponse.json({ error: BATCH_INFERENCE_DISABLED_MESSAGE }, { status: 403 });
   }
 
   const { id: jobId } = await context.params;

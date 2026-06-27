@@ -322,25 +322,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRun = async () => {
-    if (!selectedUploadId) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const res = await fetch(`/api/uploads/${selectedUploadId}/run`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to start job');
-      setMessage(`Job started (${data.jobId}).`);
-      await refreshJob(selectedUploadId);
-      await refreshResults(selectedUploadId, selectedUpload?.row_count ?? 0);
-      await refreshUploads();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Failed to start job');
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleCancelJob = async () => {
     const jobId = job?.id ?? selectedUpload?.job_id;
     if (!jobId) return;
@@ -799,19 +780,13 @@ export default function DashboardPage() {
                   : ' (no history — turnout/opposition scores will be limited)'}
               </p>
             </div>
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+              <span className="font-medium">Batch inference is off.</span> Upload + parse only —
+              use <span className="font-medium">Test enrichment</span> or{' '}
+              <span className="font-medium">POC scorecard</span> below for single-voter Grok/Apify
+              runs. Full-file jobs are blocked until we validate cost and quality.
+            </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleRun}
-                disabled={busy}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white disabled:opacity-50"
-              >
-                {selectedUpload.job_status === 'completed'
-                  ? 'Re-run Analysis Job'
-                  : selectedUpload.job_status === 'running' ||
-                      selectedUpload.job_status === 'queued'
-                    ? 'Retry / resume worker'
-                    : 'Run Analysis Job'}
-              </button>
               <a
                 href={`/api/export/${selectedUploadId}?format=csv`}
                 className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"

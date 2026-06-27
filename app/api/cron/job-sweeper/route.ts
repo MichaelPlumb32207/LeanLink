@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isBatchInferenceEnabled } from '@/lib/batch-inference';
 import { pool } from '@/lib/db';
 import { triggerWorker } from '@/lib/job-runner';
 
@@ -37,11 +38,19 @@ export async function GET(request: Request) {
 
     await client.query('COMMIT');
 
-    for (const row of rows) {
-      await triggerWorker(row.id);
+    let retriggered = 0;
+    if (isBatchInferenceEnabled()) {
+      for (const row of rows) {
+        await triggerWorker(row.id);
+        retriggered += 1;
+      }
     }
 
-    return NextResponse.json({ retriggered: rows.length });
+    return NextResponse.json({
+      retriggered,
+      batch_inference_enabled: isBatchInferenceEnabled(),
+      stale_jobs: rows.length,
+    });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Cron sweeper failed', error);
