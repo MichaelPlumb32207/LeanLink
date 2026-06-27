@@ -117,10 +117,28 @@ export async function GET() {
 
     const { rows } = await withUserDb(userEmail, (client) =>
       client.query(
-        `SELECT id, filename, row_count, status, history_filename, ballot_favors, created_at
-         FROM voter_uploads
-         WHERE user_id = $1
-         ORDER BY created_at DESC
+        `SELECT u.id,
+                u.filename,
+                u.row_count,
+                u.status,
+                u.history_filename,
+                u.ballot_favors,
+                u.created_at,
+                j.id AS job_id,
+                j.status AS job_status,
+                j.processed_count,
+                j.failed_count,
+                j.total_count AS job_total_count
+         FROM voter_uploads u
+         LEFT JOIN LATERAL (
+           SELECT id, status, processed_count, failed_count, total_count
+           FROM processing_jobs
+           WHERE upload_id = u.id AND user_id = $1
+           ORDER BY created_at DESC
+           LIMIT 1
+         ) j ON true
+         WHERE u.user_id = $1
+         ORDER BY u.created_at DESC
          LIMIT 50`,
         [userEmail],
       ),

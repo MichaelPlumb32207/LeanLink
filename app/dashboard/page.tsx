@@ -13,6 +13,11 @@ type Upload = {
   history_filename?: string | null;
   ballot_favors?: string | null;
   created_at: string;
+  job_id?: string | null;
+  job_status?: string | null;
+  processed_count?: number | null;
+  failed_count?: number | null;
+  job_total_count?: number | null;
 };
 
 type BallotFavors = 'south' | 'north';
@@ -113,10 +118,23 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [selectedUploadId, job, refreshJob, refreshResults, refreshUploads]);
 
+  const selectedUpload = useMemo(
+    () => uploads.find((u) => u.id === selectedUploadId) ?? null,
+    [uploads, selectedUploadId],
+  );
+
   const progressPct = useMemo(() => {
     if (!job?.total_count) return 0;
     return Math.round(((job.processed_count + job.failed_count) / job.total_count) * 100);
   }, [job]);
+
+  function jobSummary(upload: Upload): string {
+    if (!upload.job_status) return 'No job yet';
+    const done = upload.processed_count ?? 0;
+    const failed = upload.failed_count ?? 0;
+    const total = upload.job_total_count ?? upload.row_count;
+    return `Job ${upload.job_status}: ${done} done, ${failed} failed, ${total} total`;
+  }
 
   const handleUpload = async () => {
     if (!file) {
@@ -340,21 +358,35 @@ export default function DashboardPage() {
         </section>
 
         <section className="panel rounded-2xl p-6">
-          <h2 className="mb-4 text-xl font-semibold">Uploads</h2>
+          <h2 className="mb-2 text-xl font-semibold">Uploads</h2>
+          <p className="mb-4 text-sm opacity-75">
+            Each row is one ingest (registration file + optional history). Select one to run or
+            export — jobs are per upload, not shared.
+          </p>
           <div className="space-y-2">
             {uploads.map((upload) => (
               <button
                 key={upload.id}
                 onClick={() => setSelectedUploadId(upload.id)}
                 className={`block w-full rounded-lg border px-4 py-3 text-left ${
-                  selectedUploadId === upload.id ? 'bg-white/15' : 'bg-black/10'
+                  selectedUploadId === upload.id ? 'bg-white/15 ring-1 ring-white/30' : 'bg-black/10'
                 }`}
               >
-                <div className="font-medium">{upload.filename}</div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium">{upload.filename}</div>
+                  {upload.job_status && (
+                    <span className="rounded-full bg-black/30 px-2 py-0.5 text-xs uppercase tracking-wide">
+                      {upload.job_status}
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm opacity-80">
-                  {upload.row_count} rows · {upload.status}
-                  {upload.history_filename ? ` · history: ${upload.history_filename}` : ''}
-                  {upload.ballot_favors ? ` · ballot favors ${upload.ballot_favors}` : ''} ·{' '}
+                  {upload.row_count} voters · upload {upload.status}
+                  {upload.history_filename ? ` · + ${upload.history_filename}` : ' · no history file'}
+                  {upload.ballot_favors ? ` · favors ${upload.ballot_favors}` : ''}
+                </div>
+                <div className="mt-1 text-xs opacity-70">{jobSummary(upload)}</div>
+                <div className="text-xs opacity-60">
                   {new Date(upload.created_at).toLocaleString()}
                 </div>
               </button>
@@ -363,15 +395,29 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {selectedUploadId && (
+        {selectedUploadId && selectedUpload && (
           <section className="panel rounded-2xl p-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold">Analyze selected upload</h2>
+              <p className="mt-1 text-sm opacity-80">
+                <span className="font-medium">{selectedUpload.filename}</span>
+                {selectedUpload.history_filename
+                  ? ` with ${selectedUpload.history_filename}`
+                  : ' (no history — turnout/opposition scores will be limited)'}
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleRun}
                 disabled={busy}
                 className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white disabled:opacity-50"
               >
-                Run Analysis Job
+                {selectedUpload.job_status === 'completed'
+                  ? 'Re-run Analysis Job'
+                  : selectedUpload.job_status === 'running' ||
+                      selectedUpload.job_status === 'queued'
+                    ? 'Retry / resume worker'
+                    : 'Run Analysis Job'}
               </button>
               <a
                 href={`/api/export/${selectedUploadId}?format=csv`}
@@ -391,8 +437,8 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-2 flex justify-between text-sm">
                   <span>
-                    Job {job.status} · {job.processed_count} done · {job.failed_count} failed ·{' '}
-                    {job.total_count} total
+                    This upload&apos;s job: {job.status} · {job.processed_count} done ·{' '}
+                    {job.failed_count} failed · {job.total_count} total
                   </span>
                   <span>{progressPct}%</span>
                 </div>
