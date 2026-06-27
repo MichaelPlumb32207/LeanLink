@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeanLink — Enrichment &amp; Inference Pipeline</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root { --ink: #18181b; --muted: #52525b; --accent: #059669; --bg: #fafafa; --card: #fff; --border: #e4e4e7; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); background: var(--bg); line-height: 1.55; margin: 0; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
+    .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+    h2 { font-size: 1.2rem; margin: 2rem 0 0.75rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+    h3 { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+    p { margin: 0.5rem 0; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin: 1rem 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { border: 1px solid var(--border); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
+    th { background: #f4f4f5; font-weight: 600; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; }
+    pre { background: #f4f4f5; border-radius: 8px; padding: 1rem; overflow-x: auto; }
+    .tag { display: inline-block; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.15rem 0.45rem; border-radius: 4px; margin-right: 0.35rem; }
+    .tag-real { background: #d1fae5; color: #065f46; }
+    .tag-mock { background: #fef3c7; color: #92400e; }
+    .tag-rule { background: #e0e7ff; color: #3730a3; }
+    ul { margin: 0.4rem 0; padding-left: 1.25rem; }
+    li { margin: 0.25rem 0; }
+    .mermaid { margin: 1rem 0; }
+    footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 3rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
+    <p class="subtitle">Research-only POC · Florida NPA voters · OSINT + Grok live search · Last updated 2026-06-27</p>
+
+    <div class="card">
+      <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
+      Not for contacting, marketing, or targeting individuals. Enrichment is <strong>OSINT-only</strong> (no data brokers).
+    </div>
+
+    <h2 id="flow">1. Pipeline overview</h2>
+    <pre class="mermaid">
+flowchart LR
+  A[FL registration extract] --> B[Identity anchor]
+  H[FL history extract] --> C[Behavioral scoring]
+  B --> D[Grok live web search]
+  D --> E[OSINT persona signals]
+  C --> F[Grok lean synthesis]
+  E --> F
+  F --> G[lean + confidence + evidence]
+  C --> I[turnout + primary engagement]
+  G --> J[opposition mobilization]
+  I --> J
+  G --> K[Dashboard / Export]
+    </pre>
+
+    <h2 id="inputs">2. Input data (what we use)</h2>
+    <table>
+      <thead>
+        <tr><th>Layer</th><th>Fields used</th><th>Excluded</th><th>Role</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Registration</strong></td>
+          <td>name, voterId, city, zip, precinct, county, email, phone</td>
+          <td><strong>race, gender</strong> (hard exclude), mailing-only fields</td>
+          <td>OSINT search anchor; contact hints</td>
+        </tr>
+        <tr>
+          <td><strong>Voting history</strong></td>
+          <td>GEN turnout %, PRI/PPP count, last vote date</td>
+          <td>Party of primary (not in FL extract)</td>
+          <td>Behavior / mobilization only — <em>not</em> lean</td>
+        </tr>
+        <tr>
+          <td><strong>User scenario</strong></td>
+          <td>ballot_favors (south / north)</td>
+          <td>—</td>
+          <td>Opposition mobilization formula only</td>
+        </tr>
+        <tr>
+          <td><strong>Geo prior</strong></td>
+          <td colspan="3"><span class="tag tag-rule">Disabled v1</span> OSINT-only lean; precinct priors deferred</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="osint">3. Enrichment — Grok live search (v1)</h2>
+    <p><span class="tag tag-real">Decision D-008</span> Start with <strong>Grok <code>web_search</code></strong> via xAI Responses API (<code>POST /v1/responses</code>). Evaluate via dashboard <strong>Test enrichment</strong> before building modular fetchers.</p>
+
+    <h3>OSINT flow per voter</h3>
+    <ol>
+      <li>Build <code>EnrichmentBundle</code> (anchor + contact flags + history context).</li>
+      <li>Grok searches public web/social for matching persona(s) in Florida.</li>
+      <li>Returns structured JSON: matches, signals, resolution status, lean, confidence, evidence.</li>
+      <li>Code guardrails enforce policy (below).</li>
+    </ol>
+
+    <h3>Match resolution states</h3>
+    <table>
+      <thead><tr><th>Status</th><th>Meaning</th><th>Lean rule</th><th>Confidence cap</th></tr></thead>
+      <tbody>
+        <tr><td><code>none</code></td><td>No credible public match</td><td><strong>Undetermined</strong></td><td>≤ 35</td></tr>
+        <tr><td><code>ambiguous</code></td><td>Multiple plausible matches</td><td>Undetermined or Independent</td><td>≤ 45</td></tr>
+        <tr><td><code>probable</code></td><td>Clear best match + public signals</td><td>Left / Right / Independent</td><td>Model + match quality</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Future: modular fetchers (if pivot)</h3>
+    <p>S0 voter-file contact · S1 public web · S2 X · S3 LinkedIn · S4 Facebook public · S5 DIY fuzzy match scoring in Postgres.</p>
+
+    <h2 id="outputs">4. Outputs &amp; who computes them</h2>
+    <table>
+      <thead>
+        <tr><th>Output</th><th>Computer</th><th>Inputs</th><th>Nature</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>turnout_score</code> / <code>turnout_propensity</code></td>
+          <td><span class="tag tag-real">Deterministic</span></td>
+          <td>History file</td>
+          <td>Factual behavior</td>
+        </tr>
+        <tr>
+          <td><code>primary_engagement</code></td>
+          <td><span class="tag tag-real">Deterministic</span></td>
+          <td>PRI/PPP counts</td>
+          <td>Engagement only (not party)</td>
+        </tr>
+        <tr>
+          <td><code>matched_social</code></td>
+          <td><span class="tag tag-real">Grok OSINT</span></td>
+          <td>Live search matches</td>
+          <td>Identity linkage URLs</td>
+        </tr>
+        <tr>
+          <td><code>lean</code></td>
+          <td><span class="tag tag-real">Grok + guardrails</span></td>
+          <td>Public ideological signals</td>
+          <td><strong>Inference</strong></td>
+        </tr>
+        <tr>
+          <td><code>confidence</code></td>
+          <td><span class="tag tag-real">Grok + guardrails</span></td>
+          <td>Match quality, ambiguity, signal richness</td>
+          <td>Meta-inference</td>
+        </tr>
+        <tr>
+          <td><code>evidence[]</code></td>
+          <td>Grok + history append</td>
+          <td>All layers</td>
+          <td>Audit trail for researcher</td>
+        </tr>
+        <tr>
+          <td><code>opposition_mobilization_score</code></td>
+          <td><span class="tag tag-real">Deterministic</span></td>
+          <td>turnout × confidence × oppositionFactor</td>
+          <td>Scenario score (not identity)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="opposition">5. Opposition mobilization (deterministic)</h2>
+    <p>North = Left, South = Right. Measures likelihood a voter mobilizes <em>against</em> a ballot/contact scenario.</p>
+    <pre>opposition_score = round(turnout_score × (confidence / 100) × oppositionFactor(lean, ballot_favors))</pre>
+    <table>
+      <thead><tr><th>Lean vs ballot</th><th>Factor</th></tr></thead>
+      <tbody>
+        <tr><td>Opposed camp (e.g. Left + favors south)</td><td>1.0</td></tr>
+        <tr><td>Aligned camp</td><td>0.15</td></tr>
+        <tr><td>Independent / Undetermined</td><td>0.5</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="policy">6. Locked design decisions</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Decision</th></tr></thead>
+      <tbody>
+        <tr><td>D-008</td><td>Grok live-search first; modular fetchers if needed after evaluation</td></tr>
+        <tr><td>D-009</td><td>OSINT-only lean v1; geo/precinct prior deferred</td></tr>
+        <tr><td>D-010</td><td>Hard exclude race and gender from all prompts and logic</td></tr>
+        <tr><td>D-011</td><td>No OSINT match → <code>Undetermined</code>, confidence ≤ 35</td></tr>
+        <tr><td>D-012</td><td>Primary history = mobilization context only, not party lean</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="code">7. Code map</h2>
+    <table>
+      <thead><tr><th>Module</th><th>Path</th></tr></thead>
+      <tbody>
+        <tr><td>Bundle builder</td><td><code>lib/enrichment/build-bundle.ts</code></td></tr>
+        <tr><td>Grok OSINT + inference</td><td><code>lib/enrichment/grok-pipeline.ts</code></td></tr>
+        <tr><td>xAI client (Responses + web_search)</td><td><code>lib/xai/client.ts</code></td></tr>
+        <tr><td>Orchestrator (Grok or fallback mock)</td><td><code>lib/inference.ts</code></td></tr>
+        <tr><td>Single-voter test API</td><td><code>POST /api/enrichment/test</code></td></tr>
+        <tr><td>Batch worker</td><td><code>app/api/jobs/[id]/worker/route.ts</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="test">8. How to evaluate</h2>
+    <ol>
+      <li>Set <code>XAI_API_KEY</code> (and optional <code>XAI_MODEL=grok-4.3</code>) in env.</li>
+      <li>Select an upload in the dashboard → <strong>Test enrichment</strong> (pick row index).</li>
+      <li>Inspect JSON: <code>bundle</code>, <code>debug.prompt_user</code>, <code>result.enrichment.citations</code>, guardrailed lean/confidence.</li>
+      <li>When satisfied, <strong>Run Analysis Job</strong> for full batch (slower — one Grok call per voter).</li>
+    </ol>
+
+    <h2 id="fallback">9. Fallback behavior</h2>
+    <ul>
+      <li>No <code>XAI_API_KEY</code> → deterministic mock lean (pipeline still runs).</li>
+      <li>Grok API error on a row → mock fallback + error noted in evidence; row still completes.</li>
+      <li>Export CSV remains hash-only (no names) — safe for sharing.</li>
+    </ul>
+
+    <footer>LeanLink NPA FL · Enrichment Pipeline Spec · © 2026</footer>
+  </div>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+</body>
+</html>

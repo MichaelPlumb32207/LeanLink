@@ -1,8 +1,12 @@
+import { buildEnrichmentBundle, historyToContext } from '@/lib/enrichment/build-bundle';
+import { grokEnrichAndInferRecord } from '@/lib/enrichment/grok-pipeline';
+import type { LeanLabel } from '@/lib/enrichment/types';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { summarizeVoterHistory } from '@/lib/fl-voter-history';
+import { getXaiApiKey } from '@/lib/xai/client';
 
-export type LeanLabel = 'Left' | 'Right' | 'Independent' | 'Undetermined';
+export type { LeanLabel };
 
 export interface LeanInferenceResult {
   lean: LeanLabel;
@@ -19,6 +23,8 @@ export interface LeanInferenceResult {
     sources: string[];
     model_version: string;
     ballot_favors: BallotFavors;
+    grok_raw_excerpt?: string;
+    citations?: string[];
   };
 }
 
@@ -28,7 +34,7 @@ function confidenceBand(confidence: number): string {
   return 'Low';
 }
 
-/** Placeholder lean until Grok is wired; stable per voter_id. */
+/** Fallback when XAI_API_KEY is absent or Grok call fails in dev. */
 function mockLeanDirection(record: ParsedFlVoterRecord): LeanLabel {
   const seed = record.voterId.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   const options: LeanLabel[] = ['Left', 'Right', 'Independent', 'Undetermined'];
@@ -41,8 +47,6 @@ function mockLeanConfidence(record: ParsedFlVoterRecord, history: VoterHistorySu
 
   if (history.turnout_score >= 70) confidence += 10;
   else if (history.turnout_score >= 40) confidence += 5;
-
-  if (history.primary_count > 0) confidence += 8;
 
   return Math.min(confidence, 90);
 }
@@ -76,15 +80,11 @@ export function computeOppositionMobilizationScore(
   return Math.round(turnoutScore * (confidence / 100) * factor);
 }
 
-export function inferLean(
+function mockInferLean(
   record: ParsedFlVoterRecord,
-  historySummary: VoterHistorySummary | null | undefined,
-  ballotFavors: BallotFavors = 'south',
+  history: VoterHistorySummary,
+  ballotFavors: BallotFavors,
 ): LeanInferenceResult {
-  const history =
-    historySummary ??
-    summarizeVoterHistory(undefined, new Set());
-
   const lean = mockLeanDirection(record);
   const confidence = mockLeanConfidence(record, history);
   const oppositionScore = computeOppositionMobilizationScore(
@@ -98,9 +98,9 @@ export function inferLean(
     lean === 'Left' ? 'north (Left)' : lean === 'Right' ? 'south (Right)' : lean;
 
   const evidence = [
-    `Lean estimate: ${leanLabel} (mock-v2 — Grok pending)`,
+    `Lean estimate: ${leanLabel} (fallback mock — XAI_API_KEY missing or Grok unavailable)`,
     `Turnout propensity: ${history.turnout_propensity} — voted in ${history.general_elections_voted} of ${history.general_elections_available} general elections on file`,
-    `Primary engagement: ${history.primary_engagement}`,
+    `Primary engagement: ${history.primary_engagement} (engagement only, not party lean)`,
     history.last_vote_date
       ? `Last voted: ${history.last_vote_date}`
       : 'No recorded votes in history file',
@@ -114,16 +114,77 @@ export function inferLean(
     confidence,
     confidence_band: confidenceBand(confidence),
     evidence,
-    matched_social: record.email ? [`possible-match-${record.voterId}@social.stub`] : [],
+    matched_social: [],
     turnout_propensity: history.turnout_propensity,
     turnout_score: history.turnout_score,
     primary_engagement: history.primary_engagement,
     opposition_mobilization_score: oppositionScore,
     audit: {
       timestamp: new Date().toISOString(),
-      sources: ['FL-Voting-History', 'MockLean-v2'],
-      model_version: 'history-aware-mock-v2',
+      sources: ['FL-Voting-History', 'Fallback-Mock'],
+      model_version: 'fallback-mock-v3',
       ballot_favors: ballotFavors,
     },
   };
 }
+
+function appendHistoryEvidence(evidence: string[], history: VoterHistorySummary): string[] {
+  return [
+    ...evidence,
+    `Turnout propensity: ${history.turnout_propensity} (${history.general_elections_voted}/${history.general_elections_available} generals)`,
+    `Primary engagement: ${history.primary_engagement} (mobilization context only)`,
+    history.last_vote_date ? `Last voted: ${history.last_vote_date}` : 'No votes in history file',
+  ];
+}
+
+export async function inferLean(
+  record: ParsedFlVoterRecord,
+  historySummary: VoterHistorySummary | null | undefined,
+  ballotFavors: BallotFavors = 'south',
+): Promise<LeanInferenceResult> {
+  const history =
+    historySummary ?? summarizeVoterHistory(undefined, new Set());
+
+  if (!getXaiApiKey()) {
+    return mockInferLean(record, history, ballotFavors);
+  }
+
+  try {
+    const grok = await grokEnrichAndInferRecord(record, historySummary, ballotFavors);
+    const oppositionScore = computeOppositionMobilizationScore(
+      history.turnout_score,
+      grok.confidence,
+      grok.lean,
+      ballotFavors,
+    );
+
+    const evidence = appendHistoryEvidence(grok.evidence, history);
+    evidence.push(
+      `OSINT resolution: ${grok.enrichment.resolution_status} (best match ${Math.round(grok.enrichment.best_match_score * 100)}%)`,
+      grok.enrichment.search_summary,
+      `Ballot favors ${ballotFavors} — opposition mobilization score ${oppositionScore}`,
+    );
+
+    return {
+      lean: grok.lean,
+      confidence: grok.confidence,
+      confidence_band: confidenceBand(grok.confidence),
+      evidence,
+      matched_social: grok.matched_social,
+      turnout_propensity: history.turnout_propensity,
+      turnout_score: history.turnout_score,
+      primary_engagement: history.primary_engagement,
+      opposition_mobilization_score: oppositionScore,
+      audit: grok.audit,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Grok inference failed';
+    const fallback = mockInferLean(record, history, ballotFavors);
+    fallback.evidence.unshift(`Grok pipeline error: ${message}`);
+    fallback.audit.sources.push('Grok-Error-Fallback');
+    return fallback;
+  }
+}
+
+/** Expose bundle builder for test endpoint. */
+export { buildEnrichmentBundle, historyToContext };

@@ -52,6 +52,11 @@ const PREVIEW_ROW_OPTIONS = [100, 250, 500] as const;
 const LEAN_OPTIONS = ['', 'Left', 'Right', 'Independent', 'Undetermined'] as const;
 const TURNOUT_OPTIONS = ['', 'High', 'Medium', 'Low'] as const;
 
+function shortHash(hash: string): string {
+  if (hash.length <= 12) return hash;
+  return `${hash.slice(0, 6)}…${hash.slice(-4)}`;
+}
+
 const themeClass: Record<Branding, string> = {
   matrix: 'theme-matrix',
   red: 'theme-red',
@@ -75,6 +80,10 @@ export default function DashboardPage() {
   const [resultsTotal, setResultsTotal] = useState(0);
   const [resultsFiltered, setResultsFiltered] = useState(0);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [revealedVoterHash, setRevealedVoterHash] = useState<string | null>(null);
+  const [enrichmentTestJson, setEnrichmentTestJson] = useState<string | null>(null);
+  const [enrichmentTestBusy, setEnrichmentTestBusy] = useState(false);
+  const [enrichmentTestRowIndex, setEnrichmentTestRowIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -180,6 +189,7 @@ export default function DashboardPage() {
     setSortColumn('opposition');
     setSortDirection('desc');
     setColumnFilters(EMPTY_COLUMN_FILTERS);
+    setRevealedVoterHash(null);
     refreshJob(selectedUploadId);
   }, [selectedUploadId, refreshJob]);
 
@@ -240,6 +250,11 @@ export default function DashboardPage() {
 
   const updateFilter = (key: keyof ColumnFilters, value: string) => {
     setColumnFilters((prev) => ({ ...prev, [key]: value }));
+    setRevealedVoterHash(null);
+  };
+
+  const toggleRevealName = (voterHash: string) => {
+    setRevealedVoterHash((current) => (current === voterHash ? null : voterHash));
   };
 
   const sortIndicator = (column: SortColumn) => {
@@ -335,6 +350,33 @@ export default function DashboardPage() {
       setMessage(error instanceof Error ? error.message : 'Failed to cancel job');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleEnrichmentTest = async () => {
+    if (!selectedUploadId) return;
+    setEnrichmentTestBusy(true);
+    setMessage(null);
+    setEnrichmentTestJson(null);
+    try {
+      const res = await fetch('/api/enrichment/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId: selectedUploadId,
+          rowIndex: enrichmentTestRowIndex,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Enrichment test failed');
+      setEnrichmentTestJson(JSON.stringify(data, null, 2));
+      setMessage(
+        `Grok OSINT test: ${data.result?.lean} (${data.result?.confidence}% confidence) — ${data.result?.enrichment?.resolution_status}`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Enrichment test failed');
+    } finally {
+      setEnrichmentTestBusy(false);
     }
   };
 
@@ -682,6 +724,40 @@ export default function DashboardPage() {
                 </div>
               </div>
             )}
+
+            <div className="rounded-xl border border-white/15 bg-black/10 p-4">
+              <h3 className="font-medium">Test Grok OSINT (single voter)</h3>
+              <p className="mt-1 text-xs opacity-70">
+                Runs live web search + lean inference on one voter without starting a full job.
+                Inspect the JSON below to see prompts, citations, and guardrail results.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label className="text-sm opacity-80" htmlFor="enrichment-row-index">
+                  Row index
+                </label>
+                <input
+                  id="enrichment-row-index"
+                  type="number"
+                  min={0}
+                  value={enrichmentTestRowIndex}
+                  onChange={(e) => setEnrichmentTestRowIndex(Number(e.target.value))}
+                  className="w-20 rounded border bg-black/20 px-2 py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleEnrichmentTest}
+                  disabled={enrichmentTestBusy || busy}
+                  className="rounded-lg border border-emerald-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                >
+                  {enrichmentTestBusy ? 'Running Grok search…' : 'Test enrichment'}
+                </button>
+              </div>
+              {enrichmentTestJson && (
+                <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-black/30 p-3 text-xs">
+                  {enrichmentTestJson}
+                </pre>
+              )}
+            </div>
           </section>
         )}
 
@@ -702,7 +778,8 @@ export default function DashboardPage() {
                     ? selectedUploadRowCount > 1000
                       ? `This upload has ${selectedUploadRowCount} rows — sort and filter re-fetch from the database.`
                       : 'Filters re-fetch from the database so you search all rows, not just what is loaded.'
-                    : `All ${resultsTotal} rows are in your browser — click column headers to sort, use filters below. No re-fetch needed.`}
+                    : `All ${resultsTotal} rows are in your browser — click column headers to sort, use filters below. No re-fetch needed.`}{' '}
+                  Voter column shows a hash; hover for a quick peek or Reveal to pin one name.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -761,7 +838,7 @@ export default function DashboardPage() {
                   <tr className="border-b border-white/20 text-left">
                     {(
                       [
-                        ['name', 'Name'],
+                        ['name', 'Voter'],
                         ['lean', 'Lean'],
                         ['confidence', 'Conf.'],
                         ['turnout', 'Turnout'],
@@ -785,7 +862,7 @@ export default function DashboardPage() {
                     <th className="py-2 pr-2">
                       <input
                         type="text"
-                        placeholder="Filter…"
+                        placeholder="Name filter…"
                         value={columnFilters.name}
                         onChange={(e) => updateFilter('name', e.target.value)}
                         className="w-full min-w-[7rem] rounded border bg-black/20 px-2 py-1 text-xs"
@@ -871,7 +948,40 @@ export default function DashboardPage() {
                 <tbody>
                   {visiblePreviewRows.map((row) => (
                     <tr key={row.voter_hash} className="border-b border-white/10">
-                      <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
+                      <td className="py-2 pr-4">
+                        {revealedVoterHash === row.voter_hash ? (
+                          <div className="flex items-center gap-2">
+                            <span>{row.raw_data?.name?.full ?? '—'}</span>
+                            <button
+                              type="button"
+                              onClick={() => setRevealedVoterHash(null)}
+                              className="rounded border border-white/20 px-1.5 py-0.5 text-xs opacity-70 hover:opacity-100"
+                              title="Hide name"
+                            >
+                              Hide
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="group/hash relative flex items-center gap-2">
+                            <span className="font-mono text-xs opacity-80">
+                              {shortHash(row.voter_hash)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleRevealName(row.voter_hash)}
+                              className="rounded border border-white/20 px-1.5 py-0.5 text-xs opacity-70 hover:opacity-100"
+                            >
+                              Reveal
+                            </button>
+                            <span
+                              role="tooltip"
+                              className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden whitespace-nowrap rounded border border-white/20 bg-black/90 px-2 py-1 text-xs font-sans shadow-lg group-hover/hash:block"
+                            >
+                              {row.raw_data?.name?.full ?? '—'}
+                            </span>
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 pr-4">{row.lean}</td>
                       <td className="py-2 pr-4">{row.confidence}</td>
                       <td className="py-2 pr-4">{row.turnout_propensity ?? '—'}</td>

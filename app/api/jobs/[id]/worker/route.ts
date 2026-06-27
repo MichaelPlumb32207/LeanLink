@@ -53,7 +53,7 @@ async function claimRows(client: PoolClient, jobId: string, userId: string, limi
 async function processRow(userId: string, row: ClaimedRow) {
   await withUserDb(userId, async (client) => {
     const record = row.raw_data;
-    const inference = inferLean(record, row.history_summary, row.ballot_favors);
+    const inference = await inferLean(record, row.history_summary, row.ballot_favors);
 
     await client.query(
       `INSERT INTO lean_results
