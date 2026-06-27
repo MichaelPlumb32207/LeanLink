@@ -60,12 +60,28 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [historyDragActive, setHistoryDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const historyInputRef = useRef<HTMLInputElement>(null);
+
+  const isHistoryFilename = (name: string) => /_H_/i.test(name);
 
   const setSelectedFile = (next: File | null) => {
     setFile(next);
     setMessage(null);
+  };
+
+  const setSelectedHistoryFile = (next: File | null) => {
+    setHistoryFile(next);
+    setMessage(null);
+  };
+
+  const handleRegistrationDrop = (dropped: File) => {
+    if (isHistoryFilename(dropped.name)) {
+      setSelectedHistoryFile(dropped);
+      return;
+    }
+    setSelectedFile(dropped);
   };
 
   const openFilePicker = () => {
@@ -261,7 +277,7 @@ export default function DashboardPage() {
               e.preventDefault();
               setDragActive(false);
               const dropped = e.dataTransfer.files?.[0];
-              if (dropped) setSelectedFile(dropped);
+              if (dropped) handleRegistrationDrop(dropped);
             }}
             className={`mb-4 cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 text-center transition ${
               dragActive
@@ -277,37 +293,71 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="mb-4 rounded-xl border border-white/20 bg-black/10 p-4">
+          <div className="mb-4">
             <h3 className="mb-2 font-medium">Voting history file (recommended)</h3>
             <input
               ref={historyInputRef}
               type="file"
               accept=".txt,text/plain"
               className="hidden"
-              onChange={(e) => setHistoryFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => setSelectedHistoryFile(e.target.files?.[0] ?? null)}
             />
-            <div className="flex flex-wrap items-center gap-3">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => historyInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  historyInputRef.current?.click();
+                }
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setHistoryDragActive(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setHistoryDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setHistoryDragActive(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setHistoryDragActive(false);
+                const dropped = e.dataTransfer.files?.[0];
+                if (dropped) setSelectedHistoryFile(dropped);
+              }}
+              className={`cursor-pointer rounded-xl border-2 border-dashed px-6 py-8 text-center transition ${
+                historyDragActive
+                  ? 'border-emerald-400 bg-emerald-500/10'
+                  : 'border-white/30 bg-black/10 hover:border-white/50 hover:bg-black/20'
+              }`}
+            >
+              <p className="font-medium">
+                {historyFile ? historyFile.name : 'Click or drag history file here'}
+              </p>
+              <p className="mt-2 text-xs opacity-70">
+                e.g. CAL_H_20250812.txt — turnout & opposition scores
+              </p>
+            </div>
+            {historyFile && (
               <button
                 type="button"
-                onClick={() => historyInputRef.current?.click()}
-                className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
+                onClick={() => {
+                  setSelectedHistoryFile(null);
+                  if (historyInputRef.current) historyInputRef.current.value = '';
+                }}
+                className="mt-2 text-sm opacity-75 hover:opacity-100"
               >
-                {historyFile ? historyFile.name : 'Choose history file'}
+                Clear history file
               </button>
-              {historyFile && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHistoryFile(null);
-                    if (historyInputRef.current) historyInputRef.current.value = '';
-                  }}
-                  className="text-sm opacity-75 hover:opacity-100"
-                >
-                  Clear history
-                </button>
-              )}
-            </div>
-            <p className="mt-2 text-xs opacity-70">e.g. CAL_H_20250812.txt — powers turnout & opposition scores</p>
+            )}
+            <p className="mt-2 text-xs opacity-60">
+              Tip: dropping a *_H_* file on the registration zone above also routes it here.
+            </p>
           </div>
 
           <div className="mb-4">
