@@ -929,7 +929,7 @@ export default function DashboardPage() {
                     enrichmentStreetViewBusy
                   }
                   className="rounded-lg border border-violet-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title="Experimental: Google Street View image + Grok vision → lean_street_view (separate from OSINT lean). Requires GOOGLE_MAPS_API_KEY."
+                  title="Experimental: Street View Static API image + Grok vision → lean_street_view. Needs GOOGLE_MAPS_API_KEY in Vercel (Street View Static API only; billing on)."
                 >
                   {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view lean test'}
                 </button>

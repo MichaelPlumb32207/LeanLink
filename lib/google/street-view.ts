@@ -31,7 +31,7 @@ export function formatResidenceAddress(residence: {
 async function streetViewMetadata(
   location: string,
   apiKey: string,
-): Promise<{ ok: boolean; status: string }> {
+): Promise<{ ok: boolean; status: string; hint?: string }> {
   const url = new URL('https://maps.googleapis.com/maps/api/streetview/metadata');
   url.searchParams.set('location', location);
   url.searchParams.set('key', apiKey);
@@ -40,8 +40,21 @@ async function streetViewMetadata(
   if (!res.ok) {
     return { ok: false, status: `http_${res.status}` };
   }
-  const data = (await res.json()) as { status?: string };
-  return { ok: data.status === 'OK', status: String(data.status ?? 'UNKNOWN') };
+  const data = (await res.json()) as { status?: string; error_message?: string };
+  const status = String(data.status ?? 'UNKNOWN');
+  let hint: string | undefined;
+  if (status === 'REQUEST_DENIED') {
+    hint =
+      'Enable Street View Static API on this key (metadata uses the same API — no separate Metadata product). Ensure billing is on and server-side keys are not HTTP-referrer restricted.';
+  } else if (status === 'OVER_QUERY_LIMIT') {
+    hint = 'Google Maps quota exceeded for this API key.';
+  } else if (status === 'ZERO_RESULTS') {
+    hint = 'No Street View panorama within ~50m of this address.';
+  }
+  if (data.error_message) {
+    hint = hint ? `${hint} Google: ${data.error_message}` : data.error_message;
+  }
+  return { ok: status === 'OK', status, hint };
 }
 
 export async function fetchStreetViewImage(
@@ -70,10 +83,11 @@ export async function fetchStreetViewImage(
   try {
     const meta = await streetViewMetadata(address, apiKey);
     if (!meta.ok) {
+      const denied = meta.status === 'REQUEST_DENIED';
       return {
-        status: 'no_imagery',
+        status: denied ? 'error' : 'no_imagery',
         address_used: address,
-        error_message: `Street View metadata: ${meta.status}`,
+        error_message: meta.hint ?? `Street View metadata: ${meta.status}`,
       };
     }
 
