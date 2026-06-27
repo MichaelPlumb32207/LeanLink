@@ -1,8 +1,14 @@
 import type { EnrichmentBundle } from '@/lib/enrichment/types';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
+import type { StreetViewContextSummary } from '@/lib/enrichment/types';
 import { buildSearchQueryPlan } from '@/lib/enrichment/query-builder';
 import { regionalMediaContextLabel } from '@/lib/enrichment/regional-media';
 import { flCountyLabel } from '@/lib/fl-counties';
+
+export interface ApifyPromptContext {
+  fetchedOsintText: string;
+  streetViewContext: StreetViewContextSummary | null;
+}
 
 const JSON_SCHEMA = `{
   "identity_resolution_status": "probable" | "ambiguous" | "none",
@@ -51,16 +57,18 @@ ${TIER_A_LEAN_SOURCES}`;
 
 export function buildSystemPrompt(mode: EnrichmentMode): string {
   const toolNote =
-    mode === 'modular-synthesize'
+    mode === 'modular-synthesize' || mode === 'apify-modular'
       ? 'You do NOT have live search tools.'
       : 'You have web_search AND x_search. Use x_search FIRST for X/Twitter username lookups from email_insights.username_variants before broad web_search.';
 
   const searchNote =
     mode === 'modular-synthesize'
       ? 'Base answers only on the provided bundle and planned queries.'
-      : mode === 'modular-targeted'
-        ? 'Use x_search + web_search but ONLY the provided query list. Maximum 4 tool calls total — prioritize: 1 social/x_search, 1 donations, 1 local media, 1 directory or civic.'
-        : 'SOCIAL-FIRST, then Tier-A lean sources (donations, local media, civic filings), then directories.';
+      : mode === 'apify-modular'
+        ? 'Apify already executed Google queries and crawled top organic pages. Synthesize ONLY from FETCHED_OSINT_TEXT and STREET_VIEW_CONTEXT below — do not invent URLs or quotes not present in fetched text.'
+        : mode === 'modular-targeted'
+          ? 'Use x_search + web_search but ONLY the provided query list. Maximum 4 tool calls total — prioritize: 1 social/x_search, 1 donations, 1 local media, 1 directory or civic.'
+          : 'SOCIAL-FIRST, then Tier-A lean sources (donations, local media, civic filings), then directories.';
 
   return `You are LeanLink, a research-only political intelligence assistant for Florida NPA voters.
 
@@ -103,21 +111,42 @@ DIRECTORY (corroborate last):
 ${plan.directory.map((q, i) => `  D${i + 1}. ${q}`).join('\n') || '  (none)'}`;
 }
 
-export function buildUserPrompt(bundle: EnrichmentBundle, mode: EnrichmentMode): string {
+export function buildUserPrompt(
+  bundle: EnrichmentBundle,
+  mode: EnrichmentMode,
+  apifyContext?: ApifyPromptContext,
+): string {
   const contact = contactForPrompt(bundle);
-  const queryPlan = formatQueryPlan(bundle);
+  const searchPlan = buildSearchQueryPlan(bundle);
+  const queryPlanText = formatQueryPlan(bundle);
   const xSearchTargets = bundle.email_insights.username_variants.slice(0, 6);
   const countyLabel = flCountyLabel(bundle.anchor.county_code);
 
+  const apifySection =
+    mode === 'apify-modular' && apifyContext
+      ? `APIFY FETCH RESULTS (already executed — your only web evidence):
+Queries run: ${searchPlan.ordered.slice(0, 8).join(' | ')}
+
+FETCHED_OSINT_TEXT:
+${apifyContext.fetchedOsintText || '(no fetch text — treat as no web evidence)'}
+
+STREET_VIEW_CONTEXT (exploratory vision — separate research arm, NOT proof of OSINT lean):
+${apifyContext.streetViewContext ? JSON.stringify(apifyContext.streetViewContext, null, 2) : '(no street view — address missing, imagery unavailable, or API unconfigured)'}
+
+Use Street View only as weak contextual hint for identity/lean when scene_summary or visible_signals align with fetched OSINT. Never label lean from Street View stereotypes alone — lean still requires explicit ideological signals in identity_matches[].signals[] from FETCHED_OSINT_TEXT.`
+      : '';
+
   const searchSection =
-    mode === 'modular-synthesize'
-      ? `PLANNED OSINT QUERIES (not executed):
-${queryPlan}
+    mode === 'apify-modular'
+      ? apifySection
+      : mode === 'modular-synthesize'
+        ? `PLANNED OSINT QUERIES (not executed):
+${queryPlanText}
 
 Without live search: identity_resolution_status should be "none" unless citing voter file only. lean must be Undetermined.`
-      : mode === 'modular-targeted'
+        : mode === 'modular-targeted'
         ? `EXECUTE IN ORDER (max 4 x_search/web_search calls — social, then Tier-A, then directory):
-${queryPlan}
+${queryPlanText}
 
 Use x_search for these X username targets first: ${xSearchTargets.length ? xSearchTargets.join(', ') : 'N/A'}`
         : `MANDATORY SEARCH ORDER:
@@ -129,7 +158,7 @@ Use x_search for these X username targets first: ${xSearchTargets.length ? xSear
 6. web_search: directories (floridaresidentsdirectory.com) to corroborate identity.
 
 QUERY PLAN:
-${queryPlan}
+${queryPlanText}
 
 x_search username targets: ${xSearchTargets.length ? xSearchTargets.join(', ') : 'none — use name+city on X'}`;
 

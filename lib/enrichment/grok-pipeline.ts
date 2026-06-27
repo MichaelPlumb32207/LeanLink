@@ -13,6 +13,7 @@ import type {
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
+import { runApifyModularPipeline } from '@/lib/enrichment/apify-pipeline';
 import {
   getXaiModel,
   xaiResponsesWithWebSearch,
@@ -189,6 +190,10 @@ export async function runEnrichmentPipeline(
   mode: EnrichmentMode = 'grok-full',
   options?: { includeDebug?: boolean },
 ): Promise<GrokPipelineResult & { debug?: GrokPipelineDebug }> {
+  if (mode === 'apify-modular') {
+    return runApifyModularPipeline(bundle, options);
+  }
+
   const queryPlan = buildSearchQueryPlan(bundle);
   const systemPrompt = buildSystemPrompt(mode);
   const userPrompt = buildUserPrompt(bundle, mode);

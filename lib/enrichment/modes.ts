@@ -1,4 +1,8 @@
-export type EnrichmentMode = 'grok-full' | 'modular-targeted' | 'modular-synthesize';
+export type EnrichmentMode =
+  | 'grok-full'
+  | 'modular-targeted'
+  | 'modular-synthesize'
+  | 'apify-modular';
 
 export const ENRICHMENT_MODES: { id: EnrichmentMode; label: string; description: string }[] = [
   {
@@ -6,6 +10,12 @@ export const ENRICHMENT_MODES: { id: EnrichmentMode; label: string; description:
     label: 'Grok social-first + x_search',
     description:
       'Social first, then donations/FEC, local media, civic filings (Tier-A lean), directories last.',
+  },
+  {
+    id: 'apify-modular',
+    label: 'Apify fetch + Grok synthesize',
+    description:
+      'Apify Google Search + page crawl, Street View exploratory vision, then Grok synthesis (no live search).',
   },
   {
     id: 'modular-targeted',
@@ -20,7 +30,12 @@ export const ENRICHMENT_MODES: { id: EnrichmentMode; label: string; description:
 ];
 
 export function parseEnrichmentMode(value: string | undefined | null): EnrichmentMode {
-  if (value === 'modular-targeted' || value === 'modular-synthesize' || value === 'grok-full') {
+  if (
+    value === 'modular-targeted' ||
+    value === 'modular-synthesize' ||
+    value === 'grok-full' ||
+    value === 'apify-modular'
+  ) {
     return value;
   }
   return 'grok-full';

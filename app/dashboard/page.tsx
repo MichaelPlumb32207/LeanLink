@@ -497,8 +497,16 @@ export default function DashboardPage() {
             : null,
         );
         const r = data.result;
+        const apifySummary =
+          data.mode === 'apify-modular' && Array.isArray(data.apify_runs)
+            ? ` · apify ${data.apify_runs.map((run: { status: string; actor_key: string }) => `${run.actor_key}:${run.status}`).join(', ')}`
+            : '';
+        const svSummary =
+          data.street_view_context?.status === 'ok'
+            ? ` · SV ${data.street_view_context.lean_street_view} (${data.street_view_context.lean_street_view_confidence}%)`
+            : '';
         setMessage(
-          `${data.mode}: identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+          `${data.mode}: identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${apifySummary}${svSummary}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
         );
       }
     } catch (error) {

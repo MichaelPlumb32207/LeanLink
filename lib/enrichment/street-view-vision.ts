@@ -212,6 +212,13 @@ export function applyExploratoryGuardrails(
     };
   }
 
+  if (payload.lean_street_view === 'Undetermined') {
+    return {
+      ...payload,
+      lean_street_view_confidence: Math.min(payload.lean_street_view_confidence, 25),
+    };
+  }
+
   return {
     ...payload,
     lean_street_view_confidence: Math.min(payload.lean_street_view_confidence, 80),

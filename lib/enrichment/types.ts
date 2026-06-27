@@ -107,6 +107,21 @@ export interface GrokInferencePayload {
   confidence?: number;
 }
 
+export interface StreetViewContextSummary {
+  status: 'ok' | 'no_imagery' | 'no_address' | 'api_unconfigured' | 'google_unconfigured' | 'error';
+  vision_mode: 'strict' | 'exploratory';
+  address_used: string | null;
+  lean_street_view: LeanLabel;
+  lean_street_view_confidence: number;
+  scene_summary: string;
+  visible_signals: string[];
+  visible_cues?: string[];
+  inference_reasoning?: string[];
+  stereotype_factors_used?: string[];
+  imagery_quality: 'clear' | 'partial' | 'obstructed' | 'none';
+  methodology_note: string;
+}
+
 export interface GrokPipelineResult {
   enrichment: EnrichmentResult;
   lean: LeanLabel;

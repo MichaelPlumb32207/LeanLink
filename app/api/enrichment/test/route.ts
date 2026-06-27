@@ -6,7 +6,15 @@ import { parseEnrichmentMode, type EnrichmentMode } from '@/lib/enrichment/modes
 import { runEnrichmentPipeline } from '@/lib/enrichment/grok-pipeline';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
+import type { ApifyPipelineResult } from '@/lib/enrichment/apify-pipeline';
+import { getApifyApiToken } from '@/lib/apify/config';
 import { getXaiApiKey } from '@/lib/xai/client';
+
+function isApifyResult(
+  result: Awaited<ReturnType<typeof runEnrichmentPipeline>>,
+): result is ApifyPipelineResult {
+  return 'apify_runs' in result && Array.isArray(result.apify_runs);
+}
 
 function formatTestResponse(
   rowId: string,
@@ -14,6 +22,8 @@ function formatTestResponse(
   mode: EnrichmentMode,
   result: Awaited<ReturnType<typeof runEnrichmentPipeline>>,
 ) {
+  const apify = isApifyResult(result) ? result : null;
+
   return {
     mode,
     voterRecordId: rowId,
@@ -21,6 +31,10 @@ function formatTestResponse(
     urls_searched: result.enrichment.citations,
     search_queries: result.enrichment.search_queries,
     usage: result.debug?.usage ?? null,
+    apify_runs: apify?.apify_runs ?? null,
+    street_view_context: apify?.street_view_context ?? null,
+    pipeline_steps: apify?.pipeline_steps ?? null,
+    fetched_text_chars: apify?.fetched_text_chars ?? null,
     result: {
       identity_resolution_status: result.enrichment.identity_resolution_status,
       identity_best_match_score: result.enrichment.identity_best_match_score,
@@ -53,11 +67,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'uploadId is required' }, { status: 400 });
     }
 
+    const mode = parseEnrichmentMode(body.mode);
+
     if (!getXaiApiKey()) {
       return NextResponse.json(
         {
           error: 'XAI_API_KEY is not configured',
           hint: 'Add XAI_API_KEY to Vercel env to run live Grok OSINT tests.',
+        },
+        { status: 503 },
+      );
+    }
+
+    const needsApify = mode === 'apify-modular' || body.compare;
+    if (needsApify && !getApifyApiToken()) {
+      return NextResponse.json(
+        {
+          error: 'APIFY_API_TOKEN is not configured',
+          hint: 'Add APIFY_API_TOKEN to Vercel env. GET /api/enrichment/apify-config lists actor overrides.',
         },
         { status: 503 },
       );
@@ -105,7 +132,12 @@ export async function POST(request: Request) {
     const bundle = buildEnrichmentBundle(row.raw_data, row.history_summary, row.ballot_favors);
 
     if (body.compare) {
-      const modes: EnrichmentMode[] = ['grok-full', 'modular-targeted', 'modular-synthesize'];
+      const modes: EnrichmentMode[] = [
+        'grok-full',
+        'apify-modular',
+        'modular-targeted',
+        'modular-synthesize',
+      ];
       const comparison: Record<string, ReturnType<typeof formatTestResponse>> = {};
       for (const mode of modes) {
         const result = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
@@ -119,7 +151,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const mode = parseEnrichmentMode(body.mode);
     const result = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
     return NextResponse.json(formatTestResponse(row.id, bundle, mode, result));
   } catch (error) {
