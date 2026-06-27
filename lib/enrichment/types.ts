@@ -29,6 +29,9 @@ export interface ContactOnFile {
 export interface SearchQueryPlanSummary {
   social: string[];
   contact: string[];
+  donations: string[];
+  local_media: string[];
+  civic_professional: string[];
   directory: string[];
   ordered: string[];
 }

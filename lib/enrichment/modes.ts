@@ -4,7 +4,8 @@ export const ENRICHMENT_MODES: { id: EnrichmentMode; label: string; description:
   {
     id: 'grok-full',
     label: 'Grok social-first + x_search',
-    description: 'Social platforms first (email usernames, phone), x_search + web_search, directories last.',
+    description:
+      'Social first, then donations/FEC, local media, civic filings (Tier-A lean), directories last.',
   },
   {
     id: 'modular-targeted',

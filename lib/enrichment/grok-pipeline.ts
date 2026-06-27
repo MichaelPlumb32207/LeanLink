@@ -211,7 +211,17 @@ export async function runEnrichmentPipeline(
       ? ['Grok-Synthesize-Only', 'Email-Insights', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
       : mode === 'modular-targeted'
         ? ['Grok-Targeted-Search', 'x_search', 'Email-Insights', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
-        : ['Grok-SocialFirst', 'x_search', 'web_search', 'Email-Insights', 'FL-Voting-History', 'FL-Voter-File'];
+        : [
+            'Grok-SocialFirst',
+            'x_search',
+            'web_search',
+            'Donation-Activism-OSINT',
+            'Local-Media-OSINT',
+            'Civic-Professional-OSINT',
+            'Email-Insights',
+            'FL-Voting-History',
+            'FL-Voter-File',
+          ];
 
   const result: GrokPipelineResult = {
     enrichment,

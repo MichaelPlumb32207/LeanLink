@@ -1,13 +1,21 @@
 import type { EnrichmentBundle } from '@/lib/enrichment/types';
+import { flCountyLabel } from '@/lib/fl-counties';
+import { regionalMediaSiteClause } from '@/lib/enrichment/regional-media';
 
 export interface SearchQueryPlan {
   /** Run first — social platforms, email usernames, x_search targets */
   social: string[];
   /** Email, phone, contact cross-reference */
   contact: string[];
+  /** FEC, state campaign finance, activism records — lean signal sources */
+  donations: string[];
+  /** Letters, op-eds, named quotes in regional press */
+  local_media: string[];
+  /** DBPR licenses, Sunbiz, public office / board service */
+  civic_professional: string[];
   /** Directories and voter-ID corroboration (last) */
   directory: string[];
-  /** Flat list for prompts (social → contact → directory) */
+  /** Flat list for prompts (social → contact → tier-A lean → directory) */
   ordered: string[];
 }
 
@@ -18,14 +26,109 @@ function pushUnique(target: string[], seen: Set<string>, query: string) {
   target.push(q);
 }
 
-/** Social-first OSINT search plan (no API cost). */
+function buildDonationQueries(
+  anchor: EnrichmentBundle['anchor'],
+  seen: Set<string>,
+  donations: string[],
+) {
+  const county = flCountyLabel(anchor.county_code);
+  const name = anchor.name_full;
+
+  pushUnique(donations, seen, `site:fec.gov "${name}" Florida`);
+  pushUnique(donations, seen, `site:fec.gov "${name}" ${anchor.city}`);
+  pushUnique(
+    donations,
+    seen,
+    `"${name}" Florida campaign contribution OR donor OR "political committee"`,
+  );
+  pushUnique(
+    donations,
+    seen,
+    `site:dos.myflorida.com "${name}" contribution OR committee`,
+  );
+  pushUnique(donations, seen, `site:opensecrets.org "${name}"`);
+  pushUnique(
+    donations,
+    seen,
+    `"${name}" ${county} (ActBlue OR WinRed OR "campaign finance")`,
+  );
+  pushUnique(
+    donations,
+    seen,
+    `"${name}" ${anchor.city} Florida (petition OR rally OR protest OR activism)`,
+  );
+}
+
+function buildLocalMediaQueries(
+  anchor: EnrichmentBundle['anchor'],
+  seen: Set<string>,
+  local_media: string[],
+) {
+  const county = flCountyLabel(anchor.county_code);
+  const name = anchor.name_full;
+  const mediaSites = regionalMediaSiteClause(anchor.county_code);
+
+  pushUnique(
+    local_media,
+    seen,
+    `"${name}" ${anchor.city} Florida (letter OR "letter to the editor" OR opinion OR editorial OR commentary)`,
+  );
+  pushUnique(
+    local_media,
+    seen,
+    `"${name}" "${county}" (${mediaSites})`,
+  );
+  pushUnique(
+    local_media,
+    seen,
+    `"${name}" ${anchor.city} (school board OR commissioner OR council OR candidate)`,
+  );
+  pushUnique(
+    local_media,
+    seen,
+    `"${name}" ${county} interview OR profile OR "guest column"`,
+  );
+}
+
+function buildCivicProfessionalQueries(
+  anchor: EnrichmentBundle['anchor'],
+  seen: Set<string>,
+  civic_professional: string[],
+) {
+  const county = flCountyLabel(anchor.county_code);
+  const name = anchor.name_full;
+
+  pushUnique(civic_professional, seen, `site:myfloridalicense.com "${name}"`);
+  pushUnique(civic_professional, seen, `site:sunbiz.org "${name}" ${anchor.city}`);
+  pushUnique(
+    civic_professional,
+    seen,
+    `"${name}" ${county} (nonprofit OR "board of directors" OR trustee OR officer)`,
+  );
+  pushUnique(
+    civic_professional,
+    seen,
+    `"${name}" ${anchor.city} Florida (HOA OR "chamber of commerce" OR rotary OR "civic club")`,
+  );
+  pushUnique(
+    civic_professional,
+    seen,
+    `"${name}" ${county} ("planning board" OR "zoning" OR "public meeting" OR commissioner)`,
+  );
+}
+
+/** Social-first OSINT search plan with Tier-A lean signal sources (no API cost). */
 export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan {
   const { anchor, contact_on_file, email_insights } = bundle;
   const social: string[] = [];
   const contact: string[] = [];
+  const donations: string[] = [];
+  const local_media: string[] = [];
+  const civic_professional: string[] = [];
   const directory: string[] = [];
   const seen = new Set<string>();
 
+  const county = flCountyLabel(anchor.county_code);
   const usernames = email_insights?.username_variants ?? [];
   const maiden = email_insights?.possible_maiden_or_alias;
 
@@ -66,17 +169,31 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
     pushUnique(contact, seen, `"${contact_on_file.phone}" ${anchor.city}`);
   }
 
+  buildDonationQueries(anchor, seen, donations);
+  buildLocalMediaQueries(anchor, seen, local_media);
+  buildCivicProfessionalQueries(anchor, seen, civic_professional);
+
   pushUnique(directory, seen, `site:floridaresidentsdirectory.com ${anchor.voter_id}`);
   pushUnique(directory, seen, `"${anchor.name_full}" ${anchor.city} Florida`);
-  pushUnique(directory, seen, `"${anchor.name_full}" Calhoun County FL`);
+  pushUnique(directory, seen, `"${anchor.name_full}" ${county}`);
 
-  const ordered = [...social, ...contact, ...directory];
+  const ordered = [
+    ...social,
+    ...contact,
+    ...donations,
+    ...local_media,
+    ...civic_professional,
+    ...directory,
+  ];
 
   return {
     social,
     contact,
+    donations,
+    local_media,
+    civic_professional,
     directory,
-    ordered: ordered.slice(0, 18),
+    ordered: ordered.slice(0, 28),
   };
 }
 

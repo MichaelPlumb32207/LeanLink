@@ -17,6 +17,7 @@ import {
   sortResultRows,
 } from '@/lib/results-query';
 import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
+import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { CALHOUN_SUGGESTED_TEST_ROWS } from '@/lib/enrichment/suggested-test-rows';
 
 type Branding = 'matrix' | 'red' | 'blue';
@@ -89,6 +90,8 @@ export default function DashboardPage() {
   const [enrichmentTestBusy, setEnrichmentTestBusy] = useState(false);
   const [enrichmentTestRowIndex, setEnrichmentTestRowIndex] = useState(0);
   const [enrichmentTestMode, setEnrichmentTestMode] = useState<EnrichmentMode>('grok-full');
+  const [enrichmentScorecard, setEnrichmentScorecard] = useState<EnrichmentScorecard | null>(null);
+  const [enrichmentScorecardBusy, setEnrichmentScorecardBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -355,6 +358,34 @@ export default function DashboardPage() {
       setMessage(error instanceof Error ? error.message : 'Failed to cancel job');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleEnrichmentScorecard = async () => {
+    if (!selectedUploadId) return;
+    setEnrichmentScorecardBusy(true);
+    setEnrichmentScorecard(null);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/enrichment/scorecard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId: selectedUploadId,
+          mode: enrichmentTestMode,
+        }),
+      });
+      const data = (await res.json()) as EnrichmentScorecard & { error?: string; hint?: string };
+      if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Scorecard failed');
+      setEnrichmentScorecard(data);
+      const m = data.metrics;
+      setMessage(
+        `Scorecard (${data.mode}): ${data.completed}/${data.row_count} rows · identity probable ${m.identity_probable_pct}% · social ${m.social_found_pct}% · lean labeled ${m.lean_labeled_pct}%${m.total_cost_usd !== null ? ` · $${m.total_cost_usd.toFixed(4)} total` : ''}`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Scorecard failed');
+    } finally {
+      setEnrichmentScorecardBusy(false);
     }
   };
 
@@ -820,7 +851,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => handleEnrichmentTest(false)}
-                  disabled={enrichmentTestBusy || busy}
+                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
                   className="rounded-lg border border-emerald-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                 >
                   {enrichmentTestBusy ? 'Running…' : 'Test enrichment'}
@@ -828,13 +859,122 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => handleEnrichmentTest(true)}
-                  disabled={enrichmentTestBusy || busy}
+                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
                   className="rounded-lg border border-amber-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                   title="Runs all 3 modes on this voter (~3× cost)"
                 >
                   Compare all modes
                 </button>
+                <button
+                  type="button"
+                  onClick={handleEnrichmentScorecard}
+                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
+                  className="rounded-lg border border-sky-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                  title={`Runs ${CALHOUN_SUGGESTED_TEST_ROWS.length} curated Calhoun rows in the selected mode (~several minutes, ~$0.30–0.50 at grok-full rates)`}
+                >
+                  {enrichmentScorecardBusy
+                    ? 'Running scorecard…'
+                    : `Run scorecard (${CALHOUN_SUGGESTED_TEST_ROWS.length} rows)`}
+                </button>
               </div>
+              {enrichmentScorecard && (
+                <div className="mt-4 rounded-lg border border-white/15 bg-black/20 p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h4 className="text-sm font-medium">
+                      POC scorecard · {enrichmentScorecard.mode} · {enrichmentScorecard.completed}/
+                      {enrichmentScorecard.row_count} completed
+                      {enrichmentScorecard.failed > 0
+                        ? ` · ${enrichmentScorecard.failed} failed`
+                        : ''}
+                    </h4>
+                    {enrichmentScorecard.metrics.total_cost_usd !== null && (
+                      <span className="text-xs opacity-70">
+                        Total ${enrichmentScorecard.metrics.total_cost_usd.toFixed(4)}
+                        {enrichmentScorecard.metrics.extrapolated_cost_per_10k !== null &&
+                          ` · ~$${enrichmentScorecard.metrics.extrapolated_cost_per_10k.toLocaleString()}/10k`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                    {(
+                      [
+                        ['Identity probable', enrichmentScorecard.metrics.identity_probable_pct],
+                        ['Social found', enrichmentScorecard.metrics.social_found_pct],
+                        ['Lean labeled', enrichmentScorecard.metrics.lean_labeled_pct],
+                        ['Lean signals', enrichmentScorecard.metrics.lean_signals_pct],
+                        [
+                          'Median cost',
+                          enrichmentScorecard.metrics.median_cost_usd !== null
+                            ? `$${enrichmentScorecard.metrics.median_cost_usd.toFixed(4)}`
+                            : '—',
+                        ],
+                        [
+                          'Mean cost',
+                          enrichmentScorecard.metrics.mean_cost_usd !== null
+                            ? `$${enrichmentScorecard.metrics.mean_cost_usd.toFixed(4)}`
+                            : '—',
+                        ],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-2 text-center"
+                      >
+                        <div className="text-lg font-semibold tabular-nums">
+                          {typeof value === 'number' ? `${value}%` : value}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wide opacity-60">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-white/10 opacity-70">
+                          <th className="py-1.5 pr-2">Row</th>
+                          <th className="py-1.5 pr-2">Scenario</th>
+                          <th className="py-1.5 pr-2">Identity</th>
+                          <th className="py-1.5 pr-2">Social</th>
+                          <th className="py-1.5 pr-2">Lean</th>
+                          <th className="py-1.5 pr-2">Signals</th>
+                          <th className="py-1.5 pr-2 text-right">Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {enrichmentScorecard.rows.map((row) => (
+                          <tr
+                            key={row.rowIndex}
+                            className="border-b border-white/5 hover:bg-white/5"
+                            title={row.note}
+                          >
+                            <td className="py-1.5 pr-2 tabular-nums">{row.rowIndex}</td>
+                            <td className="py-1.5 pr-2">{row.scenario}</td>
+                            <td className="py-1.5 pr-2">
+                              {row.error ? (
+                                <span className="text-red-300">{row.error}</span>
+                              ) : (
+                                <>
+                                  {row.identity_resolution_status}{' '}
+                                  {row.identity_best_match_score !== null &&
+                                    `(${Math.round(row.identity_best_match_score * 100)}%)`}
+                                </>
+                              )}
+                            </td>
+                            <td className="py-1.5 pr-2">{row.social_found ? 'yes' : 'no'}</td>
+                            <td className="py-1.5 pr-2">{row.lean ?? '—'}</td>
+                            <td className="py-1.5 pr-2">
+                              {row.lean_signals_found ? 'yes' : 'no'}
+                            </td>
+                            <td className="py-1.5 pr-2 text-right tabular-nums">
+                              {row.cost_usd !== null ? `$${row.cost_usd.toFixed(4)}` : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               {enrichmentTestCost && (
                 <p className="mt-3 text-xs opacity-80">
                   <span className="font-medium">This request:</span> {enrichmentTestCost}
