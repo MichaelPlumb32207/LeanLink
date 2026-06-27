@@ -12,7 +12,17 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
 
     const { rows } = await withUserDb(userEmail, (client) =>
       client.query(
-        `SELECT r.lean, r.confidence, r.evidence, r.matched_social, r.audit_log, r.voter_hash, vr.raw_data
+        `SELECT r.lean,
+                r.confidence,
+                r.turnout_propensity,
+                r.turnout_score,
+                r.primary_engagement,
+                r.opposition_mobilization_score,
+                r.evidence,
+                r.matched_social,
+                r.audit_log,
+                r.voter_hash,
+                vr.raw_data
          FROM lean_results r
          JOIN voter_records vr ON vr.id = r.voter_record_id
          WHERE r.upload_id = $1 AND r.user_id = $2
@@ -22,7 +32,18 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
     );
 
     if (format === 'csv') {
-      const header = ['voter_hash', 'lean', 'confidence', 'city', 'precinct', 'evidence'];
+      const header = [
+        'voter_hash',
+        'lean',
+        'lean_confidence',
+        'turnout_propensity',
+        'turnout_score',
+        'primary_engagement',
+        'opposition_mobilization_score',
+        'city',
+        'precinct',
+        'evidence',
+      ];
       const lines = rows.map((row) => {
         const raw = row.raw_data as { residence?: { city?: string }; precinct?: string };
         const evidence = Array.isArray(row.evidence)
@@ -32,6 +53,10 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
           row.voter_hash,
           row.lean,
           row.confidence,
+          row.turnout_propensity ?? '',
+          row.turnout_score ?? '',
+          row.primary_engagement ?? '',
+          row.opposition_mobilization_score ?? '',
           raw?.residence?.city ?? '',
           raw?.precinct ?? '',
           `"${String(evidence).replaceAll('"', '""')}"`,

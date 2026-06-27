@@ -10,8 +10,12 @@ type Upload = {
   filename: string;
   row_count: number;
   status: string;
+  history_filename?: string | null;
+  ballot_favors?: string | null;
   created_at: string;
 };
+
+type BallotFavors = 'south' | 'north';
 
 type Job = {
   id: string;
@@ -25,6 +29,9 @@ type LeanResult = {
   voter_hash: string;
   lean: string;
   confidence: number;
+  turnout_propensity?: string;
+  primary_engagement?: string;
+  opposition_mobilization_score?: number;
   evidence: string[];
   raw_data?: { name?: { full?: string }; residence?: { city?: string } };
 };
@@ -39,6 +46,8 @@ export default function DashboardPage() {
   const { data: session, status } = useSession();
   const [branding, setBranding] = useState<Branding>('matrix');
   const [file, setFile] = useState<File | null>(null);
+  const [historyFile, setHistoryFile] = useState<File | null>(null);
+  const [ballotFavors, setBallotFavors] = useState<BallotFavors>('south');
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -47,6 +56,7 @@ export default function DashboardPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const historyInputRef = useRef<HTMLInputElement>(null);
 
   const setSelectedFile = (next: File | null) => {
     setFile(next);
@@ -118,10 +128,17 @@ export default function DashboardPage() {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('ballotFavors', ballotFavors);
+      if (historyFile) form.append('historyFile', historyFile);
       const res = await fetch('/api/uploads', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
-      setMessage(`Uploaded ${data.rowCount} NPA active voters.`);
+      const historyNote = data.historyAttached
+        ? ` History attached (${data.votersWithHistory} voters matched).`
+        : '';
+      setMessage(
+        `Uploaded ${data.rowCount} NPA active voters.${historyNote} Ballot favors ${data.ballotFavors}.`,
+      );
       setSelectedUploadId(data.uploadId);
       await refreshUploads();
     } catch (error) {
@@ -238,9 +255,64 @@ export default function DashboardPage() {
               {file ? file.name : 'Click to choose a file or drag it here'}
             </p>
             <p className="mt-2 text-sm opacity-75">
-              Florida county extract · .txt or .csv · e.g. CAL_20250812.txt
+              Florida registration extract · e.g. CAL_20250812.txt
             </p>
           </div>
+
+          <div className="mb-4 rounded-xl border border-white/20 bg-black/10 p-4">
+            <h3 className="mb-2 font-medium">Voting history file (recommended)</h3>
+            <input
+              ref={historyInputRef}
+              type="file"
+              accept=".txt,text/plain"
+              className="hidden"
+              onChange={(e) => setHistoryFile(e.target.files?.[0] ?? null)}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => historyInputRef.current?.click()}
+                className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
+              >
+                {historyFile ? historyFile.name : 'Choose history file'}
+              </button>
+              {historyFile && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryFile(null);
+                    if (historyInputRef.current) historyInputRef.current.value = '';
+                  }}
+                  className="text-sm opacity-75 hover:opacity-100"
+                >
+                  Clear history
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs opacity-70">e.g. CAL_H_20250812.txt — powers turnout & opposition scores</p>
+          </div>
+
+          <div className="mb-4">
+            <h3 className="mb-2 font-medium">Ballot / contact scenario</h3>
+            <p className="mb-2 text-xs opacity-70">
+              If outreach favors south, north-leaning voters get higher opposition mobilization scores.
+            </p>
+            <div className="flex gap-2">
+              {(['south', 'north'] as BallotFavors[]).map((side) => (
+                <button
+                  key={side}
+                  type="button"
+                  onClick={() => setBallotFavors(side)}
+                  className={`rounded-lg px-4 py-2 text-sm ${
+                    ballotFavors === side ? 'bg-white/20' : 'bg-black/20'
+                  }`}
+                >
+                  Favors {side}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={handleUpload}
@@ -280,7 +352,9 @@ export default function DashboardPage() {
               >
                 <div className="font-medium">{upload.filename}</div>
                 <div className="text-sm opacity-80">
-                  {upload.row_count} rows · {upload.status} ·{' '}
+                  {upload.row_count} rows · {upload.status}
+                  {upload.history_filename ? ` · history: ${upload.history_filename}` : ''}
+                  {upload.ballot_favors ? ` · ballot favors ${upload.ballot_favors}` : ''} ·{' '}
                   {new Date(upload.created_at).toLocaleString()}
                 </div>
               </button>
@@ -340,18 +414,22 @@ export default function DashboardPage() {
               <thead>
                 <tr className="border-b border-white/20 text-left">
                   <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">City</th>
                   <th className="py-2 pr-4">Lean</th>
-                  <th className="py-2 pr-4">Confidence</th>
+                  <th className="py-2 pr-4">Conf.</th>
+                  <th className="py-2 pr-4">Turnout</th>
+                  <th className="py-2 pr-4">Primary</th>
+                  <th className="py-2 pr-4">Opp. score</th>
                 </tr>
               </thead>
               <tbody>
                 {results.slice(0, 100).map((row) => (
                   <tr key={row.voter_hash} className="border-b border-white/10">
                     <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
-                    <td className="py-2 pr-4">{row.raw_data?.residence?.city ?? '—'}</td>
                     <td className="py-2 pr-4">{row.lean}</td>
                     <td className="py-2 pr-4">{row.confidence}</td>
+                    <td className="py-2 pr-4">{row.turnout_propensity ?? '—'}</td>
+                    <td className="py-2 pr-4">{row.primary_engagement ?? '—'}</td>
+                    <td className="py-2 pr-4">{row.opposition_mobilization_score ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

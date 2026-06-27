@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import { withUserDb } from '@/lib/db';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
-import {
-  getWorkerDeadlineMs,
-  mockInferLean,
-  triggerWorker,
-  WORKER_BATCH_CLAIM_SIZE,
-} from '@/lib/job-runner';
+import type { VoterHistorySummary } from '@/lib/fl-voter-history';
+import type { BallotFavors } from '@/lib/fl-voter-history';
+import { inferLean } from '@/lib/inference';
+import { getWorkerDeadlineMs, triggerWorker, WORKER_BATCH_CLAIM_SIZE } from '@/lib/job-runner';
 
 export const maxDuration = 800;
 
@@ -16,6 +14,8 @@ type ClaimedRow = {
   raw_data: ParsedFlVoterRecord;
   voter_hash: string;
   upload_id: string;
+  history_summary: VoterHistorySummary | null;
+  ballot_favors: BallotFavors;
 };
 
 function isAuthorized(request: Request): boolean {
@@ -26,19 +26,22 @@ function isAuthorized(request: Request): boolean {
 
 async function claimRows(client: PoolClient, jobId: string, userId: string, limit: number) {
   const { rows } = await client.query<ClaimedRow>(
-    `UPDATE voter_records
-     SET status = 'processing', updated_at = NOW()
-     WHERE id IN (
-       SELECT id
-       FROM voter_records
-       WHERE upload_id = (SELECT upload_id FROM processing_jobs WHERE id = $1 AND user_id = $2)
-         AND user_id = $2
-         AND status = 'pending'
-       ORDER BY row_index
+    `WITH claimed AS (
+       SELECT vr.id
+       FROM voter_records vr
+       WHERE vr.upload_id = (SELECT upload_id FROM processing_jobs WHERE id = $1 AND user_id = $2)
+         AND vr.user_id = $2
+         AND vr.status = 'pending'
+       ORDER BY vr.row_index
        LIMIT $3
-       FOR UPDATE SKIP LOCKED
+       FOR UPDATE OF vr SKIP LOCKED
      )
-     RETURNING id, raw_data, voter_hash, upload_id`,
+     UPDATE voter_records vr
+     SET status = 'processing', updated_at = NOW()
+     FROM claimed
+     JOIN voter_uploads u ON u.id = vr.upload_id
+     WHERE vr.id = claimed.id
+     RETURNING vr.id, vr.raw_data, vr.voter_hash, vr.upload_id, vr.history_summary, u.ballot_favors`,
     [jobId, userId, limit],
   );
   return rows;
@@ -47,13 +50,23 @@ async function claimRows(client: PoolClient, jobId: string, userId: string, limi
 async function processRow(userId: string, row: ClaimedRow) {
   await withUserDb(userId, async (client) => {
     const record = row.raw_data;
-    const inference = mockInferLean(record);
+    const inference = inferLean(record, row.history_summary, row.ballot_favors);
 
     await client.query(
       `INSERT INTO lean_results
-         (upload_id, voter_record_id, user_id, voter_hash, lean, confidence, evidence, matched_social, audit_log)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (voter_record_id) DO NOTHING`,
+         (upload_id, voter_record_id, user_id, voter_hash, lean, confidence, evidence, matched_social, audit_log,
+          turnout_propensity, turnout_score, primary_engagement, opposition_mobilization_score)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       ON CONFLICT (voter_record_id) DO UPDATE SET
+         lean = EXCLUDED.lean,
+         confidence = EXCLUDED.confidence,
+         evidence = EXCLUDED.evidence,
+         matched_social = EXCLUDED.matched_social,
+         audit_log = EXCLUDED.audit_log,
+         turnout_propensity = EXCLUDED.turnout_propensity,
+         turnout_score = EXCLUDED.turnout_score,
+         primary_engagement = EXCLUDED.primary_engagement,
+         opposition_mobilization_score = EXCLUDED.opposition_mobilization_score`,
       [
         row.upload_id,
         row.id,
@@ -64,6 +77,10 @@ async function processRow(userId: string, row: ClaimedRow) {
         JSON.stringify(inference.evidence),
         JSON.stringify(inference.matched_social),
         JSON.stringify(inference.audit),
+        inference.turnout_propensity,
+        inference.turnout_score,
+        inference.primary_engagement,
+        inference.opposition_mobilization_score,
       ],
     );
 

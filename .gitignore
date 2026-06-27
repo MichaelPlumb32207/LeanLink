@@ -55,6 +55,7 @@ Thumbs.db
 
 # Florida voter extracts — PII; keep local only, never push to GitHub
 CAL_*.txt
+CAL_H_*.txt
 *_H_*.txt
 samples/*.txt
 !samples/.gitkeep
