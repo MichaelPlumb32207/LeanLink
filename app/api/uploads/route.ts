@@ -4,7 +4,7 @@ import { withUserDb } from '@/lib/db';
 import { parseFlVoterFile, DEFAULT_LEANLINK_FILTER } from '@/lib/fl-voter-registration';
 import { hashVoterPii } from '@/lib/hash';
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   try {
@@ -35,20 +35,28 @@ export async function POST(request: Request) {
         [userEmail, file.name, records.length],
       );
       const uploadId = uploadRes.rows[0].id;
+      const batchSize = 100;
 
-      for (let i = 0; i < records.length; i++) {
-        const record = records[i];
-        const voterHash = hashVoterPii({
-          voterId: record.voterId,
-          name: record.name.full,
-          address: record.residence.full,
+      for (let start = 0; start < records.length; start += batchSize) {
+        const chunk = records.slice(start, start + batchSize);
+        const values: unknown[] = [];
+        const placeholders = chunk.map((record, offset) => {
+          const i = start + offset;
+          const voterHash = hashVoterPii({
+            voterId: record.voterId,
+            name: record.name.full,
+            address: record.residence.full,
+          });
+          const base = values.length;
+          values.push(uploadId, userEmail, i, JSON.stringify(record), voterHash);
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, 'pending')`;
         });
 
         await client.query(
           `INSERT INTO voter_records
              (upload_id, user_id, row_index, raw_data, voter_hash, status)
-           VALUES ($1, $2, $3, $4, $5, 'pending')`,
-          [uploadId, userEmail, i, JSON.stringify(record), voterHash],
+           VALUES ${placeholders.join(', ')}`,
+          values,
         );
       }
 
@@ -61,7 +69,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     console.error('Upload failed', error);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    const detail = error instanceof Error ? error.message : 'Upload failed';
+    return NextResponse.json({ error: detail }, { status: 500 });
   }
 }
 

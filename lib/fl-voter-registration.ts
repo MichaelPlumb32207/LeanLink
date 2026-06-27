@@ -114,11 +114,16 @@ function buildResidence(row: string[]) {
   return { line1, line2, city, state, zip, full };
 }
 
-export function parseFlVoterLine(line: string): ParsedFlVoterRecord | null {
-  const trimmed = line.trim();
-  if (!trimmed) return null;
+function normalizeLine(line: string): string {
+  // Do not use trim() — it strips trailing tab fields (empty columns at end of row).
+  return line.replace(/\r$/, '').replace(/\n$/, '');
+}
 
-  const row = trimmed.split('\t');
+export function parseFlVoterLine(line: string): ParsedFlVoterRecord | null {
+  const normalized = normalizeLine(line);
+  if (!normalized) return null;
+
+  const row = normalized.split('\t');
   if (row.length !== FL_VOTER_FIELD_COUNT) {
     throw new Error(`Expected ${FL_VOTER_FIELD_COUNT} tab fields, got ${row.length}`);
   }

@@ -120,7 +120,7 @@ export default function DashboardPage() {
       form.append('file', file);
       const res = await fetch('/api/uploads', { method: 'POST', body: form });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      if (!res.ok) throw new Error(data.error ?? `Upload failed (${res.status})`);
       setMessage(`Uploaded ${data.rowCount} NPA active voters.`);
       setSelectedUploadId(data.uploadId);
       await refreshUploads();
