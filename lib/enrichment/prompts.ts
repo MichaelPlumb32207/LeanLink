@@ -1,13 +1,13 @@
 import type { EnrichmentBundle } from '@/lib/enrichment/types';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
-import { buildSearchQueries } from '@/lib/enrichment/query-builder';
+import { buildSearchQueryPlan } from '@/lib/enrichment/query-builder';
 
 const JSON_SCHEMA = `{
   "identity_resolution_status": "probable" | "ambiguous" | "none",
   "identity_best_match_score": 0.0 to 1.0,
   "identity_matches": [
     {
-      "platform": "web|x|linkedin|facebook|directory|other",
+      "platform": "web|x|linkedin|facebook|instagram|directory|other",
       "url": "https://...",
       "match_score": 0.0 to 1.0,
       "match_reasons": ["..."],
@@ -28,23 +28,29 @@ const SHARED_RULES = `STRICT RULES:
 - Voter is NPA — party registration is not available.
 - Voting history primary participation = engagement ONLY, not party lean.
 - SEPARATE identity resolution from lean inference:
-  * identity_resolution_status = whether you found the RIGHT PERSON in public records/web (directories count).
-  * lean = ideological label ONLY when identity_matches contain explicit ideological signals.
-- Directory / property / voter-ID confirmations count toward identity — put them in identity_matches even if signals[] is empty.
-- If identity probable but NO ideological signals: lean MUST be "Undetermined", lean_confidence <= 35, lean_signals_found = false.
+  * identity_resolution_status = whether you found the RIGHT PERSON (social profile OR directory).
+  * Social profile match (facebook.com/..., x.com/..., linkedin.com/in/..., instagram.com/...) is HIGH value — prefer over directory when contact info aligns.
+  * lean = ideological label ONLY when identity_matches contain explicit ideological signals in signals[].
+- If identity probable via social/directory but NO ideological signals: lean MUST be "Undetermined", lean_confidence <= 35, lean_signals_found = false.
 - If multiple ambiguous personas: identity_resolution_status = "ambiguous"; lean usually Undetermined.
 - Return ONLY valid JSON — no markdown fences.`;
 
 export function buildSystemPrompt(mode: EnrichmentMode): string {
+  const toolNote =
+    mode === 'modular-synthesize'
+      ? 'You do NOT have live search tools.'
+      : 'You have web_search AND x_search. Use x_search FIRST for X/Twitter username lookups from email_insights.username_variants before broad web_search.';
+
   const searchNote =
     mode === 'modular-synthesize'
-      ? 'You do NOT have live web search. Base answers only on the provided bundle and planned queries.'
+      ? 'Base answers only on the provided bundle and planned queries.'
       : mode === 'modular-targeted'
-        ? 'Use live web search but ONLY the provided query list, maximum 3 searches total.'
-        : 'Use live web search to find public personas and signals.';
+        ? 'Use x_search + web_search but ONLY the provided query list. Maximum 4 tool calls total.'
+        : 'SOCIAL-FIRST: search Facebook, X, LinkedIn, Instagram using email username variants and phone BEFORE directories.';
 
   return `You are LeanLink, a research-only political intelligence assistant for Florida NPA voters.
 
+${toolNote}
 ${searchNote}
 
 ${SHARED_RULES}`;
@@ -61,24 +67,43 @@ function contactForPrompt(bundle: EnrichmentBundle) {
   };
 }
 
+function formatQueryPlan(bundle: EnrichmentBundle): string {
+  const plan = buildSearchQueryPlan(bundle);
+  return `SOCIAL (run first — use x_search for username variants on X):
+${plan.social.map((q, i) => `  S${i + 1}. ${q}`).join('\n') || '  (none)'}
+
+CONTACT:
+${plan.contact.map((q, i) => `  C${i + 1}. ${q}`).join('\n') || '  (none)'}
+
+DIRECTORY (corroborate last):
+${plan.directory.map((q, i) => `  D${i + 1}. ${q}`).join('\n') || '  (none)'}`;
+}
+
 export function buildUserPrompt(bundle: EnrichmentBundle, mode: EnrichmentMode): string {
-  const queries = buildSearchQueries(bundle);
   const contact = contactForPrompt(bundle);
+  const queryPlan = formatQueryPlan(bundle);
+  const xSearchTargets = bundle.email_insights.username_variants.slice(0, 6);
 
   const searchSection =
     mode === 'modular-synthesize'
-      ? `PLANNED OSINT QUERIES (not executed — no live search in this mode):
-${queries.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+      ? `PLANNED OSINT QUERIES (not executed):
+${queryPlan}
 
-Without live search you cannot confirm identity. Set identity_resolution_status to "none" unless the voter file itself is cited. lean must be Undetermined.`
+Without live search: identity_resolution_status should be "none" unless citing voter file only. lean must be Undetermined.`
       : mode === 'modular-targeted'
-        ? `EXECUTE THESE SEARCHES IN ORDER (stop after 3 searches max; do not invent extra queries):
-${queries.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+        ? `EXECUTE IN ORDER (social → contact → directory; max 4 x_search/web_search calls):
+${queryPlan}
 
-Use phone_formatted and phone_search_variants when searching phone numbers.`
-        : `Search for public online presence (directories, social, LinkedIn, X, public Facebook, local news).
-Prioritize: voter ID on floridaresidentsdirectory.com, name+city+FL, phone/email if on file.
-Use phone_formatted and phone_search_variants for phone searches.`;
+Use x_search for these X username targets first: ${xSearchTargets.length ? xSearchTargets.join(', ') : 'N/A'}`
+        : `MANDATORY SEARCH ORDER:
+1. x_search: look up X/Twitter accounts for email_insights.username_variants${bundle.email_insights.possible_maiden_or_alias ? ` and maiden/alias "${bundle.email_insights.possible_maiden_or_alias}"` : ''}.
+2. web_search: Facebook, Instagram, LinkedIn profiles using email local-part, phone, and name — BEFORE directories.
+3. web_search: directories (floridaresidentsdirectory.com) only to corroborate identity.
+
+QUERY PLAN:
+${queryPlan}
+
+x_search username targets: ${xSearchTargets.length ? xSearchTargets.join(', ') : 'none — use name+city on X'}`;
 
   return `Research this Florida NPA voter, then return JSON.
 
@@ -87,6 +112,9 @@ ${JSON.stringify(bundle.anchor, null, 2)}
 
 CONTACT ON FILE:
 ${JSON.stringify(contact, null, 2)}
+
+EMAIL INSIGHTS (use for social username / maiden-name search):
+${JSON.stringify(bundle.email_insights, null, 2)}
 
 VOTING HISTORY (behavioral — NOT ideological):
 ${JSON.stringify(bundle.history, null, 2)}

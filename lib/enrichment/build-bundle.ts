@@ -1,6 +1,7 @@
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { summarizeVoterHistory } from '@/lib/fl-voter-history';
+import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { normalizePhone, phoneSearchVariants } from '@/lib/enrichment/normalize';
 import type { EnrichmentBundle, HistoryContext } from '@/lib/enrichment/types';
 
@@ -45,6 +46,7 @@ export function buildEnrichmentBundle(
       phone_raw: record.phone,
       phone_search_variants: phoneSearchVariants(record.phone),
     },
+    email_insights: parseEmailInsights(record.email, record.name.full),
     history,
     ballot_favors: ballotFavors,
   };

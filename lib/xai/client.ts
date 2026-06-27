@@ -5,6 +5,7 @@ export interface XaiResponsesOptions {
   systemPrompt: string;
   userPrompt: string;
   enableWebSearch?: boolean;
+  enableXSearch?: boolean;
 }
 
 export interface XaiUsageSummary {
@@ -14,6 +15,7 @@ export interface XaiUsageSummary {
   cost_usd_ticks: number;
   cost_usd: number;
   web_search_calls: number;
+  x_search_calls: number;
 }
 
 export interface XaiResponsesResult {
@@ -56,7 +58,7 @@ export function extractWebSearchUrls(data: unknown): string[] {
     if (!item || typeof item !== 'object') continue;
     const o = item as Record<string, unknown>;
 
-    if (o.type === 'web_search_call') {
+    if (o.type === 'web_search_call' || o.type === 'x_search_call') {
       const action = o.action as Record<string, unknown> | undefined;
       if (action && Array.isArray(action.sources)) {
         for (const src of action.sources) {
@@ -64,6 +66,9 @@ export function extractWebSearchUrls(data: unknown): string[] {
             addUniqueUrl(urls, seen, (src as { url: unknown }).url);
           }
         }
+      }
+      if (action && typeof action.url === 'string') {
+        addUniqueUrl(urls, seen, action.url);
       }
     }
 
@@ -103,9 +108,8 @@ export function extractUsageSummary(data: unknown): XaiUsageSummary | null {
     total_tokens: Number(u.total_tokens ?? 0),
     cost_usd_ticks: ticks,
     cost_usd: ticks / TICKS_PER_USD,
-    web_search_calls: Number(
-      toolDetails?.web_search_calls ?? u.num_server_side_tools_used ?? 0,
-    ),
+    web_search_calls: Number(toolDetails?.web_search_calls ?? 0),
+    x_search_calls: Number(toolDetails?.x_search_calls ?? 0),
   };
 }
 
@@ -175,8 +179,15 @@ export async function xaiResponsesWithWebSearch(
     ],
   };
 
+  const tools: Record<string, string>[] = [];
   if (options.enableWebSearch !== false) {
-    body.tools = [{ type: 'web_search' }];
+    tools.push({ type: 'web_search' });
+  }
+  if (options.enableXSearch) {
+    tools.push({ type: 'x_search' });
+  }
+  if (tools.length > 0) {
+    body.tools = tools;
   }
 
   const response = await fetch(`${XAI_BASE_URL}/responses`, {

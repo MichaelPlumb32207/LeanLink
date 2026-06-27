@@ -1,5 +1,8 @@
 import type { BallotFavors } from '@/lib/fl-voter-history';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
+import type { EmailInsights } from '@/lib/enrichment/email-insights';
+
+export type { EmailInsights };
 
 export type LeanLabel = 'Left' | 'Right' | 'Independent' | 'Undetermined';
 
@@ -21,6 +24,13 @@ export interface ContactOnFile {
   phone?: string | null;
   phone_raw?: string | null;
   phone_search_variants?: string[];
+}
+
+export interface SearchQueryPlanSummary {
+  social: string[];
+  contact: string[];
+  directory: string[];
+  ordered: string[];
 }
 
 export interface HistoryContext {
@@ -55,12 +65,14 @@ export interface EnrichmentResult {
   search_summary: string;
   citations: string[];
   search_queries: string[];
+  search_query_plan?: SearchQueryPlanSummary;
   pipeline_mode: EnrichmentMode;
 }
 
 export interface EnrichmentBundle {
   anchor: VoterAnchor;
   contact_on_file: ContactOnFile;
+  email_insights: EmailInsights;
   history: HistoryContext;
   ballot_favors: BallotFavors;
 }

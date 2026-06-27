@@ -3,8 +3,8 @@ export type EnrichmentMode = 'grok-full' | 'modular-targeted' | 'modular-synthes
 export const ENRICHMENT_MODES: { id: EnrichmentMode; label: string; description: string }[] = [
   {
     id: 'grok-full',
-    label: 'Grok full (open search)',
-    description: 'Agentic live web search — highest cost, current default.',
+    label: 'Grok social-first + x_search',
+    description: 'Social platforms first (email usernames, phone), x_search + web_search, directories last.',
   },
   {
     id: 'modular-targeted',

@@ -398,7 +398,7 @@ export default function DashboardPage() {
         const costUsd = data.usage?.cost_usd;
         setEnrichmentTestCost(
           typeof costUsd === 'number'
-            ? `$${costUsd.toFixed(4)} · ${data.usage?.web_search_calls ?? '?'} searches · ${data.usage?.total_tokens ?? '?'} tokens · mode ${data.mode}`
+            ? `$${costUsd.toFixed(4)} · web ${data.usage?.web_search_calls ?? 0} · x ${data.usage?.x_search_calls ?? 0} · ${data.usage?.total_tokens ?? '?'} tok · ${data.mode}`
             : null,
         );
         const r = data.result;

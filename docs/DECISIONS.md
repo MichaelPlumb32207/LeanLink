@@ -6,6 +6,13 @@ current as design shifts.
 
 ---
 
+## D-015 · Social-first OSINT + x_search + email insights
+**Decision:** `grok-full` runs social-first query plan (email username variants, possible
+maiden/alias from local-part, phone) with **x_search + web_search**; directories last.
+`email_insights` derived from voter-file email (e.g. `ALICE.HAM` → maiden token `ham`).
+**Why:** Row 13 proved contact info reaches people-search sites but not social profiles
+with directory-first prompting.
+
 ## D-013 · Split identity resolution from lean inference
 **Decision:** `identity_resolution_status` (found the right person?) is separate from `lean`
 (ideological label). Directory/property hits count as identity even when `lean` stays

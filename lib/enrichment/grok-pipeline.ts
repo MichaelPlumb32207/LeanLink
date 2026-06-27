@@ -1,4 +1,4 @@
-import { buildSearchQueries } from '@/lib/enrichment/query-builder';
+import { buildSearchQueryPlan } from '@/lib/enrichment/query-builder';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/enrichment/prompts';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
 import type {
@@ -145,7 +145,7 @@ function toEnrichmentResult(
   payload: GrokInferencePayload,
   citations: string[],
   mode: EnrichmentMode,
-  searchQueries: string[],
+  queryPlan: ReturnType<typeof buildSearchQueryPlan>,
 ): EnrichmentResult {
   return {
     resolution_status: payload.identity_resolution_status,
@@ -157,14 +157,17 @@ function toEnrichmentResult(
     best_match_score: payload.identity_best_match_score,
     search_summary: payload.search_summary,
     citations,
-    search_queries: searchQueries,
+    search_queries: queryPlan.ordered,
+    search_query_plan: queryPlan,
     pipeline_mode: mode,
   };
 }
 
+const SOCIAL_PLATFORMS = new Set(['x', 'twitter', 'linkedin', 'facebook', 'instagram', 'social']);
+
 function matchedSocialUrls(matches: OsintMatch[]): string[] {
   return matches
-    .filter((m) => m.url && ['x', 'linkedin', 'facebook', 'social'].includes(m.platform))
+    .filter((m) => m.url && SOCIAL_PLATFORMS.has(m.platform.toLowerCase()))
     .map((m) => (m.platform ? `${m.platform}: ${m.url}` : m.url));
 }
 
@@ -185,29 +188,30 @@ export async function runEnrichmentPipeline(
   mode: EnrichmentMode = 'grok-full',
   options?: { includeDebug?: boolean },
 ): Promise<GrokPipelineResult & { debug?: GrokPipelineDebug }> {
-  const searchQueries = buildSearchQueries(bundle);
+  const queryPlan = buildSearchQueryPlan(bundle);
   const systemPrompt = buildSystemPrompt(mode);
   const userPrompt = buildUserPrompt(bundle, mode);
   const model = getXaiModel();
-  const enableWebSearch = mode !== 'modular-synthesize';
+  const enableSearchTools = mode !== 'modular-synthesize';
 
   const response = await xaiResponsesWithWebSearch({
     model,
     systemPrompt,
     userPrompt,
-    enableWebSearch,
+    enableWebSearch: enableSearchTools,
+    enableXSearch: enableSearchTools,
   });
 
   const parsedRaw = parseJsonFromModelText(response.text);
   const parsed = applyInferenceGuardrails(parsedRaw);
-  const enrichment = toEnrichmentResult(parsed, response.citations, mode, searchQueries);
+  const enrichment = toEnrichmentResult(parsed, response.citations, mode, queryPlan);
 
   const auditSources =
     mode === 'modular-synthesize'
-      ? ['Grok-Synthesize-Only', 'FL-Voting-History', 'FL-Voter-File', 'Query-Planner']
+      ? ['Grok-Synthesize-Only', 'Email-Insights', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
       : mode === 'modular-targeted'
-        ? ['Grok-Targeted-Search', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
-        : ['Grok-LiveSearch', 'FL-Voting-History', 'FL-Voter-File'];
+        ? ['Grok-Targeted-Search', 'x_search', 'Email-Insights', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
+        : ['Grok-SocialFirst', 'x_search', 'web_search', 'Email-Insights', 'FL-Voting-History', 'FL-Voter-File'];
 
   const result: GrokPipelineResult = {
     enrichment,
