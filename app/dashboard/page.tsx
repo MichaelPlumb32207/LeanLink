@@ -45,7 +45,7 @@ type LeanResult = {
 
 type ResultsPreviewSort = 'opposition' | 'confidence' | 'lean' | 'name' | 'turnout';
 
-const PREVIEW_ROW_LIMIT = 100;
+const PREVIEW_ROW_OPTIONS = [100, 250, 500] as const;
 
 const TURNOUT_RANK: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
 
@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const [historyFile, setHistoryFile] = useState<File | null>(null);
   const [ballotFavors, setBallotFavors] = useState<BallotFavors>('south');
   const [previewSort, setPreviewSort] = useState<ResultsPreviewSort>('opposition');
+  const [previewRowLimit, setPreviewRowLimit] = useState<number | 'all'>(100);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -190,6 +191,11 @@ export default function DashboardPage() {
         );
     }
   }, [results, previewSort]);
+
+  const visiblePreviewRows = useMemo(() => {
+    if (previewRowLimit === 'all') return displayResults;
+    return displayResults.slice(0, previewRowLimit);
+  }, [displayResults, previewRowLimit]);
 
   const progressPct = useMemo(() => {
     if (!job?.total_count) return 0;
@@ -638,8 +644,9 @@ export default function DashboardPage() {
                   {results.length > 0 ? ` (${results.length} loaded)` : ' (loading…)'}
                 </h2>
                 <p className="mt-1 text-xs opacity-70">
-                  First {PREVIEW_ROW_LIMIT} rows of data already in memory — sort is instant, no
-                  re-fetch. Export CSV for the full file.
+                  {results.length > 0
+                    ? `All ${results.length} rows loaded in your browser. The table below shows a subset — change "Show" to see more. Sort is instant (no re-fetch).`
+                    : 'Fetching all rows from the database…'}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -657,6 +664,25 @@ export default function DashboardPage() {
                   <option value="lean">Lean</option>
                   <option value="name">Name</option>
                   <option value="turnout">Turnout</option>
+                </select>
+                <label className="text-sm opacity-80" htmlFor="preview-show">
+                  Show
+                </label>
+                <select
+                  id="preview-show"
+                  value={previewRowLimit === 'all' ? 'all' : String(previewRowLimit)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPreviewRowLimit(v === 'all' ? 'all' : Number(v));
+                  }}
+                  className="rounded-lg border bg-black/20 px-3 py-1.5 text-sm"
+                >
+                  {PREVIEW_ROW_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n} rows
+                    </option>
+                  ))}
+                  <option value="all">All loaded rows</option>
                 </select>
                 <button
                   type="button"
@@ -685,7 +711,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayResults.slice(0, PREVIEW_ROW_LIMIT).map((row) => (
+                {visiblePreviewRows.map((row) => (
                   <tr key={row.voter_hash} className="border-b border-white/10">
                     <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
                     <td className="py-2 pr-4">{row.lean}</td>
@@ -698,10 +724,13 @@ export default function DashboardPage() {
               </tbody>
             </table>
             )}
-            {results.length > PREVIEW_ROW_LIMIT && (
+            {results.length > 0 && (
               <p className="mt-3 text-xs opacity-70">
-                Showing first {PREVIEW_ROW_LIMIT} rows sorted by {SORT_LABELS[previewSort]}. Export
-                CSV for all {results.length} rows.
+                Table: {visiblePreviewRows.length} of {results.length} loaded rows · sorted by{' '}
+                {SORT_LABELS[previewSort]}.
+                {visiblePreviewRows.length < results.length
+                  ? ' Choose "All loaded rows" above to see every row in the browser, or Export CSV.'
+                  : ' Export CSV for a spreadsheet copy.'}
               </p>
             )}
           </section>
