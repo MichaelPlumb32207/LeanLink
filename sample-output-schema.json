@@ -1,0 +1,27 @@
+{
+  "voter_hash": "sha256-of-pii",
+  "original_data": {
+    "name": "John Doe",
+    "address": "123 Main St, Blountstown, FL 32424"
+  },
+  "enrichment": {
+    "email": "example@email.com",
+    "phone": "850-123-4567",
+    "matched_social": ["@handle on X", "linkedin.com/in/..."]
+  },
+  "lean_inference": {
+    "lean": "Right",
+    "confidence": 78,
+    "confidence_band": "High",
+    "evidence": [
+      "Multiple conservative policy mentions in recent posts",
+      "Address in historically Republican precinct",
+      "Engagement with right-leaning accounts"
+    ]
+  },
+  "audit": {
+    "timestamp": "2026-06-27T12:00:00Z",
+    "sources": ["Clearbit", "Grok-4-Heavy"],
+    "model_version": "grok-4-heavy-202606"
+  }
+}
