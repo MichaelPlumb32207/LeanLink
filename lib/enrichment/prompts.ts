@@ -42,6 +42,8 @@ const SHARED_RULES = `STRICT RULES:
   * Tier-A records (donation, media quote, civic filing) can confirm identity AND supply lean signals when signals[] contain explicit ideology.
   * lean = ideological label ONLY when identity_matches contain explicit ideological signals in signals[].
 - If identity probable but NO ideological signals in any match: lean MUST be "Undetermined", lean_confidence <= 35, lean_signals_found = false.
+- lean_signals_found MUST be false unless at least one identity_matches[].signals[] entry quotes explicit ideological content (paraphrase in signals[] — empty signals[] is not allowed when lean is labeled).
+- Lean WITHOUT social is valid ONLY via Tier-A matches (donation|media|civic) with non-empty signals[] — never from directory/contact match alone.
 - If multiple ambiguous personas: identity_resolution_status = "ambiguous"; lean usually Undetermined.
 - Return ONLY valid JSON — no markdown fences.
 

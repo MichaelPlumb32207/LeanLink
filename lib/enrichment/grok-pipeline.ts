@@ -101,7 +101,8 @@ export function applyInferenceGuardrails(payload: GrokInferencePayload): GrokInf
     lean_signals_found,
   } = payload;
 
-  const signalsFound = lean_signals_found || hasIdeologicalSignals(identity_matches);
+  // Require quoted/public signals in identity_matches — do not trust lean_signals_found alone.
+  const signalsFound = hasIdeologicalSignals(identity_matches);
 
   if (identity_matches.length > 0) {
     const topScore = Math.max(...identity_matches.map((m) => m.match_score), 0);
