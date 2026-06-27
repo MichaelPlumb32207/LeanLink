@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+:root {
+  --matrix-bg: #0a0a0a;
+  --matrix-fg: #00ff41;
+  --matrix-accent: #003b00;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.theme-matrix {
+  background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+  color: var(--matrix-fg);
+}
+
+.theme-matrix .panel {
+  background: rgba(0, 59, 0, 0.35);
+  border: 1px solid rgba(0, 255, 65, 0.25);
+}
+
+.theme-red {
+  background: linear-gradient(135deg, #1a0505, #3b0a0a);
+  color: #fecaca;
+}
+
+.theme-red .panel {
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.theme-blue {
+  background: linear-gradient(135deg, #050a1a, #0a1a3b);
+  color: #bfdbfe;
+}
+
+.theme-blue .panel {
+  background: rgba(30, 58, 138, 0.35);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+}
