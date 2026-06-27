@@ -140,6 +140,23 @@ export default function DashboardPage() {
     [uploads, selectedUploadId],
   );
 
+  const jobIsComplete =
+    job?.status === 'completed' || selectedUpload?.job_status === 'completed';
+
+  useEffect(() => {
+    if (!selectedUploadId || !jobIsComplete) return;
+    refreshResults(selectedUploadId);
+  }, [selectedUploadId, jobIsComplete, refreshResults]);
+
+  const displayResults = useMemo(
+    () =>
+      [...results].sort(
+        (a, b) =>
+          (b.opposition_mobilization_score ?? 0) - (a.opposition_mobilization_score ?? 0),
+      ),
+    [results],
+  );
+
   const progressPct = useMemo(() => {
     if (!job?.total_count) return 0;
     return Math.round(((job.processed_count + job.failed_count) / job.total_count) * 100);
@@ -193,6 +210,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data.error ?? 'Failed to start job');
       setMessage(`Job started (${data.jobId}).`);
       await refreshJob(selectedUploadId);
+      await refreshResults(selectedUploadId);
       await refreshUploads();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to start job');
@@ -577,9 +595,26 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {results.length > 0 && (
+        {jobIsComplete && (
           <section className="panel rounded-2xl p-6 overflow-x-auto">
-            <h2 className="mb-4 text-xl font-semibold">Results ({results.length})</h2>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">
+                Results ({results.length > 0 ? results.length : 'loading…'})
+              </h2>
+              <button
+                type="button"
+                onClick={() => selectedUploadId && refreshResults(selectedUploadId)}
+                className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80"
+              >
+                Refresh table
+              </button>
+            </div>
+            {results.length === 0 ? (
+              <p className="text-sm opacity-75">
+                Job finished — loading results. Click Refresh table or use Export CSV (data is in
+                the database).
+              </p>
+            ) : (
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-white/20 text-left">
@@ -592,7 +627,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {results.slice(0, 100).map((row) => (
+                {displayResults.slice(0, 100).map((row) => (
                   <tr key={row.voter_hash} className="border-b border-white/10">
                     <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
                     <td className="py-2 pr-4">{row.lean}</td>
@@ -604,6 +639,12 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+            )}
+            {results.length > 100 && (
+              <p className="mt-3 text-xs opacity-70">
+                Showing top 100 by opposition score. Export CSV for all {results.length} rows.
+              </p>
+            )}
           </section>
         )}
 
