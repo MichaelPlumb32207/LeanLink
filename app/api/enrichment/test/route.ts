@@ -76,6 +76,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       voterRecordId: row.id,
       bundle,
+      urls_searched: result.enrichment.citations,
+      usage: result.debug?.usage ?? null,
       result: {
         lean: result.lean,
         confidence: result.confidence,

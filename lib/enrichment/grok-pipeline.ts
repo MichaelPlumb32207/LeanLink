@@ -9,7 +9,11 @@ import type {
 } from '@/lib/enrichment/types';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
-import { getXaiModel, xaiResponsesWithWebSearch } from '@/lib/xai/client';
+import {
+  getXaiModel,
+  xaiResponsesWithWebSearch,
+  type XaiUsageSummary,
+} from '@/lib/xai/client';
 
 const LEAN_LABELS: LeanLabel[] = ['Left', 'Right', 'Independent', 'Undetermined'];
 const RESOLUTION_STATUSES: ResolutionStatus[] = ['probable', 'ambiguous', 'none'];
@@ -164,6 +168,8 @@ export interface GrokPipelineDebug {
   raw_response: unknown;
   parsed_before_guardrails: GrokInferencePayload;
   parsed_after_guardrails: GrokInferencePayload;
+  usage: XaiUsageSummary | null;
+  urls_searched: string[];
 }
 
 export async function runGrokEnrichAndInfer(
@@ -210,6 +216,8 @@ export async function runGrokEnrichAndInfer(
         raw_response: response.raw,
         parsed_before_guardrails: parsedRaw,
         parsed_after_guardrails: parsed,
+        usage: response.usage,
+        urls_searched: response.citations,
       },
     };
   }

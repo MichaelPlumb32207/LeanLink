@@ -16,6 +16,7 @@ import {
   SORT_COLUMN_LABELS,
   sortResultRows,
 } from '@/lib/results-query';
+import { CALHOUN_SUGGESTED_TEST_ROWS } from '@/lib/enrichment/suggested-test-rows';
 
 type Branding = 'matrix' | 'red' | 'blue';
 
@@ -82,6 +83,8 @@ export default function DashboardPage() {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [revealedVoterHash, setRevealedVoterHash] = useState<string | null>(null);
   const [enrichmentTestJson, setEnrichmentTestJson] = useState<string | null>(null);
+  const [enrichmentTestUrls, setEnrichmentTestUrls] = useState<string[]>([]);
+  const [enrichmentTestCost, setEnrichmentTestCost] = useState<string | null>(null);
   const [enrichmentTestBusy, setEnrichmentTestBusy] = useState(false);
   const [enrichmentTestRowIndex, setEnrichmentTestRowIndex] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -358,6 +361,8 @@ export default function DashboardPage() {
     setEnrichmentTestBusy(true);
     setMessage(null);
     setEnrichmentTestJson(null);
+    setEnrichmentTestUrls([]);
+    setEnrichmentTestCost(null);
     try {
       const res = await fetch('/api/enrichment/test', {
         method: 'POST',
@@ -370,8 +375,17 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Enrichment test failed');
       setEnrichmentTestJson(JSON.stringify(data, null, 2));
+      setEnrichmentTestUrls(
+        Array.isArray(data.urls_searched) ? data.urls_searched : data.result?.enrichment?.citations ?? [],
+      );
+      const costUsd = data.usage?.cost_usd;
+      setEnrichmentTestCost(
+        typeof costUsd === 'number'
+          ? `$${costUsd.toFixed(4)} · ${data.usage?.web_search_calls ?? '?'} searches · ${data.usage?.total_tokens ?? '?'} tokens`
+          : null,
+      );
       setMessage(
-        `Grok OSINT test: ${data.result?.lean} (${data.result?.confidence}% confidence) — ${data.result?.enrichment?.resolution_status}`,
+        `Grok OSINT test: ${data.result?.lean} (${data.result?.confidence}% confidence) — ${data.result?.enrichment?.resolution_status}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Enrichment test failed');
@@ -729,8 +743,28 @@ export default function DashboardPage() {
               <h3 className="font-medium">Test Grok OSINT (single voter)</h3>
               <p className="mt-1 text-xs opacity-70">
                 Runs live web search + lean inference on one voter without starting a full job.
-                Inspect the JSON below to see prompts, citations, and guardrail results.
+                URLs hit are listed below; full JSON includes prompts and guardrails.
               </p>
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-medium opacity-80">Suggested scenarios (Calhoun)</p>
+                <div className="flex flex-wrap gap-2">
+                  {CALHOUN_SUGGESTED_TEST_ROWS.map((row) => (
+                    <button
+                      key={row.rowIndex}
+                      type="button"
+                      title={row.note}
+                      onClick={() => setEnrichmentTestRowIndex(row.rowIndex)}
+                      className={`rounded-lg border px-2.5 py-1 text-xs hover:opacity-90 ${
+                        enrichmentTestRowIndex === row.rowIndex
+                          ? 'border-emerald-400/70 bg-emerald-500/15'
+                          : 'border-white/20 bg-black/10'
+                      }`}
+                    >
+                      {row.rowIndex}: {row.scenario}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <label className="text-sm opacity-80" htmlFor="enrichment-row-index">
                   Row index
@@ -752,6 +786,34 @@ export default function DashboardPage() {
                   {enrichmentTestBusy ? 'Running Grok search…' : 'Test enrichment'}
                 </button>
               </div>
+              {enrichmentTestCost && (
+                <p className="mt-3 text-xs opacity-80">
+                  <span className="font-medium">This request:</span> {enrichmentTestCost}
+                  {' · '}
+                  <span className="opacity-70">~$330/order-of-magnitude per 10k at this rate (see docs/COST-ESTIMATES.md)</span>
+                </p>
+              )}
+              {enrichmentTestUrls.length > 0 && (
+                <div className="mt-3">
+                  <p className="mb-1 text-xs font-medium opacity-80">
+                    URLs Grok hit ({enrichmentTestUrls.length})
+                  </p>
+                  <ul className="max-h-40 space-y-1 overflow-auto rounded-lg bg-black/30 p-2 text-xs">
+                    {enrichmentTestUrls.map((url) => (
+                      <li key={url}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="break-all underline opacity-90 hover:opacity-100"
+                        >
+                          {url}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {enrichmentTestJson && (
                 <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-black/30 p-3 text-xs">
                   {enrichmentTestJson}
