@@ -2,6 +2,20 @@
 
 import { signOut, useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  applyClientFilters,
+  buildResultsQueryString,
+  EMPTY_COLUMN_FILTERS,
+  hasActiveFilters,
+  type ColumnFilters,
+  type LeanResultRow,
+  type SortColumn,
+  type SortDirection,
+  shouldUseServerQuery,
+  shouldUseServerSort,
+  SORT_COLUMN_LABELS,
+  sortResultRows,
+} from '@/lib/results-query';
 
 type Branding = 'matrix' | 'red' | 'blue';
 
@@ -31,31 +45,12 @@ type Job = {
   error_message?: string | null;
 };
 
-type LeanResult = {
-  voter_hash: string;
-  lean: string;
-  confidence: number;
-  turnout_propensity?: string;
-  turnout_score?: number;
-  primary_engagement?: string;
-  opposition_mobilization_score?: number;
-  evidence: string[];
-  raw_data?: { name?: { full?: string }; residence?: { city?: string } };
-};
-
-type ResultsPreviewSort = 'opposition' | 'confidence' | 'lean' | 'name' | 'turnout';
+type LeanResult = LeanResultRow;
 
 const PREVIEW_ROW_OPTIONS = [100, 250, 500] as const;
 
-const TURNOUT_RANK: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
-
-const SORT_LABELS: Record<ResultsPreviewSort, string> = {
-  opposition: 'opposition score',
-  confidence: 'confidence',
-  lean: 'lean',
-  name: 'name',
-  turnout: 'turnout',
-};
+const LEAN_OPTIONS = ['', 'Left', 'Right', 'Independent', 'Undetermined'] as const;
+const TURNOUT_OPTIONS = ['', 'High', 'Medium', 'Low'] as const;
 
 const themeClass: Record<Branding, string> = {
   matrix: 'theme-matrix',
@@ -69,12 +64,17 @@ export default function DashboardPage() {
   const [file, setFile] = useState<File | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
   const [ballotFavors, setBallotFavors] = useState<BallotFavors>('south');
-  const [previewSort, setPreviewSort] = useState<ResultsPreviewSort>('opposition');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('opposition');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [previewRowLimit, setPreviewRowLimit] = useState<number | 'all'>(100);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [results, setResults] = useState<LeanResult[]>([]);
+  const [resultsTotal, setResultsTotal] = useState(0);
+  const [resultsFiltered, setResultsFiltered] = useState(0);
+  const [resultsLoading, setResultsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -120,12 +120,41 @@ export default function DashboardPage() {
     setJob(data.job ?? null);
   }, []);
 
-  const refreshResults = useCallback(async (uploadId: string) => {
-    const res = await fetch(`/api/results/${uploadId}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setResults(data.results ?? []);
-  }, []);
+  const refreshResults = useCallback(
+    async (uploadId: string, uploadRowCount: number) => {
+      const serverQuery = shouldUseServerQuery(uploadRowCount, columnFilters);
+      const serverSort = shouldUseServerSort(uploadRowCount);
+
+      let url = `/api/results/${uploadId}`;
+      if (serverQuery || serverSort) {
+        const limit =
+          previewRowLimit === 'all'
+            ? Math.min(uploadRowCount, 10000)
+            : previewRowLimit;
+        url += `?${buildResultsQueryString({
+          sortColumn,
+          sortDirection,
+          filters: serverQuery ? columnFilters : EMPTY_COLUMN_FILTERS,
+          limit,
+        })}`;
+      } else {
+        url += `?limit=10000&sort=${sortColumn}&order=${sortDirection}`;
+      }
+
+      setResultsLoading(true);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        setResults(data.results ?? []);
+        setResultsTotal(data.total ?? data.results?.length ?? 0);
+        setResultsFiltered(data.filtered ?? data.results?.length ?? 0);
+      } finally {
+        setResultsLoading(false);
+      }
+    },
+    [columnFilters, previewRowLimit, sortColumn, sortDirection],
+  );
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -133,11 +162,46 @@ export default function DashboardPage() {
     }
   }, [status, refreshUploads]);
 
+  const selectedUpload = useMemo(
+    () => uploads.find((u) => u.id === selectedUploadId) ?? null,
+    [uploads, selectedUploadId],
+  );
+
+  const selectedUploadRowCount = selectedUpload?.row_count ?? 0;
+  const serverQuery = shouldUseServerQuery(selectedUploadRowCount, columnFilters);
+  const serverSort = shouldUseServerSort(selectedUploadRowCount);
+  const useServerFetch = serverQuery || serverSort;
+
+  const jobIsComplete =
+    job?.status === 'completed' || selectedUpload?.job_status === 'completed';
+
   useEffect(() => {
     if (!selectedUploadId) return;
+    setSortColumn('opposition');
+    setSortDirection('desc');
+    setColumnFilters(EMPTY_COLUMN_FILTERS);
     refreshJob(selectedUploadId);
-    refreshResults(selectedUploadId);
-  }, [selectedUploadId, refreshJob, refreshResults]);
+  }, [selectedUploadId, refreshJob]);
+
+  useEffect(() => {
+    if (!selectedUploadId || !selectedUpload) return;
+
+    const debounceMs = hasActiveFilters(columnFilters) ? 300 : 0;
+    const timer = setTimeout(() => {
+      refreshResults(selectedUploadId, selectedUpload.row_count);
+    }, debounceMs);
+
+    return () => clearTimeout(timer);
+  }, [
+    selectedUploadId,
+    selectedUpload,
+    columnFilters,
+    useServerFetch ? sortColumn : '',
+    useServerFetch ? sortDirection : '',
+    useServerFetch ? previewRowLimit : '',
+    jobIsComplete,
+    refreshResults,
+  ]);
 
   useEffect(() => {
     if (!selectedUploadId || !job) return;
@@ -145,57 +209,43 @@ export default function DashboardPage() {
 
     const timer = setInterval(() => {
       refreshJob(selectedUploadId);
-      refreshResults(selectedUploadId);
+      if (selectedUpload) refreshResults(selectedUploadId, selectedUpload.row_count);
       refreshUploads();
     }, 1500);
 
     return () => clearInterval(timer);
-  }, [selectedUploadId, job, refreshJob, refreshResults, refreshUploads]);
-
-  const selectedUpload = useMemo(
-    () => uploads.find((u) => u.id === selectedUploadId) ?? null,
-    [uploads, selectedUploadId],
-  );
-
-  const jobIsComplete =
-    job?.status === 'completed' || selectedUpload?.job_status === 'completed';
-
-  useEffect(() => {
-    if (!selectedUploadId || !jobIsComplete) return;
-    refreshResults(selectedUploadId);
-  }, [selectedUploadId, jobIsComplete, refreshResults]);
+  }, [selectedUploadId, selectedUpload, job, refreshJob, refreshResults, refreshUploads]);
 
   const displayResults = useMemo(() => {
-    const rows = [...results];
-    switch (previewSort) {
-      case 'confidence':
-        return rows.sort((a, b) => b.confidence - a.confidence);
-      case 'lean':
-        return rows.sort((a, b) => a.lean.localeCompare(b.lean));
-      case 'name':
-        return rows.sort((a, b) =>
-          (a.raw_data?.name?.full ?? '').localeCompare(b.raw_data?.name?.full ?? ''),
-        );
-      case 'turnout':
-        return rows.sort(
-          (a, b) =>
-            (TURNOUT_RANK[b.turnout_propensity ?? ''] ?? 0) -
-              (TURNOUT_RANK[a.turnout_propensity ?? ''] ?? 0) ||
-            (b.turnout_score ?? 0) - (a.turnout_score ?? 0),
-        );
-      case 'opposition':
-      default:
-        return rows.sort(
-          (a, b) =>
-            (b.opposition_mobilization_score ?? 0) - (a.opposition_mobilization_score ?? 0),
-        );
-    }
-  }, [results, previewSort]);
+    if (serverQuery || serverSort) return results;
+    let rows = applyClientFilters(results, columnFilters);
+    rows = sortResultRows(rows, sortColumn, sortDirection);
+    return rows;
+  }, [results, columnFilters, sortColumn, sortDirection, serverQuery, serverSort]);
 
   const visiblePreviewRows = useMemo(() => {
+    if (serverQuery || serverSort) return displayResults;
     if (previewRowLimit === 'all') return displayResults;
     return displayResults.slice(0, previewRowLimit);
-  }, [displayResults, previewRowLimit]);
+  }, [displayResults, previewRowLimit, serverQuery, serverSort]);
+
+  const handleSortHeader = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === 'name' || column === 'lean' || column === 'primary' ? 'asc' : 'desc');
+    }
+  };
+
+  const updateFilter = (key: keyof ColumnFilters, value: string) => {
+    setColumnFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const sortIndicator = (column: SortColumn) => {
+    if (sortColumn !== column) return ' ↕';
+    return sortDirection === 'asc' ? ' ↑' : ' ↓';
+  };
 
   const progressPct = useMemo(() => {
     if (!job?.total_count) return 0;
@@ -250,7 +300,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data.error ?? 'Failed to start job');
       setMessage(`Job started (${data.jobId}).`);
       await refreshJob(selectedUploadId);
-      await refreshResults(selectedUploadId);
+      await refreshResults(selectedUploadId, selectedUpload?.row_count ?? 0);
       await refreshUploads();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to start job');
@@ -278,7 +328,7 @@ export default function DashboardPage() {
       setMessage('Job cancelled.');
       if (selectedUploadId) {
         await refreshJob(selectedUploadId);
-        await refreshResults(selectedUploadId);
+        await refreshResults(selectedUploadId, selectedUpload?.row_count ?? 0);
       }
       await refreshUploads();
     } catch (error) {
@@ -641,30 +691,21 @@ export default function DashboardPage() {
               <div>
                 <h2 className="text-xl font-semibold">
                   Results preview
-                  {results.length > 0 ? ` (${results.length} loaded)` : ' (loading…)'}
+                  {resultsLoading
+                    ? ' (loading…)'
+                    : resultsTotal > 0
+                      ? ` (${resultsTotal} total)`
+                      : ''}
                 </h2>
                 <p className="mt-1 text-xs opacity-70">
-                  {results.length > 0
-                    ? `All ${results.length} rows loaded in your browser. The table below shows a subset — change "Show" to see more. Sort is instant (no re-fetch).`
-                    : 'Fetching all rows from the database…'}
+                  {useServerFetch
+                    ? selectedUploadRowCount > 1000
+                      ? `This upload has ${selectedUploadRowCount} rows — sort and filter re-fetch from the database.`
+                      : 'Filters re-fetch from the database so you search all rows, not just what is loaded.'
+                    : `All ${resultsTotal} rows are in your browser — click column headers to sort, use filters below. No re-fetch needed.`}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="text-sm opacity-80" htmlFor="preview-sort">
-                  Sort by
-                </label>
-                <select
-                  id="preview-sort"
-                  value={previewSort}
-                  onChange={(e) => setPreviewSort(e.target.value as ResultsPreviewSort)}
-                  className="rounded-lg border bg-black/20 px-3 py-1.5 text-sm"
-                >
-                  <option value="opposition">Opposition score</option>
-                  <option value="confidence">Confidence</option>
-                  <option value="lean">Lean</option>
-                  <option value="name">Name</option>
-                  <option value="turnout">Turnout</option>
-                </select>
                 <label className="text-sm opacity-80" htmlFor="preview-show">
                   Show
                 </label>
@@ -682,55 +723,181 @@ export default function DashboardPage() {
                       {n} rows
                     </option>
                   ))}
-                  <option value="all">All loaded rows</option>
+                  <option value="all">
+                    {useServerFetch ? 'Max (server limit)' : 'All loaded rows'}
+                  </option>
                 </select>
+                {hasActiveFilters(columnFilters) && (
+                  <button
+                    type="button"
+                    onClick={() => setColumnFilters(EMPTY_COLUMN_FILTERS)}
+                    className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80"
+                  >
+                    Clear filters
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => selectedUploadId && refreshResults(selectedUploadId)}
+                  onClick={() =>
+                    selectedUploadId &&
+                    selectedUpload &&
+                    refreshResults(selectedUploadId, selectedUpload.row_count)
+                  }
                   className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80"
                 >
-                  Re-fetch data
+                  Re-fetch
                 </button>
               </div>
             </div>
-            {results.length === 0 ? (
+            {results.length === 0 && !resultsLoading ? (
               <p className="text-sm opacity-75">
-                Job finished — loading results. Click Refresh table or use Export CSV (data is in
-                the database).
+                {hasActiveFilters(columnFilters)
+                  ? 'No rows match your filters.'
+                  : 'Job finished — loading results. Click Re-fetch or use Export CSV.'}
               </p>
             ) : (
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/20 text-left">
-                  <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">Lean</th>
-                  <th className="py-2 pr-4">Conf.</th>
-                  <th className="py-2 pr-4">Turnout</th>
-                  <th className="py-2 pr-4">Primary</th>
-                  <th className="py-2 pr-4">Opp. score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visiblePreviewRows.map((row) => (
-                  <tr key={row.voter_hash} className="border-b border-white/10">
-                    <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
-                    <td className="py-2 pr-4">{row.lean}</td>
-                    <td className="py-2 pr-4">{row.confidence}</td>
-                    <td className="py-2 pr-4">{row.turnout_propensity ?? '—'}</td>
-                    <td className="py-2 pr-4">{row.primary_engagement ?? '—'}</td>
-                    <td className="py-2 pr-4">{row.opposition_mobilization_score ?? '—'}</td>
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/20 text-left">
+                    {(
+                      [
+                        ['name', 'Name'],
+                        ['lean', 'Lean'],
+                        ['confidence', 'Conf.'],
+                        ['turnout', 'Turnout'],
+                        ['primary', 'Primary'],
+                        ['opposition', 'Opp. score'],
+                      ] as const
+                    ).map(([col, label]) => (
+                      <th key={col} className="py-2 pr-4 align-bottom">
+                        <button
+                          type="button"
+                          onClick={() => handleSortHeader(col)}
+                          className="font-semibold hover:opacity-80 text-left"
+                        >
+                          {label}
+                          <span className="opacity-60">{sortIndicator(col)}</span>
+                        </button>
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                  <tr className="border-b border-white/10 text-left">
+                    <th className="py-2 pr-2">
+                      <input
+                        type="text"
+                        placeholder="Filter…"
+                        value={columnFilters.name}
+                        onChange={(e) => updateFilter('name', e.target.value)}
+                        className="w-full min-w-[7rem] rounded border bg-black/20 px-2 py-1 text-xs"
+                      />
+                    </th>
+                    <th className="py-2 pr-2">
+                      <select
+                        value={columnFilters.lean}
+                        onChange={(e) => updateFilter('lean', e.target.value)}
+                        className="w-full rounded border bg-black/20 px-2 py-1 text-xs"
+                      >
+                        {LEAN_OPTIONS.map((v) => (
+                          <option key={v || 'all'} value={v}>
+                            {v || 'All'}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+                    <th className="py-2 pr-2">
+                      <div className="flex gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          placeholder="Min"
+                          value={columnFilters.confidenceMin}
+                          onChange={(e) => updateFilter('confidenceMin', e.target.value)}
+                          className="w-14 rounded border bg-black/20 px-1 py-1 text-xs"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          placeholder="Max"
+                          value={columnFilters.confidenceMax}
+                          onChange={(e) => updateFilter('confidenceMax', e.target.value)}
+                          className="w-14 rounded border bg-black/20 px-1 py-1 text-xs"
+                        />
+                      </div>
+                    </th>
+                    <th className="py-2 pr-2">
+                      <select
+                        value={columnFilters.turnout}
+                        onChange={(e) => updateFilter('turnout', e.target.value)}
+                        className="w-full rounded border bg-black/20 px-2 py-1 text-xs"
+                      >
+                        {TURNOUT_OPTIONS.map((v) => (
+                          <option key={v || 'all'} value={v}>
+                            {v || 'All'}
+                          </option>
+                        ))}
+                      </select>
+                    </th>
+                    <th className="py-2 pr-2">
+                      <input
+                        type="text"
+                        placeholder="Filter…"
+                        value={columnFilters.primary}
+                        onChange={(e) => updateFilter('primary', e.target.value)}
+                        className="w-full min-w-[5rem] rounded border bg-black/20 px-2 py-1 text-xs"
+                      />
+                    </th>
+                    <th className="py-2 pr-2">
+                      <div className="flex gap-1">
+                        <input
+                          type="number"
+                          placeholder="Min"
+                          value={columnFilters.oppositionMin}
+                          onChange={(e) => updateFilter('oppositionMin', e.target.value)}
+                          className="w-14 rounded border bg-black/20 px-1 py-1 text-xs"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Max"
+                          value={columnFilters.oppositionMax}
+                          onChange={(e) => updateFilter('oppositionMax', e.target.value)}
+                          className="w-14 rounded border bg-black/20 px-1 py-1 text-xs"
+                        />
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiblePreviewRows.map((row) => (
+                    <tr key={row.voter_hash} className="border-b border-white/10">
+                      <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
+                      <td className="py-2 pr-4">{row.lean}</td>
+                      <td className="py-2 pr-4">{row.confidence}</td>
+                      <td className="py-2 pr-4">{row.turnout_propensity ?? '—'}</td>
+                      <td className="py-2 pr-4">{row.primary_engagement ?? '—'}</td>
+                      <td className="py-2 pr-4">{row.opposition_mobilization_score ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-            {results.length > 0 && (
+            {(results.length > 0 || hasActiveFilters(columnFilters)) && (
               <p className="mt-3 text-xs opacity-70">
-                Table: {visiblePreviewRows.length} of {results.length} loaded rows · sorted by{' '}
-                {SORT_LABELS[previewSort]}.
-                {visiblePreviewRows.length < results.length
-                  ? ' Choose "All loaded rows" above to see every row in the browser, or Export CSV.'
-                  : ' Export CSV for a spreadsheet copy.'}
+                Showing {visiblePreviewRows.length}
+                {hasActiveFilters(columnFilters)
+                  ? ` of ${resultsFiltered} matching`
+                  : useServerFetch
+                    ? ''
+                    : ` of ${displayResults.length}`}{' '}
+                · {resultsTotal} total in upload · sorted by {SORT_COLUMN_LABELS[sortColumn]}{' '}
+                {sortDirection === 'asc' ? '↑' : '↓'}
+                {useServerFetch && hasActiveFilters(columnFilters)
+                  ? ' · filters applied server-side'
+                  : !useServerFetch
+                    ? ' · sort/filter in browser'
+                    : ''}
+                {resultsLoading ? ' · updating…' : ''}
               </p>
             )}
           </section>
