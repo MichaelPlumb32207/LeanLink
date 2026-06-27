@@ -36,10 +36,25 @@ type LeanResult = {
   lean: string;
   confidence: number;
   turnout_propensity?: string;
+  turnout_score?: number;
   primary_engagement?: string;
   opposition_mobilization_score?: number;
   evidence: string[];
   raw_data?: { name?: { full?: string }; residence?: { city?: string } };
+};
+
+type ResultsPreviewSort = 'opposition' | 'confidence' | 'lean' | 'name' | 'turnout';
+
+const PREVIEW_ROW_LIMIT = 100;
+
+const TURNOUT_RANK: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+
+const SORT_LABELS: Record<ResultsPreviewSort, string> = {
+  opposition: 'opposition score',
+  confidence: 'confidence',
+  lean: 'lean',
+  name: 'name',
+  turnout: 'turnout',
 };
 
 const themeClass: Record<Branding, string> = {
@@ -54,6 +69,7 @@ export default function DashboardPage() {
   const [file, setFile] = useState<File | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
   const [ballotFavors, setBallotFavors] = useState<BallotFavors>('south');
+  const [previewSort, setPreviewSort] = useState<ResultsPreviewSort>('opposition');
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -148,14 +164,32 @@ export default function DashboardPage() {
     refreshResults(selectedUploadId);
   }, [selectedUploadId, jobIsComplete, refreshResults]);
 
-  const displayResults = useMemo(
-    () =>
-      [...results].sort(
-        (a, b) =>
-          (b.opposition_mobilization_score ?? 0) - (a.opposition_mobilization_score ?? 0),
-      ),
-    [results],
-  );
+  const displayResults = useMemo(() => {
+    const rows = [...results];
+    switch (previewSort) {
+      case 'confidence':
+        return rows.sort((a, b) => b.confidence - a.confidence);
+      case 'lean':
+        return rows.sort((a, b) => a.lean.localeCompare(b.lean));
+      case 'name':
+        return rows.sort((a, b) =>
+          (a.raw_data?.name?.full ?? '').localeCompare(b.raw_data?.name?.full ?? ''),
+        );
+      case 'turnout':
+        return rows.sort(
+          (a, b) =>
+            (TURNOUT_RANK[b.turnout_propensity ?? ''] ?? 0) -
+              (TURNOUT_RANK[a.turnout_propensity ?? ''] ?? 0) ||
+            (b.turnout_score ?? 0) - (a.turnout_score ?? 0),
+        );
+      case 'opposition':
+      default:
+        return rows.sort(
+          (a, b) =>
+            (b.opposition_mobilization_score ?? 0) - (a.opposition_mobilization_score ?? 0),
+        );
+    }
+  }, [results, previewSort]);
 
   const progressPct = useMemo(() => {
     if (!job?.total_count) return 0;
@@ -598,16 +632,40 @@ export default function DashboardPage() {
         {jobIsComplete && (
           <section className="panel rounded-2xl p-6 overflow-x-auto">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">
-                Results ({results.length > 0 ? results.length : 'loading…'})
-              </h2>
-              <button
-                type="button"
-                onClick={() => selectedUploadId && refreshResults(selectedUploadId)}
-                className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80"
-              >
-                Refresh table
-              </button>
+              <div>
+                <h2 className="text-xl font-semibold">
+                  Results preview
+                  {results.length > 0 ? ` (${results.length} loaded)` : ' (loading…)'}
+                </h2>
+                <p className="mt-1 text-xs opacity-70">
+                  First {PREVIEW_ROW_LIMIT} rows of data already in memory — sort is instant, no
+                  re-fetch. Export CSV for the full file.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-sm opacity-80" htmlFor="preview-sort">
+                  Sort by
+                </label>
+                <select
+                  id="preview-sort"
+                  value={previewSort}
+                  onChange={(e) => setPreviewSort(e.target.value as ResultsPreviewSort)}
+                  className="rounded-lg border bg-black/20 px-3 py-1.5 text-sm"
+                >
+                  <option value="opposition">Opposition score</option>
+                  <option value="confidence">Confidence</option>
+                  <option value="lean">Lean</option>
+                  <option value="name">Name</option>
+                  <option value="turnout">Turnout</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => selectedUploadId && refreshResults(selectedUploadId)}
+                  className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80"
+                >
+                  Re-fetch data
+                </button>
+              </div>
             </div>
             {results.length === 0 ? (
               <p className="text-sm opacity-75">
@@ -627,7 +685,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayResults.slice(0, 100).map((row) => (
+                {displayResults.slice(0, PREVIEW_ROW_LIMIT).map((row) => (
                   <tr key={row.voter_hash} className="border-b border-white/10">
                     <td className="py-2 pr-4">{row.raw_data?.name?.full ?? '—'}</td>
                     <td className="py-2 pr-4">{row.lean}</td>
@@ -640,9 +698,10 @@ export default function DashboardPage() {
               </tbody>
             </table>
             )}
-            {results.length > 100 && (
+            {results.length > PREVIEW_ROW_LIMIT && (
               <p className="mt-3 text-xs opacity-70">
-                Showing top 100 by opposition score. Export CSV for all {results.length} rows.
+                Showing first {PREVIEW_ROW_LIMIT} rows sorted by {SORT_LABELS[previewSort]}. Export
+                CSV for all {results.length} rows.
               </p>
             )}
           </section>
