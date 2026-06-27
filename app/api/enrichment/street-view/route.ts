@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
 import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
-import { runStreetViewVisionTest } from '@/lib/enrichment/street-view-vision';
+import {
+  parseStreetViewVisionMode,
+  runStreetViewVisionTest,
+} from '@/lib/enrichment/street-view-vision';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { getGoogleMapsApiKey } from '@/lib/google/street-view';
@@ -16,7 +19,10 @@ export async function POST(request: Request) {
       uploadId?: string;
       voterRecordId?: string;
       rowIndex?: number;
+      mode?: 'strict' | 'exploratory';
     };
+
+    const visionMode = parseStreetViewVisionMode(body.mode);
 
     if (!body.uploadId) {
       return NextResponse.json({ error: 'uploadId is required' }, { status: 400 });
@@ -89,20 +95,21 @@ export async function POST(request: Request) {
         voterRecordId: row.id,
         bundle,
         street_view_vision: {
+          vision_mode: visionMode,
           status: 'no_address',
           address_used: null,
           lean_street_view: 'Undetermined',
           lean_street_view_confidence: 0,
           methodology_note:
-            'Experimental Street View vision lean — NOT merged into main OSINT lean.',
+            'Street View vision lean — NOT merged into main OSINT lean.',
         },
       });
     }
 
-    const street_view_vision = await runStreetViewVisionTest(bundle);
+    const street_view_vision = await runStreetViewVisionTest(bundle, visionMode);
 
     return NextResponse.json({
-      test: 'street-view-vision',
+      test: visionMode === 'exploratory' ? 'street-view-exploratory' : 'street-view-vision',
       voterRecordId: row.id,
       bundle,
       street_view_vision,

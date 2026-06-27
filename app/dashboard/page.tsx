@@ -398,7 +398,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleStreetViewVisionTest = async () => {
+  const handleStreetViewVisionTest = async (exploratory = false) => {
     if (!selectedUploadId) return;
     setEnrichmentStreetViewBusy(true);
     setMessage(null);
@@ -413,29 +413,37 @@ export default function DashboardPage() {
         body: JSON.stringify({
           uploadId: selectedUploadId,
           rowIndex: enrichmentTestRowIndex,
+          mode: exploratory ? 'exploratory' : 'strict',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Street View test failed');
       setEnrichmentTestJson(JSON.stringify(data, null, 2));
       const sv = data.street_view_vision as {
+        vision_mode?: string;
         street_view_preview?: string;
         lean_street_view?: string;
         lean_street_view_confidence?: number;
         status?: string;
         visible_signals?: string[];
+        visible_cues?: string[];
+        stereotype_factors_used?: string[];
       };
       if (typeof sv?.street_view_preview === 'string') {
         setEnrichmentStreetViewPreview(sv.street_view_preview);
       }
       const costUsd = data.street_view_vision?.usage?.cost_usd;
+      const modeLabel = exploratory ? 'street-view exploratory' : 'street-view strict';
       setEnrichmentTestCost(
         typeof costUsd === 'number'
-          ? `$${costUsd.toFixed(4)} · street-view vision · ${data.street_view_vision?.status ?? '?'}`
-          : `street-view vision · ${data.street_view_vision?.status ?? '?'}`,
+          ? `$${costUsd.toFixed(4)} · ${modeLabel} · ${data.street_view_vision?.status ?? '?'}`
+          : `${modeLabel} · ${data.street_view_vision?.status ?? '?'}`,
       );
+      const cueCount = exploratory
+        ? (sv?.visible_cues?.length ?? 0)
+        : (sv?.visible_signals?.length ?? 0);
       setMessage(
-        `street-view: ${sv?.status ?? '?'} · lean_street_view ${sv?.lean_street_view ?? 'Undetermined'} (${sv?.lean_street_view_confidence ?? 0}%) · signals ${sv?.visible_signals?.length ?? 0}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+        `${modeLabel}: ${sv?.status ?? '?'} · lean_street_view ${sv?.lean_street_view ?? 'Undetermined'} (${sv?.lean_street_view_confidence ?? 0}%) · cues ${cueCount}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Street View test failed');
@@ -850,7 +858,9 @@ export default function DashboardPage() {
               <p className="mt-1 text-xs opacity-70">
                 Identity (did we find the person?) is separate from lean (ideology). Rural NPAs may
                 be identity-probable but lean-Undetermined — that is a valid research finding.
-                Compare modes to evaluate cost vs coverage.
+                Compare modes to evaluate cost vs coverage. Street view has two arms: strict
+                (signage only) vs exploratory (visual heuristics — for field validation, not
+                production lean).
               </p>
               <div className="mt-3">
                 <label className="text-xs font-medium opacity-80" htmlFor="enrichment-mode">
@@ -921,7 +931,7 @@ export default function DashboardPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleStreetViewVisionTest}
+                  onClick={() => handleStreetViewVisionTest(false)}
                   disabled={
                     enrichmentTestBusy ||
                     busy ||
@@ -929,9 +939,23 @@ export default function DashboardPage() {
                     enrichmentStreetViewBusy
                   }
                   className="rounded-lg border border-violet-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title="Experimental: Street View Static API image + Grok vision → lean_street_view. Needs GOOGLE_MAPS_API_KEY in Vercel (Street View Static API only; billing on)."
+                  title="STRICT: political signage only. Needs GOOGLE_MAPS_API_KEY + XAI_API_KEY."
                 >
-                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view lean test'}
+                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view (strict)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStreetViewVisionTest(true)}
+                  disabled={
+                    enrichmentTestBusy ||
+                    busy ||
+                    enrichmentScorecardBusy ||
+                    enrichmentStreetViewBusy
+                  }
+                  className="rounded-lg border border-rose-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                  title="EXPLORATORY: Grok infers lean from house, yard, vehicles, toys, flags, stereotypes — for professor validation only. NOT merged into OSINT lean."
+                >
+                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view (exploratory)'}
                 </button>
                 <button
                   type="button"
