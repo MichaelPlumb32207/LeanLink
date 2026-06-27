@@ -17,6 +17,16 @@ export interface VoterAnchor {
   county_code: string;
 }
 
+export interface ResidenceOnFile {
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  zip: string;
+  full: string;
+  has_usable_address: boolean;
+}
+
 export interface ContactOnFile {
   has_email: boolean;
   has_phone: boolean;
@@ -74,6 +84,7 @@ export interface EnrichmentResult {
 
 export interface EnrichmentBundle {
   anchor: VoterAnchor;
+  residence_on_file: ResidenceOnFile;
   contact_on_file: ContactOnFile;
   email_insights: EmailInsights;
   history: HistoryContext;

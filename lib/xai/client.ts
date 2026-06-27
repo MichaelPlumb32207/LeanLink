@@ -163,6 +163,69 @@ export function getXaiModel(): string {
   return process.env.XAI_MODEL?.trim() || 'grok-4.3';
 }
 
+export interface XaiVisionOptions {
+  model: string;
+  systemPrompt: string;
+  userText: string;
+  imageUrl: string;
+  detail?: 'high' | 'low';
+}
+
+export async function xaiResponsesWithVision(
+  options: XaiVisionOptions,
+): Promise<XaiResponsesResult> {
+  const apiKey = getXaiApiKey();
+  if (!apiKey) {
+    throw new Error('XAI_API_KEY is not configured');
+  }
+
+  const body: Record<string, unknown> = {
+    model: options.model,
+    input: [
+      { role: 'system', content: options.systemPrompt },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_image',
+            image_url: options.imageUrl,
+            detail: options.detail ?? 'high',
+          },
+          {
+            type: 'input_text',
+            text: options.userText,
+          },
+        ],
+      },
+    ],
+  };
+
+  const response = await fetch(`${XAI_BASE_URL}/responses`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const raw = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail =
+      typeof raw === 'object' && raw && 'error' in raw
+        ? JSON.stringify((raw as { error: unknown }).error)
+        : JSON.stringify(raw);
+    throw new Error(`xAI API ${response.status}: ${detail}`);
+  }
+
+  return {
+    text: extractResponseText(raw),
+    citations: extractWebSearchUrls(raw),
+    usage: extractUsageSummary(raw),
+    raw,
+  };
+}
+
 export async function xaiResponsesWithWebSearch(
   options: XaiResponsesOptions,
 ): Promise<XaiResponsesResult> {

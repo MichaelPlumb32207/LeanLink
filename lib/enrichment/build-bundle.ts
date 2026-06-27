@@ -29,14 +29,25 @@ export function buildEnrichmentBundle(
     historySummary ?? summarizeVoterHistory(undefined, new Set()),
   );
 
+  const residence = record.residence;
+
   return {
     anchor: {
       voter_id: record.voterId,
       name_full: record.name.full,
-      city: record.residence.city,
-      zip: record.residence.zip,
+      city: residence.city,
+      zip: residence.zip,
       precinct: record.precinct,
       county_code: record.countyCode,
+    },
+    residence_on_file: {
+      line1: residence.line1,
+      line2: residence.line2,
+      city: residence.city,
+      state: residence.state || 'FL',
+      zip: residence.zip,
+      full: residence.full,
+      has_usable_address: Boolean(residence.line1?.trim() && residence.city?.trim()),
     },
     contact_on_file: {
       has_email: Boolean(record.email),

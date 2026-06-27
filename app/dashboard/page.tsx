@@ -92,6 +92,10 @@ export default function DashboardPage() {
   const [enrichmentTestMode, setEnrichmentTestMode] = useState<EnrichmentMode>('grok-full');
   const [enrichmentScorecard, setEnrichmentScorecard] = useState<EnrichmentScorecard | null>(null);
   const [enrichmentScorecardBusy, setEnrichmentScorecardBusy] = useState(false);
+  const [enrichmentStreetViewBusy, setEnrichmentStreetViewBusy] = useState(false);
+  const [enrichmentStreetViewPreview, setEnrichmentStreetViewPreview] = useState<string | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -394,6 +398,52 @@ export default function DashboardPage() {
     }
   };
 
+  const handleStreetViewVisionTest = async () => {
+    if (!selectedUploadId) return;
+    setEnrichmentStreetViewBusy(true);
+    setMessage(null);
+    setEnrichmentTestJson(null);
+    setEnrichmentTestUrls([]);
+    setEnrichmentTestCost(null);
+    setEnrichmentStreetViewPreview(null);
+    try {
+      const res = await fetch('/api/enrichment/street-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uploadId: selectedUploadId,
+          rowIndex: enrichmentTestRowIndex,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Street View test failed');
+      setEnrichmentTestJson(JSON.stringify(data, null, 2));
+      const sv = data.street_view_vision as {
+        street_view_preview?: string;
+        lean_street_view?: string;
+        lean_street_view_confidence?: number;
+        status?: string;
+        visible_signals?: string[];
+      };
+      if (typeof sv?.street_view_preview === 'string') {
+        setEnrichmentStreetViewPreview(sv.street_view_preview);
+      }
+      const costUsd = data.street_view_vision?.usage?.cost_usd;
+      setEnrichmentTestCost(
+        typeof costUsd === 'number'
+          ? `$${costUsd.toFixed(4)} · street-view vision · ${data.street_view_vision?.status ?? '?'}`
+          : `street-view vision · ${data.street_view_vision?.status ?? '?'}`,
+      );
+      setMessage(
+        `street-view: ${sv?.status ?? '?'} · lean_street_view ${sv?.lean_street_view ?? 'Undetermined'} (${sv?.lean_street_view_confidence ?? 0}%) · signals ${sv?.visible_signals?.length ?? 0}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Street View test failed');
+    } finally {
+      setEnrichmentStreetViewBusy(false);
+    }
+  };
+
   const handleEnrichmentTest = async (compare = false) => {
     if (!selectedUploadId) return;
     setEnrichmentTestBusy(true);
@@ -401,6 +451,7 @@ export default function DashboardPage() {
     setEnrichmentTestJson(null);
     setEnrichmentTestUrls([]);
     setEnrichmentTestCost(null);
+    setEnrichmentStreetViewPreview(null);
     try {
       const res = await fetch('/api/enrichment/test', {
         method: 'POST',
@@ -858,15 +909,39 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => handleEnrichmentTest(false)}
-                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
+                  disabled={
+                    enrichmentTestBusy ||
+                    busy ||
+                    enrichmentScorecardBusy ||
+                    enrichmentStreetViewBusy
+                  }
                   className="rounded-lg border border-emerald-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                 >
                   {enrichmentTestBusy ? 'Running…' : 'Test enrichment'}
                 </button>
                 <button
                   type="button"
+                  onClick={handleStreetViewVisionTest}
+                  disabled={
+                    enrichmentTestBusy ||
+                    busy ||
+                    enrichmentScorecardBusy ||
+                    enrichmentStreetViewBusy
+                  }
+                  className="rounded-lg border border-violet-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                  title="Experimental: Google Street View image + Grok vision → lean_street_view (separate from OSINT lean). Requires GOOGLE_MAPS_API_KEY."
+                >
+                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view lean test'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleEnrichmentTest(true)}
-                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
+                  disabled={
+                    enrichmentTestBusy ||
+                    busy ||
+                    enrichmentScorecardBusy ||
+                    enrichmentStreetViewBusy
+                  }
                   className="rounded-lg border border-amber-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                   title="Runs all 3 modes on this voter (~3× cost)"
                 >
@@ -875,7 +950,12 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={handleEnrichmentScorecard}
-                  disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
+                  disabled={
+                    enrichmentTestBusy ||
+                    busy ||
+                    enrichmentScorecardBusy ||
+                    enrichmentStreetViewBusy
+                  }
                   className="rounded-lg border border-sky-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                   title={`Runs ${suggestedTestRows.length} curated rows for this upload in the selected mode (~several minutes)`}
                 >
@@ -980,6 +1060,17 @@ export default function DashboardPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+              {enrichmentStreetViewPreview && (
+                <div className="mt-3">
+                  <p className="mb-1 text-xs font-medium opacity-80">Street View preview (sent to Grok)</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={enrichmentStreetViewPreview}
+                    alt="Google Street View at voter residence"
+                    className="max-h-64 rounded-lg border border-white/20"
+                  />
                 </div>
               )}
               {enrichmentTestCost && (
