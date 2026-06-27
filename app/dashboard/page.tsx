@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 type Branding = 'matrix' | 'red' | 'blue';
 
@@ -45,6 +45,17 @@ export default function DashboardPage() {
   const [results, setResults] = useState<LeanResult[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const setSelectedFile = (next: File | null) => {
+    setFile(next);
+    setMessage(null);
+  };
+
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
 
   const refreshUploads = useCallback(async () => {
     const res = await fetch('/api/uploads');
@@ -98,7 +109,10 @@ export default function DashboardPage() {
   }, [job]);
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file) {
+      openFilePicker();
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -179,20 +193,74 @@ export default function DashboardPage() {
 
         <section className="panel rounded-2xl p-6">
           <h2 className="mb-4 text-xl font-semibold">Upload Florida Voter Extract (.txt)</h2>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,.csv,text/plain"
+            className="hidden"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+          />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={openFilePicker}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openFilePicker();
+              }
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setDragActive(true);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+              const dropped = e.dataTransfer.files?.[0];
+              if (dropped) setSelectedFile(dropped);
+            }}
+            className={`mb-4 cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 text-center transition ${
+              dragActive
+                ? 'border-emerald-400 bg-emerald-500/10'
+                : 'border-white/30 bg-black/10 hover:border-white/50 hover:bg-black/20'
+            }`}
+          >
+            <p className="text-lg font-medium">
+              {file ? file.name : 'Click to choose a file or drag it here'}
+            </p>
+            <p className="mt-2 text-sm opacity-75">
+              Florida county extract · .txt or .csv · e.g. CAL_20250812.txt
+            </p>
+          </div>
           <div className="flex flex-wrap items-center gap-3">
-            <input
-              type="file"
-              accept=".txt,.csv"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-sm"
-            />
             <button
               onClick={handleUpload}
-              disabled={!file || busy}
-              className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white disabled:opacity-50"
+              disabled={busy}
+              className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500 disabled:opacity-50"
             >
-              Upload & Ingest
+              {busy ? 'Uploading…' : file ? 'Upload & Ingest' : 'Choose File'}
             </button>
+            {file && (
+              <button
+                onClick={() => {
+                  setSelectedFile(null);
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                disabled={busy}
+                className="rounded-lg border px-4 py-2.5 text-sm hover:opacity-80 disabled:opacity-50"
+              >
+                Clear
+              </button>
+            )}
           </div>
           <p className="mt-3 text-sm opacity-75">
             Filters to NPA + Active voters automatically.
