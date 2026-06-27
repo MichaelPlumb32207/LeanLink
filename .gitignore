@@ -58,6 +58,8 @@ CAL_*.txt
 CAL_H_*.txt
 *_H_*.txt
 samples/*.txt
+samples/*.csv
+samples/leanlink-*.csv
 !samples/.gitkeep
 
 # Misc local artifacts
