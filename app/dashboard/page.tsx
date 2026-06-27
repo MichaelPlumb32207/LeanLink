@@ -130,7 +130,7 @@ export default function DashboardPage() {
       refreshJob(selectedUploadId);
       refreshResults(selectedUploadId);
       refreshUploads();
-    }, 3000);
+    }, 1500);
 
     return () => clearInterval(timer);
   }, [selectedUploadId, job, refreshJob, refreshResults, refreshUploads]);

@@ -61,13 +61,19 @@ export async function triggerWorker(jobId: string): Promise<void> {
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
   const url = `${baseUrl.replace(/\/$/, '')}/api/jobs/${jobId}/worker`;
 
-  await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.INTERNAL_JOB_SECRET}`,
-      'Content-Type': 'application/json',
-    },
-  }).catch((error) => {
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.INTERNAL_JOB_SECRET}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      console.error('Worker chain trigger HTTP error', jobId, response.status, body);
+    }
+  } catch (error) {
     console.error('Worker chain trigger failed', jobId, error);
-  });
+  }
 }

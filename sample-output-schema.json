@@ -21,7 +21,7 @@
   },
   "audit": {
     "timestamp": "2026-06-27T12:00:00Z",
-    "sources": ["Clearbit", "Grok-4-Heavy"],
-    "model_version": "grok-4-heavy-202606"
+    "sources": ["OSINT", "Grok-4.3"],
+    "model_version": "grok-4.3"
   }
 }

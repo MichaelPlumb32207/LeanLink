@@ -26,11 +26,14 @@ function isAuthorized(request: Request): boolean {
 
 async function claimRows(client: PoolClient, jobId: string, userId: string, limit: number) {
   const { rows } = await client.query<ClaimedRow>(
-    `WITH claimed AS (
-       SELECT vr.id
+    `WITH job AS (
+       SELECT upload_id FROM processing_jobs WHERE id = $1 AND user_id = $2
+     ),
+     claimed AS (
+       SELECT vr.id, vr.upload_id
        FROM voter_records vr
-       WHERE vr.upload_id = (SELECT upload_id FROM processing_jobs WHERE id = $1 AND user_id = $2)
-         AND vr.user_id = $2
+       JOIN job ON job.upload_id = vr.upload_id
+       WHERE vr.user_id = $2
          AND vr.status = 'pending'
        ORDER BY vr.row_index
        LIMIT $3
@@ -38,9 +41,9 @@ async function claimRows(client: PoolClient, jobId: string, userId: string, limi
      )
      UPDATE voter_records vr
      SET status = 'processing', updated_at = NOW()
-     FROM claimed
-     JOIN voter_uploads u ON u.id = vr.upload_id
-     WHERE vr.id = claimed.id
+     FROM claimed c
+     JOIN voter_uploads u ON u.id = c.upload_id
+     WHERE vr.id = c.id
      RETURNING vr.id, vr.raw_data, vr.voter_hash, vr.upload_id, vr.history_summary, u.ballot_favors`,
     [jobId, userId, limit],
   );
@@ -226,6 +229,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     });
   } catch (error) {
     console.error('Worker failed', jobId, error);
-    return NextResponse.json({ error: 'Worker failed' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Worker failed';
+    try {
+      await withUserDb(userEmail, (client) =>
+        client.query(
+          `UPDATE processing_jobs
+           SET status = 'failed', error_message = $2, completed_at = NOW(), last_heartbeat_at = NOW()
+           WHERE id = $1 AND status IN ('queued', 'running')`,
+          [jobId, message.slice(0, 500)],
+        ),
+      );
+    } catch (updateError) {
+      console.error('Failed to mark job failed', jobId, updateError);
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
