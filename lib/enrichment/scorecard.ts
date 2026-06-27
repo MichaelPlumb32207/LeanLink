@@ -1,6 +1,9 @@
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
 import type { LeanLabel, OsintMatch, ResolutionStatus } from '@/lib/enrichment/types';
-import { CALHOUN_SUGGESTED_TEST_ROWS } from '@/lib/enrichment/suggested-test-rows';
+import {
+  suggestedTestRowsForFilename,
+  type SuggestedTestRow,
+} from '@/lib/enrichment/suggested-test-rows';
 
 const SOCIAL_PLATFORMS = new Set([
   'x',
@@ -62,8 +65,15 @@ export interface EnrichmentScorecard {
   rows: EnrichmentScorecardRow[];
 }
 
-export function defaultScorecardRowIndices(): number[] {
-  return CALHOUN_SUGGESTED_TEST_ROWS.map((r) => r.rowIndex);
+export function defaultScorecardRowIndices(filename?: string | null): number[] {
+  return suggestedTestRowsForFilename(filename).map((r) => r.rowIndex);
+}
+
+function scenarioMeta(
+  rowIndex: number,
+  rows: SuggestedTestRow[],
+): SuggestedTestRow | undefined {
+  return rows.find((r) => r.rowIndex === rowIndex);
 }
 
 function median(values: number[]): number | null {
@@ -140,8 +150,9 @@ export function buildScorecardRow(
     web_search_calls?: number;
     x_search_calls?: number;
   } | null,
+  scenarioRows?: SuggestedTestRow[],
 ): EnrichmentScorecardRow {
-  const meta = CALHOUN_SUGGESTED_TEST_ROWS.find((r) => r.rowIndex === rowIndex);
+  const meta = scenarioMeta(rowIndex, scenarioRows ?? suggestedTestRowsForFilename(null));
   const social_found =
     hasSocialFromMatchedSocial(result.matched_social) ||
     hasSocialFromMatches(result.identity_matches);
@@ -163,8 +174,12 @@ export function buildScorecardRow(
   };
 }
 
-export function buildFailedScorecardRow(rowIndex: number, error: string): EnrichmentScorecardRow {
-  const meta = CALHOUN_SUGGESTED_TEST_ROWS.find((r) => r.rowIndex === rowIndex);
+export function buildFailedScorecardRow(
+  rowIndex: number,
+  error: string,
+  scenarioRows?: SuggestedTestRow[],
+): EnrichmentScorecardRow {
+  const meta = scenarioMeta(rowIndex, scenarioRows ?? suggestedTestRowsForFilename(null));
   return {
     rowIndex,
     scenario: meta?.scenario ?? `Row ${rowIndex}`,

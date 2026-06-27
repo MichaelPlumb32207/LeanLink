@@ -11,6 +11,7 @@ import {
   defaultScorecardRowIndices,
   type EnrichmentScorecard,
 } from '@/lib/enrichment/scorecard';
+import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { getXaiApiKey } from '@/lib/xai/client';
@@ -64,19 +65,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const uploadMeta = await withUserDb(userEmail, async (client) => {
+      const res = await client.query<{ filename: string }>(
+        `SELECT filename FROM voter_uploads WHERE id = $1 AND user_id = $2`,
+        [body.uploadId, userEmail],
+      );
+      return res.rows[0] ?? null;
+    });
+
+    if (!uploadMeta) {
+      return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+    }
+
+    const scenarioRows = suggestedTestRowsForFilename(uploadMeta.filename);
     const mode = parseEnrichmentMode(body.mode);
     const rowIndices =
       body.rowIndices && body.rowIndices.length > 0
         ? body.rowIndices
-        : defaultScorecardRowIndices();
+        : defaultScorecardRowIndices(uploadMeta.filename);
 
     const scorecardRows = [];
 
     for (const rowIndex of rowIndices) {
       try {
-        const row = await fetchRowByIndex(userEmail, body.uploadId, rowIndex);
+        const row = await fetchRowByIndex(userEmail, body.uploadId!, rowIndex);
         if (!row) {
-          scorecardRows.push(buildFailedScorecardRow(rowIndex, 'Voter record not found'));
+          scorecardRows.push(
+            buildFailedScorecardRow(rowIndex, 'Voter record not found', scenarioRows),
+          );
           continue;
         }
 
@@ -100,11 +116,12 @@ export async function POST(request: Request) {
               matched_social: pipeline.matched_social,
             },
             pipeline.debug?.usage ?? null,
+            scenarioRows,
           ),
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Enrichment failed';
-        scorecardRows.push(buildFailedScorecardRow(rowIndex, message));
+        scorecardRows.push(buildFailedScorecardRow(rowIndex, message, scenarioRows));
       }
     }
 

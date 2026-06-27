@@ -18,7 +18,7 @@ import {
 } from '@/lib/results-query';
 import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
 import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
-import { CALHOUN_SUGGESTED_TEST_ROWS } from '@/lib/enrichment/suggested-test-rows';
+import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 
 type Branding = 'matrix' | 'red' | 'blue';
 
@@ -182,6 +182,11 @@ export default function DashboardPage() {
   const selectedUpload = useMemo(
     () => uploads.find((u) => u.id === selectedUploadId) ?? null,
     [uploads, selectedUploadId],
+  );
+
+  const suggestedTestRows = useMemo(
+    () => suggestedTestRowsForFilename(selectedUpload?.filename),
+    [selectedUpload?.filename],
   );
 
   const selectedUploadRowCount = selectedUpload?.row_count ?? 0;
@@ -817,9 +822,11 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="mt-3">
-                <p className="mb-2 text-xs font-medium opacity-80">Suggested scenarios (Calhoun)</p>
+                <p className="mb-2 text-xs font-medium opacity-80">
+                  Suggested scenarios ({/^ALA/i.test(selectedUpload?.filename ?? '') ? 'Alachua' : 'Calhoun'})
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {CALHOUN_SUGGESTED_TEST_ROWS.map((row) => (
+                  {suggestedTestRows.map((row) => (
                     <button
                       key={row.rowIndex}
                       type="button"
@@ -870,11 +877,11 @@ export default function DashboardPage() {
                   onClick={handleEnrichmentScorecard}
                   disabled={enrichmentTestBusy || busy || enrichmentScorecardBusy}
                   className="rounded-lg border border-sky-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title={`Runs ${CALHOUN_SUGGESTED_TEST_ROWS.length} curated Calhoun rows in the selected mode (~several minutes, ~$0.30–0.50 at grok-full rates)`}
+                  title={`Runs ${suggestedTestRows.length} curated rows for this upload in the selected mode (~several minutes)`}
                 >
                   {enrichmentScorecardBusy
                     ? 'Running scorecard…'
-                    : `Run scorecard (${CALHOUN_SUGGESTED_TEST_ROWS.length} rows)`}
+                    : `Run scorecard (${suggestedTestRows.length} rows)`}
                 </button>
               </div>
               {enrichmentScorecard && (
