@@ -16,6 +16,7 @@ import {
   SORT_COLUMN_LABELS,
   sortResultRows,
 } from '@/lib/results-query';
+import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
 import { CALHOUN_SUGGESTED_TEST_ROWS } from '@/lib/enrichment/suggested-test-rows';
 
 type Branding = 'matrix' | 'red' | 'blue';
@@ -87,6 +88,7 @@ export default function DashboardPage() {
   const [enrichmentTestCost, setEnrichmentTestCost] = useState<string | null>(null);
   const [enrichmentTestBusy, setEnrichmentTestBusy] = useState(false);
   const [enrichmentTestRowIndex, setEnrichmentTestRowIndex] = useState(0);
+  const [enrichmentTestMode, setEnrichmentTestMode] = useState<EnrichmentMode>('grok-full');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -356,7 +358,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleEnrichmentTest = async () => {
+  const handleEnrichmentTest = async (compare = false) => {
     if (!selectedUploadId) return;
     setEnrichmentTestBusy(true);
     setMessage(null);
@@ -370,23 +372,40 @@ export default function DashboardPage() {
         body: JSON.stringify({
           uploadId: selectedUploadId,
           rowIndex: enrichmentTestRowIndex,
+          mode: enrichmentTestMode,
+          compare,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Enrichment test failed');
       setEnrichmentTestJson(JSON.stringify(data, null, 2));
-      setEnrichmentTestUrls(
-        Array.isArray(data.urls_searched) ? data.urls_searched : data.result?.enrichment?.citations ?? [],
-      );
-      const costUsd = data.usage?.cost_usd;
-      setEnrichmentTestCost(
-        typeof costUsd === 'number'
-          ? `$${costUsd.toFixed(4)} · ${data.usage?.web_search_calls ?? '?'} searches · ${data.usage?.total_tokens ?? '?'} tokens`
-          : null,
-      );
-      setMessage(
-        `Grok OSINT test: ${data.result?.lean} (${data.result?.confidence}% confidence) — ${data.result?.enrichment?.resolution_status}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
-      );
+
+      if (data.compare && data.comparison) {
+        const lines = Object.entries(data.comparison as Record<string, { result?: Record<string, unknown>; usage?: { cost_usd?: number } }>).map(
+          ([mode, entry]) => {
+            const r = entry.result;
+            const cost = entry.usage?.cost_usd;
+            return `${mode}: identity=${r?.identity_resolution_status} lean=${r?.lean} ($${typeof cost === 'number' ? cost.toFixed(4) : '?'})`;
+          },
+        );
+        setMessage(`Compare complete — ${lines.join(' · ')}`);
+        const first = Object.values(data.comparison)[0] as { urls_searched?: string[] };
+        setEnrichmentTestUrls(first?.urls_searched ?? []);
+      } else {
+        setEnrichmentTestUrls(
+          Array.isArray(data.urls_searched) ? data.urls_searched : data.result?.enrichment?.citations ?? [],
+        );
+        const costUsd = data.usage?.cost_usd;
+        setEnrichmentTestCost(
+          typeof costUsd === 'number'
+            ? `$${costUsd.toFixed(4)} · ${data.usage?.web_search_calls ?? '?'} searches · ${data.usage?.total_tokens ?? '?'} tokens · mode ${data.mode}`
+            : null,
+        );
+        const r = data.result;
+        setMessage(
+          `${data.mode}: identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+        );
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Enrichment test failed');
     } finally {
@@ -742,9 +761,30 @@ export default function DashboardPage() {
             <div className="rounded-xl border border-white/15 bg-black/10 p-4">
               <h3 className="font-medium">Test Grok OSINT (single voter)</h3>
               <p className="mt-1 text-xs opacity-70">
-                Runs live web search + lean inference on one voter without starting a full job.
-                URLs hit are listed below; full JSON includes prompts and guardrails.
+                Identity (did we find the person?) is separate from lean (ideology). Rural NPAs may
+                be identity-probable but lean-Undetermined — that is a valid research finding.
+                Compare modes to evaluate cost vs coverage.
               </p>
+              <div className="mt-3">
+                <label className="text-xs font-medium opacity-80" htmlFor="enrichment-mode">
+                  Pipeline mode
+                </label>
+                <select
+                  id="enrichment-mode"
+                  value={enrichmentTestMode}
+                  onChange={(e) => setEnrichmentTestMode(e.target.value as EnrichmentMode)}
+                  className="mt-1 block w-full max-w-md rounded border bg-black/20 px-2 py-1.5 text-sm"
+                >
+                  {ENRICHMENT_MODES.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs opacity-60">
+                  {ENRICHMENT_MODES.find((m) => m.id === enrichmentTestMode)?.description}
+                </p>
+              </div>
               <div className="mt-3">
                 <p className="mb-2 text-xs font-medium opacity-80">Suggested scenarios (Calhoun)</p>
                 <div className="flex flex-wrap gap-2">
@@ -779,11 +819,20 @@ export default function DashboardPage() {
                 />
                 <button
                   type="button"
-                  onClick={handleEnrichmentTest}
+                  onClick={() => handleEnrichmentTest(false)}
                   disabled={enrichmentTestBusy || busy}
                   className="rounded-lg border border-emerald-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
                 >
-                  {enrichmentTestBusy ? 'Running Grok search…' : 'Test enrichment'}
+                  {enrichmentTestBusy ? 'Running…' : 'Test enrichment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEnrichmentTest(true)}
+                  disabled={enrichmentTestBusy || busy}
+                  className="rounded-lg border border-amber-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
+                  title="Runs all 3 modes on this voter (~3× cost)"
+                >
+                  Compare all modes
                 </button>
               </div>
               {enrichmentTestCost && (

@@ -1,4 +1,5 @@
 import { buildEnrichmentBundle, historyToContext } from '@/lib/enrichment/build-bundle';
+import { parseEnrichmentMode } from '@/lib/enrichment/modes';
 import { grokEnrichAndInferRecord } from '@/lib/enrichment/grok-pipeline';
 import type { LeanLabel } from '@/lib/enrichment/types';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
@@ -150,7 +151,10 @@ export async function inferLean(
   }
 
   try {
-    const grok = await grokEnrichAndInferRecord(record, historySummary, ballotFavors);
+    const mode = parseEnrichmentMode(process.env.ENRICHMENT_MODE);
+    const grok = await grokEnrichAndInferRecord(record, historySummary, ballotFavors, {
+      mode,
+    });
     const oppositionScore = computeOppositionMobilizationScore(
       history.turnout_score,
       grok.confidence,
@@ -160,7 +164,11 @@ export async function inferLean(
 
     const evidence = appendHistoryEvidence(grok.evidence, history);
     evidence.push(
-      `OSINT resolution: ${grok.enrichment.resolution_status} (best match ${Math.round(grok.enrichment.best_match_score * 100)}%)`,
+      `Identity resolution: ${grok.enrichment.identity_resolution_status} (best match ${Math.round(grok.enrichment.identity_best_match_score * 100)}%)`,
+      grok.enrichment.lean_signals_found
+        ? 'Ideological signals found in public content'
+        : 'No ideological signals — lean intentionally Undetermined',
+      `Pipeline: ${grok.enrichment.pipeline_mode}`,
       grok.enrichment.search_summary,
       `Ballot favors ${ballotFavors} — opposition mobilization score ${oppositionScore}`,
     );

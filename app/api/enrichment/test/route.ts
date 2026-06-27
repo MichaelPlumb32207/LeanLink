@@ -2,10 +2,40 @@ import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
 import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
-import { runGrokEnrichAndInfer } from '@/lib/enrichment/grok-pipeline';
+import { parseEnrichmentMode, type EnrichmentMode } from '@/lib/enrichment/modes';
+import { runEnrichmentPipeline } from '@/lib/enrichment/grok-pipeline';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { getXaiApiKey } from '@/lib/xai/client';
+
+function formatTestResponse(
+  rowId: string,
+  bundle: ReturnType<typeof buildEnrichmentBundle>,
+  mode: EnrichmentMode,
+  result: Awaited<ReturnType<typeof runEnrichmentPipeline>>,
+) {
+  return {
+    mode,
+    voterRecordId: rowId,
+    bundle,
+    urls_searched: result.enrichment.citations,
+    search_queries: result.enrichment.search_queries,
+    usage: result.debug?.usage ?? null,
+    result: {
+      identity_resolution_status: result.enrichment.identity_resolution_status,
+      identity_best_match_score: result.enrichment.identity_best_match_score,
+      identity_matches: result.enrichment.identity_matches,
+      lean_signals_found: result.enrichment.lean_signals_found,
+      lean: result.lean,
+      confidence: result.confidence,
+      evidence: result.evidence,
+      matched_social: result.matched_social,
+      enrichment: result.enrichment,
+      audit: result.audit,
+    },
+    debug: result.debug,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +45,8 @@ export async function POST(request: Request) {
       uploadId?: string;
       voterRecordId?: string;
       rowIndex?: number;
+      mode?: EnrichmentMode;
+      compare?: boolean;
     };
 
     if (!body.uploadId) {
@@ -71,23 +103,25 @@ export async function POST(request: Request) {
     }
 
     const bundle = buildEnrichmentBundle(row.raw_data, row.history_summary, row.ballot_favors);
-    const result = await runGrokEnrichAndInfer(bundle, { includeDebug: true });
 
-    return NextResponse.json({
-      voterRecordId: row.id,
-      bundle,
-      urls_searched: result.enrichment.citations,
-      usage: result.debug?.usage ?? null,
-      result: {
-        lean: result.lean,
-        confidence: result.confidence,
-        evidence: result.evidence,
-        matched_social: result.matched_social,
-        enrichment: result.enrichment,
-        audit: result.audit,
-      },
-      debug: result.debug,
-    });
+    if (body.compare) {
+      const modes: EnrichmentMode[] = ['grok-full', 'modular-targeted', 'modular-synthesize'];
+      const comparison: Record<string, ReturnType<typeof formatTestResponse>> = {};
+      for (const mode of modes) {
+        const result = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
+        comparison[mode] = formatTestResponse(row.id, bundle, mode, result);
+      }
+      return NextResponse.json({
+        compare: true,
+        voterRecordId: row.id,
+        bundle,
+        comparison,
+      });
+    }
+
+    const mode = parseEnrichmentMode(body.mode);
+    const result = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
+    return NextResponse.json(formatTestResponse(row.id, bundle, mode, result));
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

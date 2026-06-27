@@ -1,4 +1,5 @@
 import type { BallotFavors } from '@/lib/fl-voter-history';
+import type { EnrichmentMode } from '@/lib/enrichment/modes';
 
 export type LeanLabel = 'Left' | 'Right' | 'Independent' | 'Undetermined';
 
@@ -18,6 +19,8 @@ export interface ContactOnFile {
   has_phone: boolean;
   email?: string | null;
   phone?: string | null;
+  phone_raw?: string | null;
+  phone_search_variants?: string[];
 }
 
 export interface HistoryContext {
@@ -39,11 +42,20 @@ export interface OsintMatch {
 }
 
 export interface EnrichmentResult {
+  /** @deprecated use identity_resolution_status */
   resolution_status: ResolutionStatus;
+  identity_resolution_status: ResolutionStatus;
+  identity_best_match_score: number;
+  identity_matches: OsintMatch[];
+  lean_signals_found: boolean;
+  /** @deprecated use identity_matches */
   matches: OsintMatch[];
+  /** @deprecated use identity_best_match_score */
   best_match_score: number;
   search_summary: string;
   citations: string[];
+  search_queries: string[];
+  pipeline_mode: EnrichmentMode;
 }
 
 export interface EnrichmentBundle {
@@ -54,13 +66,19 @@ export interface EnrichmentBundle {
 }
 
 export interface GrokInferencePayload {
-  resolution_status: ResolutionStatus;
-  best_match_score: number;
-  matches: OsintMatch[];
+  identity_resolution_status: ResolutionStatus;
+  identity_best_match_score: number;
+  identity_matches: OsintMatch[];
   lean: LeanLabel;
-  confidence: number;
+  lean_confidence: number;
+  lean_signals_found: boolean;
   evidence: string[];
   search_summary: string;
+  /** legacy fields from older prompts */
+  resolution_status?: ResolutionStatus;
+  best_match_score?: number;
+  matches?: OsintMatch[];
+  confidence?: number;
 }
 
 export interface GrokPipelineResult {
@@ -74,6 +92,7 @@ export interface GrokPipelineResult {
     sources: string[];
     model_version: string;
     ballot_favors: BallotFavors;
+    pipeline_mode: EnrichmentMode;
     grok_raw_excerpt?: string;
     citations?: string[];
   };

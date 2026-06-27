@@ -1,14 +1,18 @@
-import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
+import { buildSearchQueries } from '@/lib/enrichment/query-builder';
+import { buildSystemPrompt, buildUserPrompt } from '@/lib/enrichment/prompts';
+import type { EnrichmentMode } from '@/lib/enrichment/modes';
 import type {
   EnrichmentBundle,
   EnrichmentResult,
   GrokInferencePayload,
   GrokPipelineResult,
   LeanLabel,
+  OsintMatch,
   ResolutionStatus,
 } from '@/lib/enrichment/types';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
+import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
 import {
   getXaiModel,
   xaiResponsesWithWebSearch,
@@ -18,63 +22,15 @@ import {
 const LEAN_LABELS: LeanLabel[] = ['Left', 'Right', 'Independent', 'Undetermined'];
 const RESOLUTION_STATUSES: ResolutionStatus[] = ['probable', 'ambiguous', 'none'];
 
-const SYSTEM_PROMPT = `You are LeanLink, a research-only political intelligence assistant for Florida NPA (No Party Affiliation) voters.
-
-Your task uses live web search (OSINT) to find PUBLIC online personas matching a voter anchor, then infer political lean from public signals only.
-
-STRICT RULES:
-- OSINT only: public web, social profiles, news. No commercial data brokers.
-- NEVER use race, gender, or demographic stereotypes.
-- Do NOT use precinct/district geographic priors for lean (geo signals are disabled).
-- Voter is NPA — party registration is not available.
-- Voting history primary participation indicates engagement level ONLY, not party lean.
-- If no credible public match: lean MUST be "Undetermined", confidence MUST be <= 35.
-- If multiple ambiguous matches: lean "Undetermined" or "Independent", confidence <= 45.
-- Cite only public evidence in evidence[].
-- Return ONLY valid JSON matching the schema — no markdown fences.`;
-
-function buildUserPrompt(bundle: EnrichmentBundle): string {
-  return `Research this Florida NPA voter using web search, then infer lean.
-
-VOTER ANCHOR (public record):
-${JSON.stringify(bundle.anchor, null, 2)}
-
-CONTACT ON FILE (may help disambiguate; do not invent contact not found):
-${JSON.stringify(
-  {
-    has_email: bundle.contact_on_file.has_email,
-    has_phone: bundle.contact_on_file.has_phone,
-  },
-  null,
-  2,
-)}
-
-VOTING HISTORY (behavioral — NOT ideological; primary count is engagement only):
-${JSON.stringify(bundle.history, null, 2)}
-
-BALLOT SCENARIO (for context only; do not output opposition score):
-ballot_favors: ${bundle.ballot_favors}
-
-Search for public online presence (social, LinkedIn, X, public Facebook, local news, etc.) matching this person in Florida.
-
-Return JSON:
-{
-  "resolution_status": "probable" | "ambiguous" | "none",
-  "best_match_score": 0.0 to 1.0,
-  "matches": [
-    {
-      "platform": "x|linkedin|facebook|web|other",
-      "url": "https://...",
-      "match_score": 0.0 to 1.0,
-      "match_reasons": ["..."],
-      "signals": ["ideological signals from public content"]
-    }
-  ],
-  "lean": "Left" | "Right" | "Independent" | "Undetermined",
-  "confidence": 0 to 100,
-  "evidence": ["human-readable evidence strings"],
-  "search_summary": "brief description of what you searched and found"
-}`;
+function parseMatches(raw: unknown): OsintMatch[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((m) => ({
+    platform: String(m?.platform ?? 'other'),
+    url: String(m?.url ?? ''),
+    match_score: clamp(Number(m?.match_score ?? 0), 0, 1),
+    match_reasons: Array.isArray(m?.match_reasons) ? m.match_reasons.map(String) : [],
+    signals: Array.isArray(m?.signals) ? m.signals.map(String) : [],
+  }));
 }
 
 export function parseJsonFromModelText(text: string): GrokInferencePayload {
@@ -90,30 +46,37 @@ export function parseJsonFromModelText(text: string): GrokInferencePayload {
 
   const parsed = JSON.parse(candidate.slice(start, end + 1)) as Partial<GrokInferencePayload>;
 
+  const identity_matches = parseMatches(
+    parsed.identity_matches ?? parsed.matches ?? [],
+  );
+
+  const identity_resolution_status = RESOLUTION_STATUSES.includes(
+    (parsed.identity_resolution_status ?? parsed.resolution_status) as ResolutionStatus,
+  )
+    ? ((parsed.identity_resolution_status ?? parsed.resolution_status) as ResolutionStatus)
+    : 'none';
+
   const lean = LEAN_LABELS.includes(parsed.lean as LeanLabel)
     ? (parsed.lean as LeanLabel)
     : 'Undetermined';
 
-  const resolution_status = RESOLUTION_STATUSES.includes(parsed.resolution_status as ResolutionStatus)
-    ? (parsed.resolution_status as ResolutionStatus)
-    : 'none';
+  const lean_confidence = clamp(
+    Math.round(Number(parsed.lean_confidence ?? parsed.confidence ?? 0)),
+    0,
+    100,
+  );
 
   return {
-    resolution_status,
-    best_match_score: clamp(Number(parsed.best_match_score ?? 0), 0, 1),
-    matches: Array.isArray(parsed.matches)
-      ? parsed.matches.map((m) => ({
-          platform: String(m?.platform ?? 'other'),
-          url: String(m?.url ?? ''),
-          match_score: clamp(Number(m?.match_score ?? 0), 0, 1),
-          match_reasons: Array.isArray(m?.match_reasons)
-            ? m.match_reasons.map(String)
-            : [],
-          signals: Array.isArray(m?.signals) ? m.signals.map(String) : [],
-        }))
-      : [],
+    identity_resolution_status,
+    identity_best_match_score: clamp(
+      Number(parsed.identity_best_match_score ?? parsed.best_match_score ?? 0),
+      0,
+      1,
+    ),
+    identity_matches,
     lean,
-    confidence: clamp(Math.round(Number(parsed.confidence ?? 0)), 0, 100),
+    lean_confidence,
+    lean_signals_found: Boolean(parsed.lean_signals_found),
     evidence: Array.isArray(parsed.evidence) ? parsed.evidence.map(String) : [],
     search_summary: String(parsed.search_summary ?? ''),
   };
@@ -124,40 +87,84 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-export function applyInferenceGuardrails(payload: GrokInferencePayload): GrokInferencePayload {
-  let { lean, confidence, resolution_status, best_match_score } = payload;
+function hasIdeologicalSignals(matches: OsintMatch[]): boolean {
+  return matches.some((m) => m.signals.some((s) => s.trim().length > 0));
+}
 
-  if (resolution_status === 'none' || best_match_score < 0.25 || payload.matches.length === 0) {
-    lean = 'Undetermined';
-    confidence = Math.min(confidence, 35);
-    resolution_status = 'none';
-  } else if (resolution_status === 'ambiguous') {
-    if (lean !== 'Independent') lean = 'Undetermined';
-    confidence = Math.min(confidence, 45);
+export function applyInferenceGuardrails(payload: GrokInferencePayload): GrokInferencePayload {
+  let {
+    identity_resolution_status,
+    identity_best_match_score,
+    identity_matches,
+    lean,
+    lean_confidence,
+    lean_signals_found,
+  } = payload;
+
+  const signalsFound = lean_signals_found || hasIdeologicalSignals(identity_matches);
+
+  if (identity_matches.length > 0) {
+    const topScore = Math.max(...identity_matches.map((m) => m.match_score), 0);
+    identity_best_match_score = Math.max(identity_best_match_score, topScore);
   }
 
-  confidence = clamp(confidence, 0, 100);
-  best_match_score = clamp(best_match_score, 0, 1);
+  if (identity_best_match_score >= 0.5 && identity_matches.length === 1) {
+    identity_resolution_status = 'probable';
+  } else if (identity_best_match_score >= 0.35 && identity_matches.length > 0) {
+    if (identity_resolution_status === 'none') identity_resolution_status = 'probable';
+  } else if (identity_matches.length > 1 && identity_best_match_score < 0.6) {
+    identity_resolution_status = 'ambiguous';
+  } else if (identity_matches.length === 0 && identity_best_match_score < 0.25) {
+    identity_resolution_status = 'none';
+  }
 
-  return { ...payload, lean, confidence, resolution_status, best_match_score };
+  if (!signalsFound) {
+    lean = 'Undetermined';
+    lean_confidence = Math.min(lean_confidence, 35);
+    lean_signals_found = false;
+  } else if (identity_resolution_status === 'ambiguous') {
+    if (lean !== 'Independent') lean = 'Undetermined';
+    lean_confidence = Math.min(lean_confidence, 45);
+    lean_signals_found = true;
+  } else {
+    lean_signals_found = true;
+  }
+
+  return {
+    ...payload,
+    identity_resolution_status,
+    identity_best_match_score: clamp(identity_best_match_score, 0, 1),
+    identity_matches,
+    lean,
+    lean_confidence: clamp(lean_confidence, 0, 100),
+    lean_signals_found,
+  };
 }
 
 function toEnrichmentResult(
   payload: GrokInferencePayload,
   citations: string[],
+  mode: EnrichmentMode,
+  searchQueries: string[],
 ): EnrichmentResult {
   return {
-    resolution_status: payload.resolution_status,
-    matches: payload.matches,
-    best_match_score: payload.best_match_score,
+    resolution_status: payload.identity_resolution_status,
+    identity_resolution_status: payload.identity_resolution_status,
+    identity_best_match_score: payload.identity_best_match_score,
+    identity_matches: payload.identity_matches,
+    lean_signals_found: payload.lean_signals_found,
+    matches: payload.identity_matches,
+    best_match_score: payload.identity_best_match_score,
     search_summary: payload.search_summary,
     citations,
+    search_queries: searchQueries,
+    pipeline_mode: mode,
   };
 }
 
-function matchedSocialUrls(matches: GrokInferencePayload['matches']): string[] {
+function matchedSocialUrls(matches: OsintMatch[]): string[] {
   return matches
-    .filter((m) => m.url)
+    .filter((m) => m.url && ['x', 'linkedin', 'facebook', 'social'].includes(m.platform))
     .map((m) => (m.platform ? `${m.platform}: ${m.url}` : m.url));
 }
 
@@ -170,37 +177,50 @@ export interface GrokPipelineDebug {
   parsed_after_guardrails: GrokInferencePayload;
   usage: XaiUsageSummary | null;
   urls_searched: string[];
+  pipeline_mode: EnrichmentMode;
 }
 
-export async function runGrokEnrichAndInfer(
+export async function runEnrichmentPipeline(
   bundle: EnrichmentBundle,
+  mode: EnrichmentMode = 'grok-full',
   options?: { includeDebug?: boolean },
 ): Promise<GrokPipelineResult & { debug?: GrokPipelineDebug }> {
-  const userPrompt = buildUserPrompt(bundle);
+  const searchQueries = buildSearchQueries(bundle);
+  const systemPrompt = buildSystemPrompt(mode);
+  const userPrompt = buildUserPrompt(bundle, mode);
   const model = getXaiModel();
+  const enableWebSearch = mode !== 'modular-synthesize';
 
   const response = await xaiResponsesWithWebSearch({
     model,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     userPrompt,
-    enableWebSearch: true,
+    enableWebSearch,
   });
 
   const parsedRaw = parseJsonFromModelText(response.text);
   const parsed = applyInferenceGuardrails(parsedRaw);
-  const enrichment = toEnrichmentResult(parsed, response.citations);
+  const enrichment = toEnrichmentResult(parsed, response.citations, mode, searchQueries);
+
+  const auditSources =
+    mode === 'modular-synthesize'
+      ? ['Grok-Synthesize-Only', 'FL-Voting-History', 'FL-Voter-File', 'Query-Planner']
+      : mode === 'modular-targeted'
+        ? ['Grok-Targeted-Search', 'Query-Planner', 'FL-Voting-History', 'FL-Voter-File']
+        : ['Grok-LiveSearch', 'FL-Voting-History', 'FL-Voter-File'];
 
   const result: GrokPipelineResult = {
     enrichment,
     lean: parsed.lean,
-    confidence: parsed.confidence,
+    confidence: parsed.lean_confidence,
     evidence: parsed.evidence,
-    matched_social: matchedSocialUrls(parsed.matches),
+    matched_social: matchedSocialUrls(parsed.identity_matches),
     audit: {
       timestamp: new Date().toISOString(),
-      sources: ['Grok-LiveSearch', 'FL-Voting-History', 'FL-Voter-File'],
+      sources: auditSources,
       model_version: model,
       ballot_favors: bundle.ballot_favors,
+      pipeline_mode: mode,
       grok_raw_excerpt: response.text.slice(0, 2000),
       citations: response.citations,
     },
@@ -210,7 +230,7 @@ export async function runGrokEnrichAndInfer(
     return {
       ...result,
       debug: {
-        prompt_system: SYSTEM_PROMPT,
+        prompt_system: systemPrompt,
         prompt_user: userPrompt,
         raw_text: response.text,
         raw_response: response.raw,
@@ -218,6 +238,7 @@ export async function runGrokEnrichAndInfer(
         parsed_after_guardrails: parsed,
         usage: response.usage,
         urls_searched: response.citations,
+        pipeline_mode: mode,
       },
     };
   }
@@ -225,13 +246,21 @@ export async function runGrokEnrichAndInfer(
   return result;
 }
 
+/** @deprecated use runEnrichmentPipeline */
+export async function runGrokEnrichAndInfer(
+  bundle: EnrichmentBundle,
+  options?: { includeDebug?: boolean },
+) {
+  return runEnrichmentPipeline(bundle, 'grok-full', options);
+}
+
 export async function grokEnrichAndInferRecord(
   record: ParsedFlVoterRecord,
   historySummary: VoterHistorySummary | null | undefined,
   ballotFavors: BallotFavors,
-  options?: { includeDebug?: boolean },
-): Promise<GrokPipelineResult & { debug?: GrokPipelineDebug; bundle: EnrichmentBundle }> {
+  options?: { includeDebug?: boolean; mode?: EnrichmentMode },
+) {
   const bundle = buildEnrichmentBundle(record, historySummary, ballotFavors);
-  const result = await runGrokEnrichAndInfer(bundle, options);
+  const result = await runEnrichmentPipeline(bundle, options?.mode ?? 'grok-full', options);
   return { ...result, bundle };
 }

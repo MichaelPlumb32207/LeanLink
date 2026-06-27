@@ -1,6 +1,7 @@
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { summarizeVoterHistory } from '@/lib/fl-voter-history';
+import { normalizePhone, phoneSearchVariants } from '@/lib/enrichment/normalize';
 import type { EnrichmentBundle, HistoryContext } from '@/lib/enrichment/types';
 
 export function historyToContext(summary: VoterHistorySummary): HistoryContext {
@@ -40,7 +41,9 @@ export function buildEnrichmentBundle(
       has_email: Boolean(record.email),
       has_phone: Boolean(record.phone),
       email: record.email,
-      phone: record.phone,
+      phone: normalizePhone(record.phone),
+      phone_raw: record.phone,
+      phone_search_variants: phoneSearchVariants(record.phone),
     },
     history,
     ballot_favors: ballotFavors,

@@ -6,6 +6,18 @@ current as design shifts.
 
 ---
 
+## D-013 · Split identity resolution from lean inference
+**Decision:** `identity_resolution_status` (found the right person?) is separate from `lean`
+(ideological label). Directory/property hits count as identity even when `lean` stays
+`Undetermined`. **Why:** All-Undetermined was uninformative — Ezra had a confirmed directory
+match but no social/ideology; that is a meaningful POC finding, not a pipeline failure.
+
+## D-014 · Modular enrichment modes for cost comparison
+**Decision:** Three testable modes coexist: `grok-full` (open agentic search), `modular-targeted`
+(query planner + ≤3 searches), `modular-synthesize` (no search, cheap baseline). Batch jobs use
+`ENRICHMENT_MODE` env; dashboard can **Compare all modes** per voter. **Why:** ~$330/10k at
+full Grok search is too expensive to scale blindly; compare before pivoting.
+
 ## D-012 · Primary history = mobilization only
 **Decision:** PRI/PPP counts feed turnout/opposition context only — never infer party lean
 from primary participation (FL history extract has no party-of-primary field). **Why:**
