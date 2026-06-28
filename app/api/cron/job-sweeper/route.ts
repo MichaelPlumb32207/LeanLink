@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { isBatchInferenceEnabled } from '@/lib/batch-inference';
 import { pool } from '@/lib/db';
 import { triggerWorker } from '@/lib/job-runner';
+import { triggerFecSweepWorker } from '@/lib/fec/sweep-runner';
 
 export const maxDuration = 60;
 
@@ -36,6 +37,20 @@ export async function GET(request: Request) {
          )`,
     );
 
+    let fecRows: { rows: { id: string }[] } = { rows: [] };
+    try {
+      fecRows = await client.query<{ id: string }>(
+        `SELECT id FROM fec_sweep_jobs
+         WHERE status IN ('queued', 'running')
+           AND (
+             last_heartbeat_at IS NULL
+             OR last_heartbeat_at < NOW() - INTERVAL '10 minutes'
+           )`,
+      );
+    } catch {
+      // 003_fec_sweep.sql not applied yet
+    }
+
     await client.query('COMMIT');
 
     let retriggered = 0;
@@ -46,10 +61,18 @@ export async function GET(request: Request) {
       }
     }
 
+    let fec_retriggered = 0;
+    for (const row of fecRows.rows) {
+      await triggerFecSweepWorker(row.id);
+      fec_retriggered += 1;
+    }
+
     return NextResponse.json({
       retriggered,
+      fec_retriggered,
       batch_inference_enabled: isBatchInferenceEnabled(),
       stale_jobs: rows.length,
+      stale_fec_sweeps: fecRows.rows.length,
     });
   } catch (error) {
     await client.query('ROLLBACK');

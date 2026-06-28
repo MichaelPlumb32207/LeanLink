@@ -71,17 +71,26 @@ function mapContribution(row: Record<string, unknown>): FecContributionHit {
  * Direct FEC Open API lookup (Schedule A individual contributions).
  * Free with FEC_API_KEY; falls back to DEMO_KEY (strict rate limits).
  */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type FecMatchLevel = 'strict' | 'state_only';
+
 export async function lookupFecContributions(params: {
   name: string;
   city?: string;
   state?: string;
   zip?: string;
   perPage?: number;
+  matchLevel?: FecMatchLevel;
 }): Promise<FecContributorLookupResult> {
   const contributor_name = params.name.trim();
   const contributor_state = (params.state?.trim() || 'FL').toUpperCase();
-  const contributor_city = params.city?.trim() || null;
-  const contributor_zip = params.zip?.trim().slice(0, 5) || null;
+  const matchLevel = params.matchLevel ?? 'strict';
+  const contributor_city = matchLevel === 'strict' ? params.city?.trim() || null : null;
+  const contributor_zip =
+    matchLevel === 'strict' ? params.zip?.trim().slice(0, 5) || null : null;
   const perPage = Math.min(Math.max(params.perPage ?? 20, 1), 100);
 
   const search = new URLSearchParams({
@@ -98,19 +107,25 @@ export async function lookupFecContributions(params: {
   const api_url = `${FEC_API_BASE}/schedules/schedule_a/?${search.toString()}`;
 
   try {
-    const res = await fetch(api_url, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 0 },
-    });
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      res = await fetch(api_url, {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
+      if (res.status !== 429) break;
+      await sleep(15_000 * (attempt + 1));
+    }
+
+    if (!res || !res.ok) {
+      const text = res ? await res.text() : 'No response';
       return {
         query: { contributor_name, contributor_state, contributor_city, contributor_zip },
         api_url,
         result_count: 0,
         contributions: [],
-        error: `FEC API ${res.status}: ${text.slice(0, 200)}`,
+        error: `FEC API ${res?.status ?? 'unknown'}: ${text.slice(0, 200)}`,
       };
     }
 

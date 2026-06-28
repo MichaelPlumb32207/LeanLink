@@ -46,6 +46,7 @@ No migration runner — apply SQL files in order, by hand:
 ```bash
 psql "$DATABASE_URL" -f migrations/001_initial_schema.sql
 psql "$DATABASE_URL" -f migrations/002_history_columns.sql
+psql "$DATABASE_URL" -f migrations/003_fec_sweep.sql
 ```
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT

@@ -66,7 +66,8 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Enrichment modes (4) | ✅ | `grok-full`, `apify-modular`, `modular-targeted`, `modular-synthesize`. |
 | Analyze UI: subset + test picker | ✅ | `app/dashboard/page.tsx`, `lib/test-row-indices.ts`. |
 | Enrichment test + scorecard APIs | ✅ | `POST /api/enrichment/test`, `scorecard` accept `rowIndices`. |
-| FEC direct contributor lookup | 🟡 | `lib/fec/contributor-lookup.ts`, `POST /api/enrichment/fec` — needs field validation. |
+| FEC direct contributor lookup (subset) | ✅ | `POST /api/enrichment/fec` — 0/7 on curated Calhoun validation. |
+| FEC whole-file sweep (batch) | 🟡 | `003_fec_sweep.sql`, worker + dashboard — apply migration, then run. |
 | Tier-A OSINT query plan (donations, media, civic) | ✅ | `lib/enrichment/query-builder.ts` (Grok/Apify path). |
 | Lean guardrails (signals in `identity_matches`) | ✅ | `applyInferenceGuardrails` — don't trust `lean_signals_found` alone. |
 | Apify fetch layer (Google Search + web crawl) | 🟡 | `lib/apify/*`, `apify-modular` — actors need live eval. |

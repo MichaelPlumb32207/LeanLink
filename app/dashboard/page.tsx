@@ -21,7 +21,17 @@ import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 import { formatRowIndices, parseRowIndicesInput } from '@/lib/test-row-indices';
 
-type AnalyzeTest = 'enrichment' | 'scorecard' | 'street-view' | 'fec';
+type AnalyzeTest = 'enrichment' | 'scorecard' | 'street-view' | 'fec' | 'fec-sweep';
+
+type FecSweepJob = {
+  id: string;
+  status: string;
+  processed_count: number;
+  failed_count: number;
+  hits_count: number;
+  total_count: number;
+  error_message?: string | null;
+};
 
 const ANALYZE_TEST_OPTIONS: {
   id: AnalyzeTest;
@@ -29,6 +39,7 @@ const ANALYZE_TEST_OPTIONS: {
   description: string;
   needsMode: boolean;
   multiRow: boolean;
+  wholeUpload?: boolean;
 }[] = [
   {
     id: 'enrichment',
@@ -53,10 +64,18 @@ const ANALYZE_TEST_OPTIONS: {
   },
   {
     id: 'fec',
-    label: 'FEC contributor lookup',
-    description: 'Direct FEC Open API Schedule A search by name + FL city/zip (no Grok).',
+    label: 'FEC contributor lookup (subset)',
+    description: 'Direct FEC Open API Schedule A on test subset only (no Grok).',
     needsMode: false,
     multiRow: true,
+  },
+  {
+    id: 'fec-sweep',
+    label: 'FEC sweep (whole file)',
+    description: 'All voters in upload — free throttled FEC API, results stored in DB.',
+    needsMode: false,
+    multiRow: true,
+    wholeUpload: true,
   },
 ];
 
@@ -134,6 +153,11 @@ export default function DashboardPage() {
   const [analyzeCost, setAnalyzeCost] = useState<string | null>(null);
   const [analyzeScorecard, setAnalyzeScorecard] = useState<EnrichmentScorecard | null>(null);
   const [analyzeStreetViewPreview, setAnalyzeStreetViewPreview] = useState<string | null>(null);
+  const [fecSweepJob, setFecSweepJob] = useState<FecSweepJob | null>(null);
+  const [fecSweepHitRate, setFecSweepHitRate] = useState<number | null>(null);
+  const [fecSweepSampleHits, setFecSweepSampleHits] = useState<
+    { row_index: number; contributor_name: string; match_level: string; result_count: number }[]
+  >([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -177,6 +201,15 @@ export default function DashboardPage() {
     if (!res.ok) return;
     const data = await res.json();
     setJob(data.job ?? null);
+  }, []);
+
+  const refreshFecSweep = useCallback(async (uploadId: string) => {
+    const res = await fetch(`/api/uploads/${uploadId}/fec-sweep`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setFecSweepJob(data.job ?? null);
+    setFecSweepHitRate(typeof data.hit_rate_pct === 'number' ? data.hit_rate_pct : null);
+    setFecSweepSampleHits(Array.isArray(data.sample_hits) ? data.sample_hits : []);
   }, []);
 
   const refreshResults = useCallback(
@@ -272,7 +305,8 @@ export default function DashboardPage() {
     setColumnFilters(EMPTY_COLUMN_FILTERS);
     setRevealedVoterHash(null);
     refreshJob(selectedUploadId);
-  }, [selectedUploadId, refreshJob]);
+    refreshFecSweep(selectedUploadId);
+  }, [selectedUploadId, refreshJob, refreshFecSweep]);
 
   useEffect(() => {
     if (!selectedUploadId || !selectedUpload) return;
@@ -306,6 +340,22 @@ export default function DashboardPage() {
 
     return () => clearInterval(timer);
   }, [selectedUploadId, selectedUpload, job, refreshJob, refreshResults, refreshUploads]);
+
+  useEffect(() => {
+    if (!selectedUploadId || !fecSweepJob) return;
+    if (fecSweepJob.status !== 'queued' && fecSweepJob.status !== 'running') return;
+
+    const timer = setInterval(() => {
+      refreshFecSweep(selectedUploadId);
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [selectedUploadId, fecSweepJob, refreshFecSweep]);
+
+  const fecSweepProgressPct = useMemo(() => {
+    if (!fecSweepJob?.total_count) return 0;
+    return Math.round((fecSweepJob.processed_count / fecSweepJob.total_count) * 100);
+  }, [fecSweepJob]);
 
   const displayResults = useMemo(() => {
     if (serverQuery || serverSort) return results;
@@ -421,18 +471,43 @@ export default function DashboardPage() {
     if (defaults.length > 0) setActiveRowIndex(defaults[0]);
   };
 
+  const handleCancelFecSweep = async () => {
+    if (!selectedUploadId) return;
+    setAnalyzeBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/uploads/${selectedUploadId}/fec-sweep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to cancel FEC sweep');
+      setMessage('FEC sweep cancelled.');
+      await refreshFecSweep(selectedUploadId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to cancel FEC sweep');
+    } finally {
+      setAnalyzeBusy(false);
+    }
+  };
+
   const handleRunAnalyze = async () => {
     if (!selectedUploadId) return;
 
     const rowIndices = parsedTestRowIndices;
-    if (rowIndices.length === 0) {
-      setMessage('Enter at least one valid row index (0-based).');
-      return;
-    }
+    const isWholeUpload = activeAnalyzeTest.wholeUpload === true;
 
-    if (!activeAnalyzeTest.multiRow && !rowIndices.includes(activeRowIndex)) {
-      setMessage('Pick an active row from your test subset.');
-      return;
+    if (!isWholeUpload) {
+      if (rowIndices.length === 0) {
+        setMessage('Enter at least one valid row index (0-based).');
+        return;
+      }
+
+      if (!activeAnalyzeTest.multiRow && !rowIndices.includes(activeRowIndex)) {
+        setMessage('Pick an active row from your test subset.');
+        return;
+      }
     }
 
     setAnalyzeBusy(true);
@@ -444,6 +519,22 @@ export default function DashboardPage() {
     setAnalyzeStreetViewPreview(null);
 
     try {
+      if (analyzeTest === 'fec-sweep') {
+        const res = await fetch(`/api/uploads/${selectedUploadId}/fec-sweep`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'FEC sweep failed to start');
+        setMessage(
+          data.message ??
+            `FEC sweep started for ${data.total_count ?? selectedUpload?.row_count ?? '?'} voters.`,
+        );
+        await refreshFecSweep(selectedUploadId);
+        return;
+      }
+
       if (analyzeTest === 'scorecard') {
         const res = await fetch('/api/enrichment/scorecard', {
           method: 'POST',
@@ -899,6 +990,7 @@ export default function DashboardPage() {
                 </p>
               </div>
 
+              {analyzeTest !== 'fec-sweep' && (
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <label className="text-xs font-medium opacity-80" htmlFor="test-row-indices">
@@ -950,6 +1042,15 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
+              )}
+
+              {analyzeTest === 'fec-sweep' && selectedUpload && (
+                <p className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs">
+                  Runs FEC Schedule A lookup on all <strong>{selectedUpload.row_count}</strong>{' '}
+                  voters in this upload. Free API (your <code>FEC_API_KEY</code>), throttled ~900/hr.
+                  Calhoun (~736) ≈ 50 min; Alachua (~40k) ≈ 45 hrs — runs in background with auto-resume.
+                </p>
+              )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
@@ -995,15 +1096,17 @@ export default function DashboardPage() {
                 ) : (
                   <div className="flex items-end">
                     <p className="text-xs opacity-60">
-                      {activeAnalyzeTest.multiRow
-                        ? `Runs on all ${parsedTestRowIndices.length || '…'} rows in subset.`
-                        : 'Runs on the active row below.'}
+                      {activeAnalyzeTest.wholeUpload
+                        ? `Runs on all ${selectedUpload?.row_count ?? '…'} voters in upload.`
+                        : activeAnalyzeTest.multiRow
+                          ? `Runs on all ${parsedTestRowIndices.length || '…'} rows in subset.`
+                          : 'Runs on the active row below.'}
                     </p>
                   </div>
                 )}
               </div>
 
-              {!activeAnalyzeTest.multiRow && (
+              {!activeAnalyzeTest.multiRow && analyzeTest !== 'fec-sweep' && (
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="text-sm opacity-80" htmlFor="active-row-index">
                     Active row
@@ -1028,14 +1131,81 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleRunAnalyze}
-                disabled={analyzeBusy || busy || parsedTestRowIndices.length === 0}
-                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-              >
-                {analyzeBusy ? 'Running…' : `Run ${activeAnalyzeTest.label.toLowerCase()}`}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRunAnalyze}
+                  disabled={
+                    analyzeBusy ||
+                    busy ||
+                    (!activeAnalyzeTest.wholeUpload && parsedTestRowIndices.length === 0) ||
+                    (analyzeTest === 'fec-sweep' &&
+                      (fecSweepJob?.status === 'running' || fecSweepJob?.status === 'queued'))
+                  }
+                  className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {analyzeBusy ? 'Running…' : `Run ${activeAnalyzeTest.label.toLowerCase()}`}
+                </button>
+                {fecSweepJob &&
+                  (fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
+                    <button
+                      type="button"
+                      onClick={handleCancelFecSweep}
+                      disabled={analyzeBusy || busy}
+                      className="rounded-lg border border-amber-400/60 px-4 py-2.5 text-sm hover:opacity-80 disabled:opacity-50"
+                    >
+                      Cancel FEC sweep
+                    </button>
+                  )}
+              </div>
+
+              {fecSweepJob && (
+                <div className="rounded-lg border border-white/15 bg-black/20 p-3">
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <h4 className="text-sm font-medium">
+                      FEC sweep · {fecSweepJob.status} · {fecSweepJob.processed_count}/
+                      {fecSweepJob.total_count}
+                      {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} hits` : ''}
+                    </h4>
+                    {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
+                      <span className="text-xs opacity-70">
+                        Hit rate {fecSweepHitRate}% · $0 API cost
+                      </span>
+                    )}
+                  </div>
+                  {(fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
+                    <div className="mb-2">
+                      <div className="mb-1 flex justify-between text-xs opacity-80">
+                        <span>Progress</span>
+                        <span>{fecSweepProgressPct}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-black/30">
+                        <div
+                          className="h-full bg-sky-500 transition-all"
+                          style={{ width: `${fecSweepProgressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {fecSweepJob.status === 'completed' && (
+                    <p className="text-xs opacity-80">
+                      Complete — {fecSweepJob.hits_count} of {fecSweepJob.processed_count} checked
+                      voters had Schedule A hits
+                      {fecSweepJob.failed_count > 0 ? ` · ${fecSweepJob.failed_count} API errors` : ''}.
+                    </p>
+                  )}
+                  {fecSweepSampleHits.length > 0 && (
+                    <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs opacity-90">
+                      {fecSweepSampleHits.map((hit) => (
+                        <li key={hit.row_index}>
+                          Row {hit.row_index}: {hit.contributor_name} · {hit.match_level} ·{' '}
+                          {hit.result_count} match(es)
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {analyzeScorecard && (
                 <div className="mt-4 rounded-lg border border-white/15 bg-black/20 p-3">
