@@ -27,6 +27,7 @@ export const EMPTY_COLUMN_FILTERS: ColumnFilters = {
 export const TURNOUT_RANK: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
 
 export interface LeanResultRow {
+  row_index?: number;
   voter_hash: string;
   lean: string;
   confidence: number;

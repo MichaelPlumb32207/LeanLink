@@ -19,6 +19,46 @@ import {
 import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
 import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
+import { formatRowIndices, parseRowIndicesInput } from '@/lib/test-row-indices';
+
+type AnalyzeTest = 'enrichment' | 'scorecard' | 'street-view' | 'fec';
+
+const ANALYZE_TEST_OPTIONS: {
+  id: AnalyzeTest;
+  label: string;
+  description: string;
+  needsMode: boolean;
+  multiRow: boolean;
+}[] = [
+  {
+    id: 'enrichment',
+    label: 'Test enrichment',
+    description: 'Single voter — full OSINT JSON, citations, and cost.',
+    needsMode: true,
+    multiRow: false,
+  },
+  {
+    id: 'scorecard',
+    label: 'Scorecard',
+    description: 'All rows in subset — identity, social, lean metrics and per-row table.',
+    needsMode: true,
+    multiRow: true,
+  },
+  {
+    id: 'street-view',
+    label: 'Street View',
+    description: 'Exploratory vision at residence — separate research arm, not OSINT lean.',
+    needsMode: false,
+    multiRow: false,
+  },
+  {
+    id: 'fec',
+    label: 'FEC contributor lookup',
+    description: 'Direct FEC Open API Schedule A search by name + FL city/zip (no Grok).',
+    needsMode: false,
+    multiRow: true,
+  },
+];
 
 type Branding = 'matrix' | 'red' | 'blue';
 
@@ -84,18 +124,16 @@ export default function DashboardPage() {
   const [resultsFiltered, setResultsFiltered] = useState(0);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [revealedVoterHash, setRevealedVoterHash] = useState<string | null>(null);
-  const [enrichmentTestJson, setEnrichmentTestJson] = useState<string | null>(null);
-  const [enrichmentTestUrls, setEnrichmentTestUrls] = useState<string[]>([]);
-  const [enrichmentTestCost, setEnrichmentTestCost] = useState<string | null>(null);
-  const [enrichmentTestBusy, setEnrichmentTestBusy] = useState(false);
-  const [enrichmentTestRowIndex, setEnrichmentTestRowIndex] = useState(0);
-  const [enrichmentTestMode, setEnrichmentTestMode] = useState<EnrichmentMode>('grok-full');
-  const [enrichmentScorecard, setEnrichmentScorecard] = useState<EnrichmentScorecard | null>(null);
-  const [enrichmentScorecardBusy, setEnrichmentScorecardBusy] = useState(false);
-  const [enrichmentStreetViewBusy, setEnrichmentStreetViewBusy] = useState(false);
-  const [enrichmentStreetViewPreview, setEnrichmentStreetViewPreview] = useState<string | null>(
-    null,
-  );
+  const [testRowIndicesInput, setTestRowIndicesInput] = useState('');
+  const [activeRowIndex, setActiveRowIndex] = useState(0);
+  const [analyzeTest, setAnalyzeTest] = useState<AnalyzeTest>('enrichment');
+  const [analyzeMode, setAnalyzeMode] = useState<EnrichmentMode>('grok-full');
+  const [analyzeBusy, setAnalyzeBusy] = useState(false);
+  const [analyzeOutputJson, setAnalyzeOutputJson] = useState<string | null>(null);
+  const [analyzeUrls, setAnalyzeUrls] = useState<string[]>([]);
+  const [analyzeCost, setAnalyzeCost] = useState<string | null>(null);
+  const [analyzeScorecard, setAnalyzeScorecard] = useState<EnrichmentScorecard | null>(null);
+  const [analyzeStreetViewPreview, setAnalyzeStreetViewPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -192,6 +230,32 @@ export default function DashboardPage() {
     () => suggestedTestRowsForFilename(selectedUpload?.filename),
     [selectedUpload?.filename],
   );
+
+  const parsedTestRowIndices = useMemo(
+    () => parseRowIndicesInput(testRowIndicesInput),
+    [testRowIndicesInput],
+  );
+
+  const activeAnalyzeTest = ANALYZE_TEST_OPTIONS.find((t) => t.id === analyzeTest)!;
+
+  useEffect(() => {
+    if (!selectedUploadId || suggestedTestRows.length === 0) return;
+    const defaults = suggestedTestRows.map((r) => r.rowIndex);
+    setTestRowIndicesInput(formatRowIndices(defaults));
+    setActiveRowIndex(defaults[0]);
+    setAnalyzeScorecard(null);
+    setAnalyzeOutputJson(null);
+    setAnalyzeUrls([]);
+    setAnalyzeCost(null);
+    setAnalyzeStreetViewPreview(null);
+  }, [selectedUploadId, suggestedTestRows]);
+
+  useEffect(() => {
+    if (parsedTestRowIndices.length === 0) return;
+    if (!parsedTestRowIndices.includes(activeRowIndex)) {
+      setActiveRowIndex(parsedTestRowIndices[0]);
+    }
+  }, [parsedTestRowIndices, activeRowIndex]);
 
   const selectedUploadRowCount = selectedUpload?.row_count ?? 0;
   const serverQuery = shouldUseServerQuery(selectedUploadRowCount, columnFilters);
@@ -351,149 +415,140 @@ export default function DashboardPage() {
     }
   };
 
-  const handleEnrichmentScorecard = async () => {
-    if (!selectedUploadId) return;
-    setEnrichmentScorecardBusy(true);
-    setEnrichmentScorecard(null);
-    setMessage(null);
-    try {
-      const res = await fetch('/api/enrichment/scorecard', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uploadId: selectedUploadId,
-          mode: enrichmentTestMode,
-        }),
-      });
-      const data = (await res.json()) as EnrichmentScorecard & { error?: string; hint?: string };
-      if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Scorecard failed');
-      setEnrichmentScorecard(data);
-      const m = data.metrics;
-      setMessage(
-        `Scorecard (${data.mode}): ${data.completed}/${data.row_count} rows · identity probable ${m.identity_probable_pct}% · social ${m.social_found_pct}% · lean labeled ${m.lean_labeled_pct}%${m.total_cost_usd !== null ? ` · $${m.total_cost_usd.toFixed(4)} total` : ''}`,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Scorecard failed');
-    } finally {
-      setEnrichmentScorecardBusy(false);
-    }
+  const loadSuggestedTestRows = () => {
+    const defaults = suggestedTestRows.map((r) => r.rowIndex);
+    setTestRowIndicesInput(formatRowIndices(defaults));
+    if (defaults.length > 0) setActiveRowIndex(defaults[0]);
   };
 
-  const handleStreetViewVisionTest = async (exploratory = false) => {
+  const handleRunAnalyze = async () => {
     if (!selectedUploadId) return;
-    setEnrichmentStreetViewBusy(true);
+
+    const rowIndices = parsedTestRowIndices;
+    if (rowIndices.length === 0) {
+      setMessage('Enter at least one valid row index (0-based).');
+      return;
+    }
+
+    if (!activeAnalyzeTest.multiRow && !rowIndices.includes(activeRowIndex)) {
+      setMessage('Pick an active row from your test subset.');
+      return;
+    }
+
+    setAnalyzeBusy(true);
     setMessage(null);
-    setEnrichmentTestJson(null);
-    setEnrichmentTestUrls([]);
-    setEnrichmentTestCost(null);
-    setEnrichmentStreetViewPreview(null);
+    setAnalyzeOutputJson(null);
+    setAnalyzeUrls([]);
+    setAnalyzeCost(null);
+    setAnalyzeScorecard(null);
+    setAnalyzeStreetViewPreview(null);
+
     try {
-      const res = await fetch('/api/enrichment/street-view', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uploadId: selectedUploadId,
-          rowIndex: enrichmentTestRowIndex,
-          mode: exploratory ? 'exploratory' : 'strict',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Street View test failed');
-      setEnrichmentTestJson(JSON.stringify(data, null, 2));
-      const sv = data.street_view_vision as {
-        vision_mode?: string;
-        street_view_preview?: string;
-        lean_street_view?: string;
-        lean_street_view_confidence?: number;
-        status?: string;
-        visible_signals?: string[];
-        visible_cues?: string[];
-        stereotype_factors_used?: string[];
-      };
-      if (typeof sv?.street_view_preview === 'string') {
-        setEnrichmentStreetViewPreview(sv.street_view_preview);
+      if (analyzeTest === 'scorecard') {
+        const res = await fetch('/api/enrichment/scorecard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uploadId: selectedUploadId,
+            mode: analyzeMode,
+            rowIndices,
+          }),
+        });
+        const data = (await res.json()) as EnrichmentScorecard & { error?: string; hint?: string };
+        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Scorecard failed');
+        setAnalyzeScorecard(data);
+        const m = data.metrics;
+        setMessage(
+          `Scorecard (${data.mode}): ${data.completed}/${data.row_count} rows · identity probable ${m.identity_probable_pct}% · social ${m.social_found_pct}% · lean labeled ${m.lean_labeled_pct}%${m.total_cost_usd !== null ? ` · $${m.total_cost_usd.toFixed(4)} total` : ''}`,
+        );
+        return;
       }
-      const costUsd = data.street_view_vision?.usage?.cost_usd;
-      const modeLabel = exploratory ? 'street-view exploratory' : 'street-view strict';
-      setEnrichmentTestCost(
-        typeof costUsd === 'number'
-          ? `$${costUsd.toFixed(4)} · ${modeLabel} · ${data.street_view_vision?.status ?? '?'}`
-          : `${modeLabel} · ${data.street_view_vision?.status ?? '?'}`,
-      );
-      const cueCount = exploratory
-        ? (sv?.visible_cues?.length ?? 0)
-        : (sv?.visible_signals?.length ?? 0);
-      setMessage(
-        `${modeLabel}: ${sv?.status ?? '?'} · lean_street_view ${sv?.lean_street_view ?? 'Undetermined'} (${sv?.lean_street_view_confidence ?? 0}%) · cues ${cueCount}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Street View test failed');
-    } finally {
-      setEnrichmentStreetViewBusy(false);
-    }
-  };
 
-  const handleEnrichmentTest = async (compare = false) => {
-    if (!selectedUploadId) return;
-    setEnrichmentTestBusy(true);
-    setMessage(null);
-    setEnrichmentTestJson(null);
-    setEnrichmentTestUrls([]);
-    setEnrichmentTestCost(null);
-    setEnrichmentStreetViewPreview(null);
-    try {
+      if (analyzeTest === 'street-view') {
+        const res = await fetch('/api/enrichment/street-view', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uploadId: selectedUploadId,
+            rowIndex: activeRowIndex,
+            mode: 'exploratory',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Street View test failed');
+        setAnalyzeOutputJson(JSON.stringify(data, null, 2));
+        const sv = data.street_view_vision as {
+          street_view_preview?: string;
+          lean_street_view?: string;
+          lean_street_view_confidence?: number;
+          status?: string;
+          visible_cues?: string[];
+        };
+        if (typeof sv?.street_view_preview === 'string') {
+          setAnalyzeStreetViewPreview(sv.street_view_preview);
+        }
+        const costUsd = data.street_view_vision?.usage?.cost_usd;
+        setAnalyzeCost(
+          typeof costUsd === 'number'
+            ? `$${costUsd.toFixed(4)} · street-view · row ${activeRowIndex}`
+            : `street-view · row ${activeRowIndex}`,
+        );
+        setMessage(
+          `Street View (row ${activeRowIndex}): ${sv?.status ?? '?'} · lean_street_view ${sv?.lean_street_view ?? 'Undetermined'} (${sv?.lean_street_view_confidence ?? 0}%)${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+        );
+        return;
+      }
+
+      if (analyzeTest === 'fec') {
+        const res = await fetch('/api/enrichment/fec', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadId: selectedUploadId, rowIndices }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'FEC lookup failed');
+        setAnalyzeOutputJson(JSON.stringify(data, null, 2));
+        setMessage(
+          `FEC lookup: ${data.rows_with_hits}/${data.row_count} rows with Schedule A hits`,
+        );
+        return;
+      }
+
       const res = await fetch('/api/enrichment/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           uploadId: selectedUploadId,
-          rowIndex: enrichmentTestRowIndex,
-          mode: enrichmentTestMode,
-          compare,
+          rowIndex: activeRowIndex,
+          mode: analyzeMode,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? data.hint ?? 'Enrichment test failed');
-      setEnrichmentTestJson(JSON.stringify(data, null, 2));
-
-      if (data.compare && data.comparison) {
-        const lines = Object.entries(data.comparison as Record<string, { result?: Record<string, unknown>; usage?: { cost_usd?: number } }>).map(
-          ([mode, entry]) => {
-            const r = entry.result;
-            const cost = entry.usage?.cost_usd;
-            return `${mode}: identity=${r?.identity_resolution_status} lean=${r?.lean} ($${typeof cost === 'number' ? cost.toFixed(4) : '?'})`;
-          },
-        );
-        setMessage(`Compare complete — ${lines.join(' · ')}`);
-        const first = Object.values(data.comparison)[0] as { urls_searched?: string[] };
-        setEnrichmentTestUrls(first?.urls_searched ?? []);
-      } else {
-        setEnrichmentTestUrls(
-          Array.isArray(data.urls_searched) ? data.urls_searched : data.result?.enrichment?.citations ?? [],
-        );
-        const costUsd = data.usage?.cost_usd;
-        setEnrichmentTestCost(
-          typeof costUsd === 'number'
-            ? `$${costUsd.toFixed(4)} · web ${data.usage?.web_search_calls ?? 0} · x ${data.usage?.x_search_calls ?? 0} · ${data.usage?.total_tokens ?? '?'} tok · ${data.mode}`
-            : null,
-        );
-        const r = data.result;
-        const apifySummary =
-          data.mode === 'apify-modular' && Array.isArray(data.apify_runs)
-            ? ` · apify ${data.apify_runs.map((run: { status: string; actor_key: string }) => `${run.actor_key}:${run.status}`).join(', ')}`
-            : '';
-        const svSummary =
-          data.street_view_context?.status === 'ok'
-            ? ` · SV ${data.street_view_context.lean_street_view} (${data.street_view_context.lean_street_view_confidence}%)`
-            : '';
-        setMessage(
-          `${data.mode}: identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${apifySummary}${svSummary}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
-        );
-      }
+      setAnalyzeOutputJson(JSON.stringify(data, null, 2));
+      setAnalyzeUrls(
+        Array.isArray(data.urls_searched)
+          ? data.urls_searched
+          : (data.result?.enrichment?.citations ?? []),
+      );
+      const costUsd = data.usage?.cost_usd;
+      setAnalyzeCost(
+        typeof costUsd === 'number'
+          ? `$${costUsd.toFixed(4)} · web ${data.usage?.web_search_calls ?? 0} · x ${data.usage?.x_search_calls ?? 0} · row ${activeRowIndex} · ${data.mode}`
+          : null,
+      );
+      const r = data.result;
+      const apifySummary =
+        data.mode === 'apify-modular' && Array.isArray(data.apify_runs)
+          ? ` · apify ${data.apify_runs.map((run: { status: string; actor_key: string }) => `${run.actor_key}:${run.status}`).join(', ')}`
+          : '';
+      setMessage(
+        `${data.mode} (row ${activeRowIndex}): identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${apifySummary}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
+      );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Enrichment test failed');
+      setMessage(error instanceof Error ? error.message : 'Analysis failed');
     } finally {
-      setEnrichmentTestBusy(false);
+      setAnalyzeBusy(false);
     }
   };
 
@@ -782,9 +837,8 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               <span className="font-medium">Batch inference is off.</span> Upload + parse only —
-              use <span className="font-medium">Test enrichment</span> or{' '}
-              <span className="font-medium">POC scorecard</span> below for single-voter Grok/Apify
-              runs. Full-file jobs are blocked until we validate cost and quality.
+              use the test subset below for per-voter Grok, Apify, Street View, or FEC runs.
+              Full-file jobs are blocked until we validate cost and quality.
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <a
@@ -836,48 +890,57 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-white/15 bg-black/10 p-4">
-              <h3 className="font-medium">Test Grok OSINT (single voter)</h3>
-              <p className="mt-1 text-xs opacity-70">
-                Identity (did we find the person?) is separate from lean (ideology). Rural NPAs may
-                be identity-probable but lean-Undetermined — that is a valid research finding.
-                Compare modes to evaluate cost vs coverage. Street view has two arms: strict
-                (signage only) vs exploratory (visual heuristics — for field validation, not
-                production lean).
-              </p>
-              <div className="mt-3">
-                <label className="text-xs font-medium opacity-80" htmlFor="enrichment-mode">
-                  Pipeline mode
-                </label>
-                <select
-                  id="enrichment-mode"
-                  value={enrichmentTestMode}
-                  onChange={(e) => setEnrichmentTestMode(e.target.value as EnrichmentMode)}
-                  className="mt-1 block w-full max-w-md rounded border bg-black/20 px-2 py-1.5 text-sm"
-                >
-                  {ENRICHMENT_MODES.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs opacity-60">
-                  {ENRICHMENT_MODES.find((m) => m.id === enrichmentTestMode)?.description}
+            <div className="rounded-xl border border-white/15 bg-black/10 p-4 space-y-4">
+              <div>
+                <h3 className="font-medium">POC test subset</h3>
+                <p className="mt-1 text-xs opacity-70">
+                  0-based row indices from this upload. Identity and lean are separate — rural NPAs
+                  may resolve in directories but stay lean-Undetermined.
                 </p>
               </div>
-              <div className="mt-3">
-                <p className="mb-2 text-xs font-medium opacity-80">
-                  Suggested scenarios ({/^ALA/i.test(selectedUpload?.filename ?? '') ? 'Alachua' : 'Calhoun'})
+
+              <div>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-medium opacity-80" htmlFor="test-row-indices">
+                    Row indices
+                  </label>
+                  <button
+                    type="button"
+                    onClick={loadSuggestedTestRows}
+                    className="text-xs underline opacity-70 hover:opacity-100"
+                  >
+                    Load suggested ({suggestedTestRows.length})
+                  </button>
+                </div>
+                <input
+                  id="test-row-indices"
+                  type="text"
+                  value={testRowIndicesInput}
+                  onChange={(e) => setTestRowIndicesInput(e.target.value)}
+                  placeholder="0, 13, 7, 371, 19, 208, 32"
+                  className="w-full rounded-lg border bg-black/20 px-3 py-2 font-mono text-sm"
+                />
+                <p className="mt-1 text-xs opacity-60">
+                  {parsedTestRowIndices.length > 0
+                    ? `${parsedTestRowIndices.length} row${parsedTestRowIndices.length === 1 ? '' : 's'} parsed`
+                    : 'No valid indices — use comma or space separated numbers'}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {suggestedTestRows.map((row) => (
                     <button
                       key={row.rowIndex}
                       type="button"
                       title={row.note}
-                      onClick={() => setEnrichmentTestRowIndex(row.rowIndex)}
+                      onClick={() => {
+                        setActiveRowIndex(row.rowIndex);
+                        if (!parsedTestRowIndices.includes(row.rowIndex)) {
+                          setTestRowIndicesInput(
+                            formatRowIndices([...parsedTestRowIndices, row.rowIndex]),
+                          );
+                        }
+                      }}
                       className={`rounded-lg border px-2.5 py-1 text-xs hover:opacity-90 ${
-                        enrichmentTestRowIndex === row.rowIndex
+                        activeRowIndex === row.rowIndex
                           ? 'border-emerald-400/70 bg-emerald-500/15'
                           : 'border-white/20 bg-black/10'
                       }`}
@@ -887,125 +950,128 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label className="text-sm opacity-80" htmlFor="enrichment-row-index">
-                  Row index
-                </label>
-                <input
-                  id="enrichment-row-index"
-                  type="number"
-                  min={0}
-                  value={enrichmentTestRowIndex}
-                  onChange={(e) => setEnrichmentTestRowIndex(Number(e.target.value))}
-                  className="w-20 rounded border bg-black/20 px-2 py-1 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleEnrichmentTest(false)}
-                  disabled={
-                    enrichmentTestBusy ||
-                    busy ||
-                    enrichmentScorecardBusy ||
-                    enrichmentStreetViewBusy
-                  }
-                  className="rounded-lg border border-emerald-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                >
-                  {enrichmentTestBusy ? 'Running…' : 'Test enrichment'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStreetViewVisionTest(false)}
-                  disabled={
-                    enrichmentTestBusy ||
-                    busy ||
-                    enrichmentScorecardBusy ||
-                    enrichmentStreetViewBusy
-                  }
-                  className="rounded-lg border border-violet-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title="STRICT: political signage only. Needs GOOGLE_MAPS_API_KEY + XAI_API_KEY."
-                >
-                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view (strict)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleStreetViewVisionTest(true)}
-                  disabled={
-                    enrichmentTestBusy ||
-                    busy ||
-                    enrichmentScorecardBusy ||
-                    enrichmentStreetViewBusy
-                  }
-                  className="rounded-lg border border-rose-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title="EXPLORATORY: Grok infers lean from house, yard, vehicles, toys, flags, stereotypes — for professor validation only. NOT merged into OSINT lean."
-                >
-                  {enrichmentStreetViewBusy ? 'Fetching Street View…' : 'Street view (exploratory)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleEnrichmentTest(true)}
-                  disabled={
-                    enrichmentTestBusy ||
-                    busy ||
-                    enrichmentScorecardBusy ||
-                    enrichmentStreetViewBusy
-                  }
-                  className="rounded-lg border border-amber-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title="Runs all 3 modes on this voter (~3× cost)"
-                >
-                  Compare all modes
-                </button>
-                <button
-                  type="button"
-                  onClick={handleEnrichmentScorecard}
-                  disabled={
-                    enrichmentTestBusy ||
-                    busy ||
-                    enrichmentScorecardBusy ||
-                    enrichmentStreetViewBusy
-                  }
-                  className="rounded-lg border border-sky-400/50 px-4 py-2 text-sm hover:opacity-80 disabled:opacity-50"
-                  title={`Runs ${suggestedTestRows.length} curated rows for this upload in the selected mode (~several minutes)`}
-                >
-                  {enrichmentScorecardBusy
-                    ? 'Running scorecard…'
-                    : `Run scorecard (${suggestedTestRows.length} rows)`}
-                </button>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium opacity-80" htmlFor="analyze-test">
+                    Test to run
+                  </label>
+                  <select
+                    id="analyze-test"
+                    value={analyzeTest}
+                    onChange={(e) => setAnalyzeTest(e.target.value as AnalyzeTest)}
+                    className="mt-1 block w-full rounded-lg border bg-black/20 px-2 py-2 text-sm"
+                  >
+                    {ANALYZE_TEST_OPTIONS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs opacity-60">{activeAnalyzeTest.description}</p>
+                </div>
+
+                {activeAnalyzeTest.needsMode ? (
+                  <div>
+                    <label className="text-xs font-medium opacity-80" htmlFor="analyze-mode">
+                      Pipeline mode
+                    </label>
+                    <select
+                      id="analyze-mode"
+                      value={analyzeMode}
+                      onChange={(e) => setAnalyzeMode(e.target.value as EnrichmentMode)}
+                      className="mt-1 block w-full rounded-lg border bg-black/20 px-2 py-2 text-sm"
+                    >
+                      {ENRICHMENT_MODES.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs opacity-60">
+                      {ENRICHMENT_MODES.find((m) => m.id === analyzeMode)?.description}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-end">
+                    <p className="text-xs opacity-60">
+                      {activeAnalyzeTest.multiRow
+                        ? `Runs on all ${parsedTestRowIndices.length || '…'} rows in subset.`
+                        : 'Runs on the active row below.'}
+                    </p>
+                  </div>
+                )}
               </div>
-              {enrichmentScorecard && (
+
+              {!activeAnalyzeTest.multiRow && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-sm opacity-80" htmlFor="active-row-index">
+                    Active row
+                  </label>
+                  <select
+                    id="active-row-index"
+                    value={activeRowIndex}
+                    onChange={(e) => setActiveRowIndex(Number(e.target.value))}
+                    disabled={parsedTestRowIndices.length === 0}
+                    className="rounded-lg border bg-black/20 px-2 py-1.5 text-sm"
+                  >
+                    {parsedTestRowIndices.map((idx) => {
+                      const meta = suggestedTestRows.find((r) => r.rowIndex === idx);
+                      return (
+                        <option key={idx} value={idx}>
+                          {idx}
+                          {meta ? ` — ${meta.scenario}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleRunAnalyze}
+                disabled={analyzeBusy || busy || parsedTestRowIndices.length === 0}
+                className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {analyzeBusy ? 'Running…' : `Run ${activeAnalyzeTest.label.toLowerCase()}`}
+              </button>
+
+              {analyzeScorecard && (
                 <div className="mt-4 rounded-lg border border-white/15 bg-black/20 p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h4 className="text-sm font-medium">
-                      POC scorecard · {enrichmentScorecard.mode} · {enrichmentScorecard.completed}/
-                      {enrichmentScorecard.row_count} completed
-                      {enrichmentScorecard.failed > 0
-                        ? ` · ${enrichmentScorecard.failed} failed`
+                      POC scorecard · {analyzeScorecard.mode} · {analyzeScorecard.completed}/
+                      {analyzeScorecard.row_count} completed
+                      {analyzeScorecard.failed > 0
+                        ? ` · ${analyzeScorecard.failed} failed`
                         : ''}
                     </h4>
-                    {enrichmentScorecard.metrics.total_cost_usd !== null && (
+                    {analyzeScorecard.metrics.total_cost_usd !== null && (
                       <span className="text-xs opacity-70">
-                        Total ${enrichmentScorecard.metrics.total_cost_usd.toFixed(4)}
-                        {enrichmentScorecard.metrics.extrapolated_cost_per_10k !== null &&
-                          ` · ~$${enrichmentScorecard.metrics.extrapolated_cost_per_10k.toLocaleString()}/10k`}
+                        Total ${analyzeScorecard.metrics.total_cost_usd.toFixed(4)}
+                        {analyzeScorecard.metrics.extrapolated_cost_per_10k !== null &&
+                          ` · ~$${analyzeScorecard.metrics.extrapolated_cost_per_10k.toLocaleString()}/10k`}
                       </span>
                     )}
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                     {(
                       [
-                        ['Identity probable', enrichmentScorecard.metrics.identity_probable_pct],
-                        ['Social found', enrichmentScorecard.metrics.social_found_pct],
-                        ['Lean labeled', enrichmentScorecard.metrics.lean_labeled_pct],
-                        ['Lean signals', enrichmentScorecard.metrics.lean_signals_pct],
+                        ['Identity probable', analyzeScorecard.metrics.identity_probable_pct],
+                        ['Social found', analyzeScorecard.metrics.social_found_pct],
+                        ['Lean labeled', analyzeScorecard.metrics.lean_labeled_pct],
+                        ['Lean signals', analyzeScorecard.metrics.lean_signals_pct],
                         [
                           'Median cost',
-                          enrichmentScorecard.metrics.median_cost_usd !== null
-                            ? `$${enrichmentScorecard.metrics.median_cost_usd.toFixed(4)}`
+                          analyzeScorecard.metrics.median_cost_usd !== null
+                            ? `$${analyzeScorecard.metrics.median_cost_usd.toFixed(4)}`
                             : '—',
                         ],
                         [
                           'Mean cost',
-                          enrichmentScorecard.metrics.mean_cost_usd !== null
-                            ? `$${enrichmentScorecard.metrics.mean_cost_usd.toFixed(4)}`
+                          analyzeScorecard.metrics.mean_cost_usd !== null
+                            ? `$${analyzeScorecard.metrics.mean_cost_usd.toFixed(4)}`
                             : '—',
                         ],
                       ] as const
@@ -1035,7 +1101,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {enrichmentScorecard.rows.map((row) => (
+                        {analyzeScorecard.rows.map((row) => (
                           <tr
                             key={row.rowIndex}
                             className="border-b border-white/5 hover:bg-white/5"
@@ -1069,31 +1135,37 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-              {enrichmentStreetViewPreview && (
+              {analyzeStreetViewPreview && (
                 <div className="mt-3">
                   <p className="mb-1 text-xs font-medium opacity-80">Street View preview (sent to Grok)</p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={enrichmentStreetViewPreview}
+                    src={analyzeStreetViewPreview}
                     alt="Google Street View at voter residence"
                     className="max-h-64 rounded-lg border border-white/20"
                   />
                 </div>
               )}
-              {enrichmentTestCost && (
+              {analyzeCost && (
                 <p className="mt-3 text-xs opacity-80">
-                  <span className="font-medium">This request:</span> {enrichmentTestCost}
-                  {' · '}
-                  <span className="opacity-70">~$330/order-of-magnitude per 10k at this rate (see docs/COST-ESTIMATES.md)</span>
+                  <span className="font-medium">This request:</span> {analyzeCost}
+                  {analyzeTest === 'enrichment' && (
+                    <>
+                      {' · '}
+                      <span className="opacity-70">
+                        ~$330/order-of-magnitude per 10k at this rate (see docs/COST-ESTIMATES.md)
+                      </span>
+                    </>
+                  )}
                 </p>
               )}
-              {enrichmentTestUrls.length > 0 && (
+              {analyzeUrls.length > 0 && (
                 <div className="mt-3">
                   <p className="mb-1 text-xs font-medium opacity-80">
-                    URLs Grok hit ({enrichmentTestUrls.length})
+                    URLs hit ({analyzeUrls.length})
                   </p>
                   <ul className="max-h-40 space-y-1 overflow-auto rounded-lg bg-black/30 p-2 text-xs">
-                    {enrichmentTestUrls.map((url) => (
+                    {analyzeUrls.map((url) => (
                       <li key={url}>
                         <a
                           href={url}
@@ -1108,9 +1180,9 @@ export default function DashboardPage() {
                   </ul>
                 </div>
               )}
-              {enrichmentTestJson && (
+              {analyzeOutputJson && (
                 <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-black/30 p-3 text-xs">
-                  {enrichmentTestJson}
+                  {analyzeOutputJson}
                 </pre>
               )}
             </div>
@@ -1192,6 +1264,7 @@ export default function DashboardPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/20 text-left">
+                    <th className="py-2 pr-4 align-bottom font-semibold">Row</th>
                     {(
                       [
                         ['name', 'Voter'],
@@ -1215,6 +1288,7 @@ export default function DashboardPage() {
                     ))}
                   </tr>
                   <tr className="border-b border-white/10 text-left">
+                    <th className="py-2 pr-2" />
                     <th className="py-2 pr-2">
                       <input
                         type="text"
@@ -1304,6 +1378,9 @@ export default function DashboardPage() {
                 <tbody>
                   {visiblePreviewRows.map((row) => (
                     <tr key={row.voter_hash} className="border-b border-white/10">
+                      <td className="py-2 pr-4 font-mono text-xs tabular-nums opacity-80">
+                        {row.row_index ?? '—'}
+                      </td>
                       <td className="py-2 pr-4">
                         {revealedVoterHash === row.voter_hash ? (
                           <div className="flex items-center gap-2">

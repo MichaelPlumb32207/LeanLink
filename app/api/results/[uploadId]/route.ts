@@ -46,7 +46,7 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
           sql.params,
         ),
         client.query(
-          `SELECT r.*, vr.raw_data
+          `SELECT r.*, vr.raw_data, vr.row_index
            FROM lean_results r
            JOIN voter_records vr ON vr.id = r.voter_record_id
            WHERE ${sql.whereSql}
