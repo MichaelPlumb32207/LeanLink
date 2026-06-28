@@ -6,6 +6,23 @@ current as design shifts.
 
 ---
 
+## D-022 · Analyze UI: test subset + single test picker
+**Decision:** Dashboard **Analyze** section takes an editable comma-separated **row-index
+subset** (defaults to county curated ~7 rows), then one **test** choice: enrichment (single
+active row), scorecard (all subset rows), Street View exploratory (single active row), or FEC
+contributor lookup (all subset rows). Pipeline mode applies to enrichment/scorecard only.
+Removed dashboard **Compare all modes** and **Street View strict** (API paths may remain).
+**Why:** Researchers iterate on a fixed POC panel; one clear run action reduces mis-clicks and
+cost. Strict Street View was redundant with exploratory for the professor validation workflow.
+
+## D-021 · Direct FEC Open API for contributor lookup
+**Decision:** Add `lib/fec/contributor-lookup.ts` + `POST /api/enrichment/fec` calling FEC
+Schedule A (`/v1/schedules/schedule_a/`) by contributor name + FL state/city/zip. Optional
+`FEC_API_KEY` (falls back to `DEMO_KEY`). Grok `site:fec.gov` queries remain in Tier-A plan but
+are a poor substitute for structured search. **Why:** Limited tests showed near-zero yield from
+indirect FEC web search; direct lookup is free, auditable, and isolates donation hit rate before
+spending Grok credits. Disambiguation still manual (no employer on FL extract).
+
 ## D-020 · Batch inference disabled until POC validated
 **Decision:** Full-file `Run Analysis Job` is blocked unless
 `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Dashboard shows per-voter tools only; `/api/uploads/[id]/run`
@@ -57,8 +74,9 @@ match but no social/ideology; that is a meaningful POC finding, not a pipeline f
 **Decision:** Four testable modes: `grok-full` (social-first + x_search + Tier-A), `apify-modular`
 (Apify fetch + Grok synthesize), `modular-targeted` (query planner + capped searches),
 `modular-synthesize` (no search baseline). Batch jobs would use `ENRICHMENT_MODE` when batch is
-enabled; dashboard **Compare all modes** per voter. **Why:** ~$330/10k at full Grok search —
-compare modes on curated rows before any county-scale run.
+enabled; dashboard used to offer **Compare all modes** per voter (removed from UI in D-022;
+`compare` flag on test API may remain). **Why:** ~$330/10k at full Grok search — compare modes
+on curated rows before any county-scale run.
 
 ## D-012 · Primary history = mobilization only
 **Decision:** PRI/PPP counts feed turnout/opposition context only — never infer party lean
@@ -86,9 +104,9 @@ modular fetch added (D-017) for auditable retrieval; Grok remains synthesizer. *
 `docs/enrichment-pipeline.html`.
 
 ## D-007 · Living-docs artifact set
-**Decision:** Standard complement = `README.md`, `CLAUDE.md`, `docs/SETUP.md`,
-`docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/USE_CASES.md`, `docs/COST-ESTIMATES.md`,
-`docs/enrichment-pipeline.html`, `docs/CLAUDE.md`, `LICENSE`. **Why:** Survive context drift
+**Decision:** Standard complement = `README.md`, `CLAUDE.md`, `docs/README.md` (index),
+`docs/SETUP.md`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/USE_CASES.md`,
+`docs/COST-ESTIMATES.md`, `docs/enrichment-pipeline.html`, `docs/CLAUDE.md`, `LICENSE`. **Why:** Survive context drift
 between sessions and across teammates (Michael, Claude, Grok Build); make the project
 handover-ready. **Deferred:** CONTRIBUTING/SECURITY/CHANGELOG — overkill for a single-user POC.
 

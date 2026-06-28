@@ -40,12 +40,14 @@ instance from scratch.
 1. **Upload** a Florida registration extract (`.txt`, 38 tab-delimited fields) — auto-filtered
    to NPA + Active voters. Optionally add a voting-history file (`*_H_*.txt`) for turnout
    scoring. No AI cost on upload.
-2. **Evaluate** with **Test enrichment**, **POC scorecard** (~7 curated rows/county), or
-   **Street View** tests — one voter at a time. Four modes: `grok-full`, `apify-modular`, etc.
+2. **Analyze** a selected upload — enter a small **row-index subset** (defaults to ~7 curated
+   rows/county), pick a test: enrichment, scorecard, Street View exploratory, or **FEC lookup**.
+   Four Grok pipeline modes for enrichment/scorecard.
 3. **Export** results when present (CSV/JSON). Full-county batch inference is off by default.
 
 ## Documentation
 
+- [`docs/README.md`](docs/README.md) — **doc index & reading order** (start here for onboarding)
 - [`CLAUDE.md`](CLAUDE.md) — architecture & conventions (for Claude Code / new devs)
 - [`docs/SETUP.md`](docs/SETUP.md) — provisioning runbook
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the stack/design choices were made

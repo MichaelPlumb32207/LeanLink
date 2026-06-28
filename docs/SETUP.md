@@ -35,6 +35,7 @@ Fill in `.env.local`:
 | `XAI_MODEL` | Optional; default `grok-4.3`. |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud — Street View Static API (enrichment tests). |
 | `APIFY_API_TOKEN` | Apify console — `apify-modular` fetch layer. |
+| `FEC_API_KEY` | [FEC Open API](https://api.open.fec.gov/developers/) — optional; `DEMO_KEY` works locally with strict rate limits. |
 | `ENRICHMENT_MODE` | Batch mode when batch enabled: `grok-full` \| `apify-modular` \| etc. |
 | `LEANLINK_ENABLE_BATCH_INFERENCE` | Leave **unset** for POC (blocks full-file jobs). Set `true` only when ready for county-scale Grok spend. |
 
@@ -68,9 +69,10 @@ per transaction, so nothing extra is needed at the DB level.
 npm run dev    # http://localhost:3000  → sign in with ALLOWED_USER_EMAIL
 ```
 
-Smoke test: sign in → upload a FL registration `.txt` → confirm row count → use **Test
-enrichment** or **POC scorecard** on a curated row (no full-file job unless
-`LEANLINK_ENABLE_BATCH_INFERENCE=true`). Export CSV when results exist.
+Smoke test: sign in → upload a FL registration `.txt` → confirm row count → select the upload →
+**Analyze**: row indices should default to the county curated set → run **FEC contributor
+lookup** (no Grok cost) or **Test enrichment** / **Scorecard** (requires `XAI_API_KEY`). No
+full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when batch results exist.
 
 ## 5. Vercel deploy
 

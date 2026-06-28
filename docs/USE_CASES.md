@@ -64,6 +64,7 @@ large upload sizes.
 | T5.3 | Small upload (under threshold) | Sort/filter happen in-browser, no re-fetch. |
 | T5.4 | Large upload (over threshold) | Sort/filter re-fetch server-side; counts (total/filtered) correct. |
 | T5.5 | Client and server paths on same data | Produce the same ordering/filtering. |
+| T5.6 | Results preview shows row index | `row_index` column matches ingest order (0-based). |
 
 ## UC-6 — Export ✅
 **As** the researcher, **I can** export results as CSV or JSON for offline analysis.
@@ -90,7 +91,7 @@ large upload sizes.
 | T8.1 | Test enrichment with `grok-full` | `lean`/`confidence` from model; `model_version` = Grok id. |
 | T8.2 | Grok call fails | Mock fallback + error in evidence (batch row) or 500 (test API). |
 | T8.3 | No signals in matches | Guardrails force `Undetermined`, cap confidence. |
-| T8.4 | Compare all modes | Side-by-side JSON for grok-full, apify-modular, modular-targeted, modular-synthesize. |
+| T8.4 | Compare all modes (API only) | `compare: true` on test API still runs all modes; removed from dashboard UI (D-022). |
 
 ## UC-9 — OSINT persona linkage 🟡
 **As** the researcher, **I want** each voter linked to candidate online personas from public
@@ -103,14 +104,27 @@ sources. Identity resolution is strong; social/lean coverage still thin on score
 | T9.3 | Provenance logged | `audit.sources`, citations / `apify_runs` per mode. |
 | T9.4 | Tier-A hits (donation/media/civic) | Matches use platform `donation|media|civic` with `signals[]`. |
 
-## UC-10 — Per-voter POC evaluation ✅
-**As** the researcher, **I can** test one voter or the curated county scorecard without
-county-scale spend.
+## UC-10 — POC test subset (Analyze UI) ✅
+**As** the researcher, **I can** define a small row-index subset and run one test against it
+without county-scale spend.
 
 | ID | Test | Expected |
 |---|---|---|
-| T10.1 | Test enrichment, pick row index | Single-voter JSON + `usage.cost_usd`. |
-| T10.2 | POC scorecard | ~7 curated rows per county; metrics: identity %, social %, lean %. |
-| T10.3 | `apify-modular` on curated row | `apify_runs`, `pipeline_steps`, `street_view_context` in response. |
-| T10.4 | Street View strict / exploratory | Preview image + `lean_street_view` (not merged into OSINT lean). |
-| T10.5 | Apify config endpoint | `GET /api/enrichment/apify-config` lists actors and limits. |
+| T10.1 | Load suggested row indices | County defaults (~7 rows) populate subset input on upload select. |
+| T10.2 | Edit subset (comma-separated) | Parser accepts `0, 13, 7`; invalid tokens ignored. |
+| T10.3 | Test enrichment + active row | Single-voter JSON + `usage.cost_usd` for chosen pipeline mode. |
+| T10.4 | Scorecard on subset | `rowIndices` passed to API; metrics: identity %, social %, lean %. |
+| T10.5 | Street View exploratory | Preview image + `lean_street_view` on active row (not merged into OSINT lean). |
+| T10.6 | `apify-modular` on curated row | `apify_runs`, `pipeline_steps`, `street_view_context` in response. |
+| T10.7 | Apify config endpoint | `GET /api/enrichment/apify-config` lists actors and limits. |
+
+## UC-11 — FEC contributor lookup 🟡
+**As** the researcher, **I can** query FEC Schedule A directly for names in my test subset
+without Grok spend.
+
+| ID | Test | Expected |
+|---|---|---|
+| T11.1 | FEC lookup on subset | `POST /api/enrichment/fec` returns per-row `lookup.contributions`. |
+| T11.2 | No FEC API key | Falls back to `DEMO_KEY` or returns API error if rate-limited. |
+| T11.3 | Voter not found at row index | Row entry with `error: Voter record not found`. |
+| T11.4 | Dashboard FEC test | JSON shows `rows_with_hits` / `row_count`; no `usage.cost_usd`. |

@@ -53,8 +53,9 @@ hashed twice (across uploads) will conflict on insert into `lean_results`.
 **Processing pipeline** (all serverless, no n8n/queue):
 1. `POST /api/uploads` — parse + filter, `hashVoterPii` each row, batch-insert (100/stmt)
    into `voter_records` with any matched history summary; upload status → `ready`. **No Grok.**
-2. **POC enrichment** (intended path): `POST /api/enrichment/test`, `/api/enrichment/scorecard`,
-   `/api/enrichment/street-view` — per-voter or curated ~7 rows; modes in `lib/enrichment/modes.ts`.
+2. **POC enrichment** (intended path): dashboard **Analyze** subset → `POST /api/enrichment/test`,
+   `/api/enrichment/scorecard`, `/api/enrichment/street-view`, `/api/enrichment/fec` — modes in
+   `lib/enrichment/modes.ts`; curated row defaults in `lib/enrichment/suggested-test-rows.ts`.
 3. `POST /api/uploads/[id]/run` — batch job start — **gated** by `LEANLINK_ENABLE_BATCH_INFERENCE`
    (`lib/batch-inference.ts`, default off). When enabled: creates `processing_jobs`, `triggerWorker`.
 4. `POST /api/jobs/[id]/worker` — batch engine (also gated). Claims rows, runs `inferLean`,

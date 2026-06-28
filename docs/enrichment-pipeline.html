@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research-only POC · Florida NPA voters · Per-voter eval first · Last updated 2026-06-27</p>
+    <p class="subtitle">Research-only POC · Florida NPA voters · Test-subset eval first · Last updated 2026-06-28</p>
 
     <div class="card">
       <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
@@ -43,9 +43,10 @@
 
     <h2 id="flow">1. Pipeline overview</h2>
     <div class="card">
-      <strong>POC path:</strong> Upload ingests voters only. Evaluate via <strong>Test enrichment</strong>
-      or <strong>POC scorecard</strong> (~7 curated rows/county). Full-file batch is
-      <strong>disabled</strong> unless <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> (D-020).
+      <strong>POC path:</strong> Upload ingests voters only. Dashboard <strong>Analyze</strong>:
+      enter a row-index subset (defaults ~7 curated rows/county), pick one test — enrichment,
+      scorecard, Street View exploratory, or <strong>FEC contributor lookup</strong> (D-021, D-022).
+      Full-file batch is <strong>disabled</strong> unless <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> (D-020).
     </div>
     <pre class="mermaid">
 flowchart TB
@@ -53,8 +54,11 @@ flowchart TB
     A[FL registration extract] --> B[Identity anchor + contact]
     H[FL history extract] --> C[Turnout / primary engagement]
   end
-  subgraph enrich [Per-voter enrichment modes]
-    B --> M{Mode}
+  subgraph enrich [Per-voter / subset tests]
+    B --> T{Test}
+    T -->|FEC lookup| FEC[FEC Schedule A API]
+    FEC --> FECout[Contributor hits]
+    T -->|Grok modes| M{Mode}
     M -->|grok-full| D[Grok web_search + x_search]
     M -->|apify-modular| P[Apify Google + crawl]
     P --> SV[Street View exploratory]
@@ -122,10 +126,16 @@ flowchart TB
       <li><code>applyInferenceGuardrails</code> — lean requires non-empty ideological <code>signals[]</code> (D-016).</li>
     </ol>
 
+    <h3>FEC contributor lookup (D-021)</h3>
+    <p><span class="tag tag-real">Deterministic</span> Direct FEC Open API Schedule A search by
+    contributor name + FL state/city/zip. No Grok. Use to measure donation hit rate before inferring
+    lean from Tier-A signals. Grok <code>site:fec.gov</code> queries in the query plan are indirect
+    and have shown poor yield in limited tests.</p>
+
     <h3>Street View (research arm — D-018)</h3>
-    <p><span class="tag tag-rule">Separate</span> <code>strict</code> = political signage only.
-    <code>exploratory</code> = visible-cue heuristics for professor field validation.
-    <code>lean_street_view</code> is <strong>not</strong> merged into main OSINT <code>lean</code>.</p>
+    <p><span class="tag tag-rule">Separate</span> Dashboard exposes <code>exploratory</code> only
+    (visible-cue heuristics for professor field validation). API still supports <code>strict</code>
+    (signage only). <code>lean_street_view</code> is <strong>not</strong> merged into main OSINT <code>lean</code>.</p>
 
     <h3>Match resolution states</h3>
     <table>
@@ -230,21 +240,26 @@ flowchart TB
         <tr><td>Apify modular pipeline</td><td><code>lib/enrichment/apify-pipeline.ts</code>, <code>lib/apify/*</code></td></tr>
         <tr><td>Street View vision</td><td><code>lib/enrichment/street-view-vision.ts</code></td></tr>
         <tr><td>Scorecard + suggested rows</td><td><code>lib/enrichment/scorecard.ts</code>, <code>suggested-test-rows.ts</code></td></tr>
+        <tr><td>FEC contributor lookup</td><td><code>lib/fec/contributor-lookup.ts</code></td></tr>
+        <tr><td>Test subset parsing</td><td><code>lib/test-row-indices.ts</code></td></tr>
+        <tr><td>Dashboard Analyze UI</td><td><code>app/dashboard/page.tsx</code></td></tr>
         <tr><td>Batch gate</td><td><code>lib/batch-inference.ts</code></td></tr>
         <tr><td>xAI client</td><td><code>lib/xai/client.ts</code></td></tr>
         <tr><td>Orchestrator</td><td><code>lib/inference.ts</code></td></tr>
-        <tr><td>Per-voter APIs</td><td><code>POST /api/enrichment/test</code>, <code>scorecard</code>, <code>street-view</code></td></tr>
+        <tr><td>POC APIs</td><td><code>POST /api/enrichment/test</code>, <code>scorecard</code>, <code>street-view</code>, <code>fec</code></td></tr>
         <tr><td>Batch worker (gated)</td><td><code>app/api/jobs/[id]/worker/route.ts</code></td></tr>
       </tbody>
     </table>
 
     <h2 id="test">8. How to evaluate</h2>
     <ol>
-      <li>Env: <code>XAI_API_KEY</code>; optional <code>APIFY_API_TOKEN</code>, <code>GOOGLE_MAPS_API_KEY</code>.</li>
+      <li>Env: <code>XAI_API_KEY</code> for Grok tests; optional <code>APIFY_API_TOKEN</code>,
+        <code>GOOGLE_MAPS_API_KEY</code>, <code>FEC_API_KEY</code> (FEC falls back to <code>DEMO_KEY</code>).</li>
       <li>Upload county file → confirm ingest count (no AI spend).</li>
-      <li>Dashboard → <strong>Test enrichment</strong> or <strong>POC scorecard</strong> on curated rows.</li>
+      <li>Dashboard → select upload → <strong>Analyze</strong>: confirm row subset, pick test, run.</li>
+      <li>Run <strong>FEC contributor lookup</strong> first on subset ($0) — record <code>rows_with_hits</code>.</li>
+      <li>Run <strong>scorecard</strong> or <strong>test enrichment</strong> per mode; refresh <code>docs/COST-ESTIMATES.md</code>.</li>
       <li>Try <code>apify-modular</code>; inspect <code>apify_runs</code>, <code>pipeline_steps</code>, <code>GET /api/enrichment/apify-config</code>.</li>
-      <li>Compare modes; refresh <code>docs/COST-ESTIMATES.md</code> with <code>usage.cost_usd</code> samples.</li>
       <li>Full county batch only after explicit <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> + budget sign-off.</li>
     </ol>
 

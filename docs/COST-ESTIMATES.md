@@ -57,12 +57,25 @@ Order of magnitude **~$0.01–$0.05/voter** depending on actor pricing and timeo
 after first live `apify_runs` on a curated row. Grok synthesis cost still applies (typically
 lower than `grok-full` because no live search tools).
 
+## FEC Open API (contributor lookup)
+
+**$0** per query (free API key from fec.gov). Dashboard **FEC contributor lookup** runs on the
+full test subset with no Grok tokens. Use this to measure Schedule A hit rate before inferring
+lean from donations. Set `FEC_API_KEY` in production — `DEMO_KEY` is heavily rate-limited.
+
+Record after validation runs:
+
+| County subset | Rows | Rows with hits | Notes |
+|---------------|------|----------------|-------|
+| (pending) | 7 | — | Run via Analyze → FEC lookup |
+
 ## Recommended testing budget
 
 | Phase | Voters | Est. xAI cost | Notes |
 |-------|--------|---------------|-------|
-| POC scorecard (7 curated rows) | 7 | ~$0.25 | **Preferred** eval path |
-| Single-voter mode compare | 4 modes × 1 row | ~$0.10–0.15 | Includes apify-modular |
+| FEC lookup (7 curated rows) | 7 | **$0** | Run first — isolates donation yield |
+| POC scorecard (7 curated rows) | 7 | ~$0.25 | **Preferred** Grok eval path |
+| Single-voter enrichment | 1 | ~$0.03 | Pick mode in Analyze UI |
 | Pilot batch job | 25 | ~$0.80 | Requires `LEANLINK_ENABLE_BATCH_INFERENCE` |
 | Full Calhoun county | 736 | ~$24 | Batch gated — do not run accidentally |
 | Alachua county | 40,552 | ~$1,200+ | Batch gated |
@@ -72,5 +85,6 @@ targets are documented here.
 
 ## How to refresh this doc
 
-After each Test enrichment, note `usage.cost_usd` and scenario in the table above.
+After each Test enrichment or scorecard, note `usage.cost_usd` and scenario in the Grok table.
+After FEC runs, note `rows_with_hits` / `row_count` in the FEC table.
 Recompute the 10k band: `median_cost_per_voter × 10,000`.
