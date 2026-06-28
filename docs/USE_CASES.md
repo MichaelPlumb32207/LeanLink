@@ -39,17 +39,18 @@ voters ingested.
 | T3.3 | Upload with no history file | Succeeds; turnout scores limited/zeroed, not an error. |
 | T3.4 | Voter present in registration but absent from history | turnout_score 0, propensity "Low". |
 
-## UC-4 — Run the analysis job 🟡
-**As** the researcher, **I can** run a job that scores every voter and resumes if interrupted.
-*(Lean/confidence currently mocked — see `docs/PROGRESS.md`.)*
+## UC-4 — Run the analysis job (full file) 🟡
+**As** the researcher, **I could** run a job that scores every voter — **currently disabled**
+unless `LEANLINK_ENABLE_BATCH_INFERENCE=true` (D-020). Use UC-10 for POC instead.
 
 | ID | Test | Expected |
 |---|---|---|
-| T4.1 | Run a job on a ready upload | Job → running → completed; every row gets a `lean_results` row. |
+| T4.0 | Run job with batch inference **disabled** | 403 from `/api/uploads/[id]/run`; dashboard has no Run button. |
+| T4.1 | Run a job with batch **enabled** | Job → running → completed; every row gets a `lean_results` row via `inferLean`. |
 | T4.2 | Run while a job is already active | Returns the existing job, no duplicate. |
 | T4.3 | Worker hits its time budget mid-run | Re-triggers itself; remaining rows finish across invocations. |
-| T4.4 | Kill the worker mid-run | Cron sweeper resets stuck rows and re-triggers within ~minutes. |
-| T4.5 | Cancel a running job | Status `cancelled`; in-progress rows reset to pending; re-runnable. |
+| T4.4 | Kill the worker mid-run | Cron sweeper resets stuck rows; re-triggers only if batch enabled. |
+| T4.5 | Cancel a running job | Status `cancelled`; in-progress rows reset to pending. |
 | T4.6 | Opposition-mobilization score | Matches `turnout_score × confidence/100 × oppositionFactor(lean, ballot_favors)`. |
 
 ## UC-5 — Review & filter results ✅
@@ -80,22 +81,36 @@ large upload sizes.
 | T7.2 | Delete an upload | Upload + records + results + jobs cascade-deleted. |
 | T7.3 | One user cannot see another's data | RLS blocks cross-user reads (single-user today, future-proofs multi-user). |
 
-## UC-8 — Real lean inference (Grok/xAI) ⬜
-**As** the researcher, **I want** the lean + confidence to come from a real model with cited
-evidence, not a stub.
+## UC-8 — Real lean inference (Grok/xAI) ✅
+**As** the researcher, **I can** get lean + confidence from Grok with guardrails when
+`XAI_API_KEY` is set (per-voter test path; batch gated).
 
 | ID | Test | Expected |
 |---|---|---|
-| T8.1 | Score a voter via Grok | `lean`/`confidence` from the model; audit `model_version` = real Grok id. |
-| T8.2 | Grok call fails / rate-limited | Row marked failed with message; job continues; sweeper/retry covers it. |
-| T8.3 | Evidence is grounded | `evidence[]` reflects real signals, not placeholder strings. |
+| T8.1 | Test enrichment with `grok-full` | `lean`/`confidence` from model; `model_version` = Grok id. |
+| T8.2 | Grok call fails | Mock fallback + error in evidence (batch row) or 500 (test API). |
+| T8.3 | No signals in matches | Guardrails force `Undetermined`, cap confidence. |
+| T8.4 | Compare all modes | Side-by-side JSON for grok-full, apify-modular, modular-targeted, modular-synthesize. |
 
-## UC-9 — OSINT persona linkage ⬜
+## UC-9 — OSINT persona linkage 🟡
 **As** the researcher, **I want** each voter linked to candidate online personas from public
-sources, with confidence and provenance.
+sources. Identity resolution is strong; social/lean coverage still thin on scorecard samples.
 
 | ID | Test | Expected |
 |---|---|---|
-| T9.1 | Resolve a voter to social handles via OSINT | `matched_social` populated from real sources, with provenance in audit. |
-| T9.2 | No confident match | Empty `matched_social`; not a failure. |
-| T9.3 | Provenance logged | Every enrichment source recorded in `audit_log`. |
+| T9.1 | Resolve via Grok OSINT | `identity_matches` + `matched_social` when profiles found. |
+| T9.2 | No confident match | `identity_resolution_status` none/ambiguous; lean Undetermined. |
+| T9.3 | Provenance logged | `audit.sources`, citations / `apify_runs` per mode. |
+| T9.4 | Tier-A hits (donation/media/civic) | Matches use platform `donation|media|civic` with `signals[]`. |
+
+## UC-10 — Per-voter POC evaluation ✅
+**As** the researcher, **I can** test one voter or the curated county scorecard without
+county-scale spend.
+
+| ID | Test | Expected |
+|---|---|---|
+| T10.1 | Test enrichment, pick row index | Single-voter JSON + `usage.cost_usd`. |
+| T10.2 | POC scorecard | ~7 curated rows per county; metrics: identity %, social %, lean %. |
+| T10.3 | `apify-modular` on curated row | `apify_runs`, `pipeline_steps`, `street_view_context` in response. |
+| T10.4 | Street View strict / exploratory | Preview image + `lean_street_view` (not merged into OSINT lean). |
+| T10.5 | Apify config endpoint | `GET /api/enrichment/apify-config` lists actors and limits. |

@@ -31,7 +31,12 @@ Fill in `.env.local`:
 | `ALLOWED_USER_EMAIL` | The single Google account allowed to sign in. |
 | `INTERNAL_JOB_SECRET` | `openssl rand -base64 32` — authorizes worker self-calls. |
 | `CRON_SECRET` | `openssl rand -base64 32` — authorizes the cron sweeper. |
-| `XAI_API_KEY` | xAI console (add when wiring real inference). |
+| `XAI_API_KEY` | xAI console — required for live enrichment tests. |
+| `XAI_MODEL` | Optional; default `grok-4.3`. |
+| `GOOGLE_MAPS_API_KEY` | Google Cloud — Street View Static API (enrichment tests). |
+| `APIFY_API_TOKEN` | Apify console — `apify-modular` fetch layer. |
+| `ENRICHMENT_MODE` | Batch mode when batch enabled: `grok-full` \| `apify-modular` \| etc. |
+| `LEANLINK_ENABLE_BATCH_INFERENCE` | Leave **unset** for POC (blocks full-file jobs). Set `true` only when ready for county-scale Grok spend. |
 
 ## 2. Database
 
@@ -63,9 +68,9 @@ per transaction, so nothing extra is needed at the DB level.
 npm run dev    # http://localhost:3000  → sign in with ALLOWED_USER_EMAIL
 ```
 
-Smoke test: sign in → upload a FL registration `.txt` → Run Analysis Job → watch progress →
-Export CSV. (Background jobs work locally because the worker self-triggers over HTTP using
-`NEXTAUTH_URL`.)
+Smoke test: sign in → upload a FL registration `.txt` → confirm row count → use **Test
+enrichment** or **POC scorecard** on a curated row (no full-file job unless
+`LEANLINK_ENABLE_BATCH_INFERENCE=true`). Export CSV when results exist.
 
 ## 5. Vercel deploy
 

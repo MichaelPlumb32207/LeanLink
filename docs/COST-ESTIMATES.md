@@ -50,14 +50,25 @@ at current Grok pricing — treat **xAI as the budget line item**.
 
 Negligible for this POC scale (thousands of rows, simple queries).
 
+## Apify (apify-modular only)
+
+Apify bills separately from xAI. POC defaults: ≤5 Google queries + ≤2 page crawls per voter.
+Order of magnitude **~$0.01–$0.05/voter** depending on actor pricing and timeouts — refresh
+after first live `apify_runs` on a curated row. Grok synthesis cost still applies (typically
+lower than `grok-full` because no live search tools).
+
 ## Recommended testing budget
 
-| Phase | Voters | Est. xAI cost |
-|-------|--------|---------------|
-| Scenario matrix (7 suggested rows) | 7 | ~$0.25 |
-| Pilot batch job | 25 | ~$0.80 |
-| Full Calhoun county | 736 | ~$24 |
-| Hypothetical 10k county | 10,000 | ~$330 |
+| Phase | Voters | Est. xAI cost | Notes |
+|-------|--------|---------------|-------|
+| POC scorecard (7 curated rows) | 7 | ~$0.25 | **Preferred** eval path |
+| Single-voter mode compare | 4 modes × 1 row | ~$0.10–0.15 | Includes apify-modular |
+| Pilot batch job | 25 | ~$0.80 | Requires `LEANLINK_ENABLE_BATCH_INFERENCE` |
+| Full Calhoun county | 736 | ~$24 | Batch gated — do not run accidentally |
+| Alachua county | 40,552 | ~$1,200+ | Batch gated |
+
+**Rule:** keep `LEANLINK_ENABLE_BATCH_INFERENCE` unset until median $/voter and coverage
+targets are documented here.
 
 ## How to refresh this doc
 

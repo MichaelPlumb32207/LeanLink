@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research-only POC · Florida NPA voters · OSINT + Grok live search · Last updated 2026-06-27</p>
+    <p class="subtitle">Research-only POC · Florida NPA voters · Per-voter eval first · Last updated 2026-06-27</p>
 
     <div class="card">
       <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
@@ -42,19 +42,31 @@
     </div>
 
     <h2 id="flow">1. Pipeline overview</h2>
+    <div class="card">
+      <strong>POC path:</strong> Upload ingests voters only. Evaluate via <strong>Test enrichment</strong>
+      or <strong>POC scorecard</strong> (~7 curated rows/county). Full-file batch is
+      <strong>disabled</strong> unless <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> (D-020).
+    </div>
     <pre class="mermaid">
-flowchart LR
-  A[FL registration extract] --> B[Identity anchor]
-  H[FL history extract] --> C[Behavioral scoring]
-  B --> D[Grok live web search]
-  D --> E[OSINT persona signals]
-  C --> F[Grok lean synthesis]
-  E --> F
-  F --> G[lean + confidence + evidence]
-  C --> I[turnout + primary engagement]
-  G --> J[opposition mobilization]
-  I --> J
-  G --> K[Dashboard / Export]
+flowchart TB
+  subgraph ingest [Ingest - no AI cost]
+    A[FL registration extract] --> B[Identity anchor + contact]
+    H[FL history extract] --> C[Turnout / primary engagement]
+  end
+  subgraph enrich [Per-voter enrichment modes]
+    B --> M{Mode}
+    M -->|grok-full| D[Grok web_search + x_search]
+    M -->|apify-modular| P[Apify Google + crawl]
+    P --> SV[Street View exploratory]
+    SV --> S[Grok synthesize only]
+    P --> S
+    D --> E[OSINT matches + signals]
+    S --> E
+  end
+  E --> F[Guardrails + lean + confidence]
+  C --> J[Opposition mobilization]
+  F --> J
+  J --> K[Dashboard / Export]
     </pre>
 
     <h2 id="inputs">2. Input data (what we use)</h2>
@@ -88,16 +100,32 @@ flowchart LR
       </tbody>
     </table>
 
-    <h2 id="osint">3. Enrichment — Grok live search (v1)</h2>
-    <p><span class="tag tag-real">Decision D-008</span> Start with <strong>Grok <code>web_search</code></strong> via xAI Responses API (<code>POST /v1/responses</code>). Evaluate via dashboard <strong>Test enrichment</strong> before building modular fetchers.</p>
+    <h2 id="osint">3. Enrichment modes</h2>
+    <table>
+      <thead><tr><th>Mode</th><th>Fetch</th><th>Grok</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>grok-full</code></td><td>Grok <code>web_search</code> + <code>x_search</code></td><td>Agentic search + synthesis</td><td>Social-first + Tier-A OSINT (D-015)</td></tr>
+        <tr><td><code>apify-modular</code></td><td>Apify Google Search + page crawl; Street View exploratory in parallel</td><td>Synthesize only — no live search</td><td>Auditable fetch (D-017)</td></tr>
+        <tr><td><code>modular-targeted</code></td><td>Capped Grok searches from query plan</td><td>≤4 tool calls</td><td>Cost comparison</td></tr>
+        <tr><td><code>modular-synthesize</code></td><td>None</td><td>Bundle + plan only</td><td>Cheap baseline</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Query plan (all modes)</h3>
+    <p>Social first → contact → <strong>Tier-A lean</strong> (donations/FEC, local media, civic filings) → directory last. See <code>lib/enrichment/query-builder.ts</code>.</p>
 
     <h3>OSINT flow per voter</h3>
     <ol>
-      <li>Build <code>EnrichmentBundle</code> (anchor + contact flags + history context).</li>
-      <li>Grok searches public web/social for matching persona(s) in Florida.</li>
-      <li>Returns structured JSON: matches, signals, resolution status, lean, confidence, evidence.</li>
-      <li>Code guardrails enforce policy (below).</li>
+      <li>Build <code>EnrichmentBundle</code> (anchor + contact + <code>email_insights</code> + history).</li>
+      <li>Run selected mode (Grok search and/or Apify fetch + optional Street View context).</li>
+      <li>Grok returns structured JSON: <code>identity_matches</code>, <code>signals[]</code>, lean, confidence.</li>
+      <li><code>applyInferenceGuardrails</code> — lean requires non-empty ideological <code>signals[]</code> (D-016).</li>
     </ol>
+
+    <h3>Street View (research arm — D-018)</h3>
+    <p><span class="tag tag-rule">Separate</span> <code>strict</code> = political signage only.
+    <code>exploratory</code> = visible-cue heuristics for professor field validation.
+    <code>lean_street_view</code> is <strong>not</strong> merged into main OSINT <code>lean</code>.</p>
 
     <h3>Match resolution states</h3>
     <table>
@@ -109,8 +137,12 @@ flowchart LR
       </tbody>
     </table>
 
-    <h3>Future: modular fetchers (if pivot)</h3>
-    <p>S0 voter-file contact · S1 public web · S2 X · S3 LinkedIn · S4 Facebook public · S5 DIY fuzzy match scoring in Postgres.</p>
+    <h3>POC findings (2026-06-27 scorecard)</h3>
+    <ul>
+      <li>Identity probable: high (~90–95% Calhoun curated set)</li>
+      <li>Social found: very low (~0% Calhoun; ~1/7 Alachua)</li>
+      <li>Lean labeled: ~0% — guardrails working; sparse public ideology signals</li>
+    </ul>
 
     <h2 id="outputs">4. Outputs &amp; who computes them</h2>
     <table>
@@ -184,6 +216,7 @@ flowchart LR
         <tr><td>D-010</td><td>Hard exclude race and gender from all prompts and logic</td></tr>
         <tr><td>D-011</td><td>No OSINT match → <code>Undetermined</code>, confidence ≤ 35</td></tr>
         <tr><td>D-012</td><td>Primary history = mobilization context only, not party lean</td></tr>
+        <tr><td>D-016–D-020</td><td>Signal guardrails, Apify fetch, Street View arm, batch disabled — see <code>docs/DECISIONS.md</code></td></tr>
       </tbody>
     </table>
 
@@ -192,20 +225,27 @@ flowchart LR
       <thead><tr><th>Module</th><th>Path</th></tr></thead>
       <tbody>
         <tr><td>Bundle builder</td><td><code>lib/enrichment/build-bundle.ts</code></td></tr>
+        <tr><td>Query plan + Tier-A</td><td><code>lib/enrichment/query-builder.ts</code></td></tr>
         <tr><td>Grok OSINT + inference</td><td><code>lib/enrichment/grok-pipeline.ts</code></td></tr>
-        <tr><td>xAI client (Responses + web_search)</td><td><code>lib/xai/client.ts</code></td></tr>
-        <tr><td>Orchestrator (Grok or fallback mock)</td><td><code>lib/inference.ts</code></td></tr>
-        <tr><td>Single-voter test API</td><td><code>POST /api/enrichment/test</code></td></tr>
-        <tr><td>Batch worker</td><td><code>app/api/jobs/[id]/worker/route.ts</code></td></tr>
+        <tr><td>Apify modular pipeline</td><td><code>lib/enrichment/apify-pipeline.ts</code>, <code>lib/apify/*</code></td></tr>
+        <tr><td>Street View vision</td><td><code>lib/enrichment/street-view-vision.ts</code></td></tr>
+        <tr><td>Scorecard + suggested rows</td><td><code>lib/enrichment/scorecard.ts</code>, <code>suggested-test-rows.ts</code></td></tr>
+        <tr><td>Batch gate</td><td><code>lib/batch-inference.ts</code></td></tr>
+        <tr><td>xAI client</td><td><code>lib/xai/client.ts</code></td></tr>
+        <tr><td>Orchestrator</td><td><code>lib/inference.ts</code></td></tr>
+        <tr><td>Per-voter APIs</td><td><code>POST /api/enrichment/test</code>, <code>scorecard</code>, <code>street-view</code></td></tr>
+        <tr><td>Batch worker (gated)</td><td><code>app/api/jobs/[id]/worker/route.ts</code></td></tr>
       </tbody>
     </table>
 
     <h2 id="test">8. How to evaluate</h2>
     <ol>
-      <li>Set <code>XAI_API_KEY</code> (and optional <code>XAI_MODEL=grok-4.3</code>) in env.</li>
-      <li>Select an upload in the dashboard → <strong>Test enrichment</strong> (pick row index).</li>
-      <li>Inspect JSON: <code>bundle</code>, <code>debug.prompt_user</code>, <code>result.enrichment.citations</code>, guardrailed lean/confidence.</li>
-      <li>When satisfied, <strong>Run Analysis Job</strong> for full batch (slower — one Grok call per voter).</li>
+      <li>Env: <code>XAI_API_KEY</code>; optional <code>APIFY_API_TOKEN</code>, <code>GOOGLE_MAPS_API_KEY</code>.</li>
+      <li>Upload county file → confirm ingest count (no AI spend).</li>
+      <li>Dashboard → <strong>Test enrichment</strong> or <strong>POC scorecard</strong> on curated rows.</li>
+      <li>Try <code>apify-modular</code>; inspect <code>apify_runs</code>, <code>pipeline_steps</code>, <code>GET /api/enrichment/apify-config</code>.</li>
+      <li>Compare modes; refresh <code>docs/COST-ESTIMATES.md</code> with <code>usage.cost_usd</code> samples.</li>
+      <li>Full county batch only after explicit <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> + budget sign-off.</li>
     </ol>
 
     <h2 id="fallback">9. Fallback behavior</h2>

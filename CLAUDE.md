@@ -52,24 +52,21 @@ hashed twice (across uploads) will conflict on insert into `lean_results`.
 
 **Processing pipeline** (all serverless, no n8n/queue):
 1. `POST /api/uploads` — parse + filter, `hashVoterPii` each row, batch-insert (100/stmt)
-   into `voter_records` with any matched history summary; upload status → `ready`.
-2. `POST /api/uploads/[id]/run` — create a `processing_jobs` row, then `triggerWorker`.
-3. `POST /api/jobs/[id]/worker` — the engine. Authorized by `INTERNAL_JOB_SECRET`.
-   Claims pending rows with `FOR UPDATE SKIP LOCKED`, runs `inferLean`, writes
-   `lean_results`, updates counts/heartbeat. When time budget nears
-   (`getWorkerDeadlineMs`, 80% of `maxDuration`=800s) it **re-triggers itself** for the
-   next batch — this is how it processes more rows than one function invocation allows.
-4. `GET /api/cron/job-sweeper` (Vercel cron, every minute, `vercel.json`) — resets rows
-   stuck in `processing` >15min and re-triggers jobs with a stale heartbeat. Self-healing
-   for crashed/timed-out workers.
+   into `voter_records` with any matched history summary; upload status → `ready`. **No Grok.**
+2. **POC enrichment** (intended path): `POST /api/enrichment/test`, `/api/enrichment/scorecard`,
+   `/api/enrichment/street-view` — per-voter or curated ~7 rows; modes in `lib/enrichment/modes.ts`.
+3. `POST /api/uploads/[id]/run` — batch job start — **gated** by `LEANLINK_ENABLE_BATCH_INFERENCE`
+   (`lib/batch-inference.ts`, default off). When enabled: creates `processing_jobs`, `triggerWorker`.
+4. `POST /api/jobs/[id]/worker` — batch engine (also gated). Claims rows, runs `inferLean`,
+   writes `lean_results`. Self-chains before `maxDuration` budget.
+5. `GET /api/cron/job-sweeper` — stall recovery; skips re-trigger when batch disabled.
 
-**Inference is still a mock** (`lib/inference.ts`, `inferLean`). The turnout and
-**opposition-mobilization scoring is real math** (`computeOppositionMobilizationScore`,
-gated on the upload's `ballot_favors` north/south scenario), but the **lean direction and
-confidence are deterministic stubs** keyed on `voterId` (`mock-v2`, audit
-`model_version: history-aware-mock-v2`). Wiring the real Grok/xAI call here is the next
-major task — see `docs/CLAUDE.md` for the verified endpoint/model. NOTE: the older
-`mockInferLean` in `lib/job-runner.ts` is now dead code, superseded by `inferLean`.
+**Inference** (`lib/inference.ts`, `inferLean`): when `XAI_API_KEY` is set, calls
+`grokEnrichAndInferRecord` (mode from `ENRICHMENT_MODE` or `apify-modular` path). Turnout and
+**opposition-mobilization scoring is real math** (`computeOppositionMobilizationScore`).
+Mock fallback only when key missing or Grok errors. Guardrails in `applyInferenceGuardrails`
+require ideological content in `identity_matches[].signals[]`. See `docs/CLAUDE.md` for xAI
+endpoints; `docs/PROGRESS.md` for continuity.
 
 **Results querying scales by size** (`lib/results-query.ts`, shared client+server):
 small uploads sort/filter entirely in the browser; above the thresholds
