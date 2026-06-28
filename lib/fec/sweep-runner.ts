@@ -18,6 +18,7 @@ export interface FecSweepClaimedRow {
   upload_id: string;
 }
 
+/** Dispatch worker in the background — do not await from API routes (worker runs minutes per call). */
 export async function triggerFecSweepWorker(jobId: string): Promise<void> {
   const baseUrl =
     process.env.NEXTAUTH_URL ||

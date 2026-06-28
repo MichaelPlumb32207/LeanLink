@@ -117,7 +117,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return 'completed';
       }
 
-      await triggerFecSweepWorker(jobId);
+      void triggerFecSweepWorker(jobId);
       return 'running';
     });
 

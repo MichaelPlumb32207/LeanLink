@@ -159,7 +159,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       );
     }
 
-    await triggerFecSweepWorker(result.jobId);
+    // Fire-and-forget — worker runs up to ~11 min per invocation; must not block this response.
+    void triggerFecSweepWorker(result.jobId);
 
     return NextResponse.json({
       jobId: result.jobId,
