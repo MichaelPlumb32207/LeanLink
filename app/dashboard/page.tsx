@@ -158,6 +158,7 @@ export default function DashboardPage() {
   const [fecSweepSampleHits, setFecSweepSampleHits] = useState<
     { row_index: number; contributor_name: string; match_level: string; result_count: number }[]
   >([]);
+  const [fecSweepLastUpdated, setFecSweepLastUpdated] = useState<Date | null>(null);
   const [analyzeNotice, setAnalyzeNotice] = useState<{
     tone: 'info' | 'success' | 'error';
     text: string;
@@ -218,6 +219,7 @@ export default function DashboardPage() {
       setFecSweepJob(data.job ?? null);
       setFecSweepHitRate(typeof data.hit_rate_pct === 'number' ? data.hit_rate_pct : null);
       setFecSweepSampleHits(Array.isArray(data.sample_hits) ? data.sample_hits : []);
+      setFecSweepLastUpdated(new Date());
       return null;
     } catch {
       return 'Network error loading FEC sweep status';
@@ -353,16 +355,31 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [selectedUploadId, selectedUpload, job, refreshJob, refreshResults, refreshUploads]);
 
+  const fecSweepIsActive = useMemo(
+    () => fecSweepJob?.status === 'queued' || fecSweepJob?.status === 'running',
+    [fecSweepJob?.status],
+  );
+
   useEffect(() => {
-    if (!selectedUploadId || !fecSweepJob) return;
-    if (fecSweepJob.status !== 'queued' && fecSweepJob.status !== 'running') return;
+    if (!selectedUploadId || !fecSweepIsActive) return;
 
-    const timer = setInterval(() => {
-      refreshFecSweep(selectedUploadId);
-    }, 3000);
+    const poll = () => {
+      void refreshFecSweep(selectedUploadId);
+    };
+    poll();
 
-    return () => clearInterval(timer);
-  }, [selectedUploadId, fecSweepJob, refreshFecSweep]);
+    const timer = setInterval(poll, 5000);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [selectedUploadId, fecSweepIsActive, refreshFecSweep]);
 
   const fecSweepProgressPct = useMemo(() => {
     if (!fecSweepJob?.total_count) return 0;
@@ -1216,11 +1233,23 @@ export default function DashboardPage() {
                           {fecSweepJob.processed_count}/{fecSweepJob.total_count} checked
                           {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} hits` : ''}
                         </p>
-                        {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
-                          <span className="text-xs opacity-70">
-                            Hit rate {fecSweepHitRate}% · $0 API cost
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2 text-xs opacity-70">
+                          {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
+                            <span>Hit rate {fecSweepHitRate}% · $0 API cost</span>
+                          )}
+                          {fecSweepLastUpdated && (
+                            <span>
+                              Updated {fecSweepLastUpdated.toLocaleTimeString()}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => selectedUploadId && refreshFecSweep(selectedUploadId)}
+                            className="underline hover:opacity-100"
+                          >
+                            Refresh now
+                          </button>
+                        </div>
                       </div>
                       {(fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
                         <div className="mt-2">
@@ -1239,9 +1268,10 @@ export default function DashboardPage() {
                             />
                           </div>
                           <p className="mt-2 text-xs opacity-60">
-                            Runs in the background — safe to leave this page open. Updates every 3s.
+                            Runs in the background (~4s per voter). Auto-refreshes every 5s while this
+                            tab is visible; switching away pauses updates until you return.
                             {fecSweepJob.status === 'queued' && fecSweepJob.processed_count === 0
-                              ? ' If stuck at 0% for several minutes, apply migration 003_fec_sweep.sql or check Vercel logs.'
+                              ? ' If stuck at 0% for several minutes, check Vercel logs.'
                               : ''}
                           </p>
                         </div>
