@@ -66,7 +66,18 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    return NextResponse.json({ error: 'Failed to fetch FEC sweep status' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch FEC sweep status';
+    if (message.includes('fec_sweep_jobs')) {
+      return NextResponse.json(
+        {
+          error: 'FEC sweep tables missing',
+          hint: 'Apply migrations/003_fec_sweep.sql to your database.',
+          job: null,
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -130,8 +141,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (result.error === 'Upload not found') {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
+      const existing = await withUserDb(userEmail, async (client) => {
+        const res = await client.query<FecSweepJobRow>(
+          `SELECT * FROM fec_sweep_jobs WHERE id = $1 AND user_id = $2`,
+          [result.jobId, userEmail],
+        );
+        return res.rows[0] ?? null;
+      });
       return NextResponse.json(
-        { error: result.error, jobId: result.jobId },
+        {
+          error: result.error,
+          jobId: result.jobId,
+          job: existing,
+          hit_rate_pct: existing ? hitRatePct(existing) : 0,
+        },
         { status: 409 },
       );
     }

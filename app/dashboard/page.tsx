@@ -158,6 +158,10 @@ export default function DashboardPage() {
   const [fecSweepSampleHits, setFecSweepSampleHits] = useState<
     { row_index: number; contributor_name: string; match_level: string; result_count: number }[]
   >([]);
+  const [analyzeNotice, setAnalyzeNotice] = useState<{
+    tone: 'info' | 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -203,13 +207,21 @@ export default function DashboardPage() {
     setJob(data.job ?? null);
   }, []);
 
-  const refreshFecSweep = useCallback(async (uploadId: string) => {
-    const res = await fetch(`/api/uploads/${uploadId}/fec-sweep`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setFecSweepJob(data.job ?? null);
-    setFecSweepHitRate(typeof data.hit_rate_pct === 'number' ? data.hit_rate_pct : null);
-    setFecSweepSampleHits(Array.isArray(data.sample_hits) ? data.sample_hits : []);
+  const refreshFecSweep = useCallback(async (uploadId: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/uploads/${uploadId}/fec-sweep`);
+      const data = await res.json();
+      if (!res.ok) {
+        const err = [data.error, data.hint].filter(Boolean).join(' — ');
+        return err || 'Failed to load FEC sweep status';
+      }
+      setFecSweepJob(data.job ?? null);
+      setFecSweepHitRate(typeof data.hit_rate_pct === 'number' ? data.hit_rate_pct : null);
+      setFecSweepSampleHits(Array.isArray(data.sample_hits) ? data.sample_hits : []);
+      return null;
+    } catch {
+      return 'Network error loading FEC sweep status';
+    }
   }, []);
 
   const refreshResults = useCallback(
@@ -512,6 +524,7 @@ export default function DashboardPage() {
 
     setAnalyzeBusy(true);
     setMessage(null);
+    setAnalyzeNotice(null);
     setAnalyzeOutputJson(null);
     setAnalyzeUrls([]);
     setAnalyzeCost(null);
@@ -526,12 +539,50 @@ export default function DashboardPage() {
           body: JSON.stringify({ action: 'start' }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'FEC sweep failed to start');
-        setMessage(
+
+        if (res.status === 409) {
+          if (data.job) {
+            setFecSweepJob(data.job);
+            setFecSweepHitRate(typeof data.hit_rate_pct === 'number' ? data.hit_rate_pct : null);
+          } else {
+            await refreshFecSweep(selectedUploadId);
+          }
+          const notice =
+            'FEC sweep is already running for this upload (your second click did not start a duplicate).';
+          setAnalyzeNotice({ tone: 'info', text: notice });
+          setMessage(notice);
+          return;
+        }
+
+        if (!res.ok) {
+          const err = [data.error, data.hint].filter(Boolean).join(' — ');
+          throw new Error(err || 'FEC sweep failed to start');
+        }
+
+        const total = data.total_count ?? selectedUpload?.row_count ?? 0;
+        const notice =
           data.message ??
-            `FEC sweep started for ${data.total_count ?? selectedUpload?.row_count ?? '?'} voters.`,
-        );
-        await refreshFecSweep(selectedUploadId);
+          `FEC sweep started for ${total} voters. Progress updates below every few seconds.`;
+        setFecSweepJob({
+          id: data.jobId,
+          status: data.status ?? 'queued',
+          processed_count: 0,
+          failed_count: 0,
+          hits_count: 0,
+          total_count: total,
+        });
+        setFecSweepHitRate(0);
+        setFecSweepSampleHits([]);
+        setAnalyzeNotice({ tone: 'success', text: notice });
+        setMessage(notice);
+
+        const refreshErr = await refreshFecSweep(selectedUploadId);
+        if (refreshErr) {
+          setAnalyzeNotice({
+            tone: 'info',
+            text: `${notice} (Status poll: ${refreshErr})`,
+          });
+        }
         return;
       }
 
@@ -637,7 +688,9 @@ export default function DashboardPage() {
         `${data.mode} (row ${activeRowIndex}): identity ${r?.identity_resolution_status} (${Math.round((r?.identity_best_match_score ?? 0) * 100)}%) · lean ${r?.lean} (${r?.confidence}%) · signals ${r?.lean_signals_found ? 'yes' : 'no'}${apifySummary}${typeof costUsd === 'number' ? ` · $${costUsd.toFixed(4)}` : ''}`,
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Analysis failed');
+      const text = error instanceof Error ? error.message : 'Analysis failed';
+      setAnalyzeNotice({ tone: 'error', text });
+      setMessage(text);
     } finally {
       setAnalyzeBusy(false);
     }
@@ -1131,6 +1184,96 @@ export default function DashboardPage() {
                 </div>
               )}
 
+              {analyzeNotice && (
+                <div
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    analyzeNotice.tone === 'error'
+                      ? 'border-red-400/50 bg-red-500/15 text-red-100'
+                      : analyzeNotice.tone === 'success'
+                        ? 'border-emerald-400/50 bg-emerald-500/15'
+                        : 'border-sky-400/40 bg-sky-500/10'
+                  }`}
+                  role="status"
+                >
+                  {analyzeNotice.text}
+                </div>
+              )}
+
+              {(analyzeTest === 'fec-sweep' || fecSweepJob) && (
+                <div className="rounded-lg border border-sky-400/40 bg-sky-950/30 p-3">
+                  <h4 className="text-sm font-semibold">FEC whole-file sweep</h4>
+                  {!fecSweepJob ? (
+                    <p className="mt-1 text-xs opacity-75">
+                      No sweep on this upload yet. Click <strong>Run fec sweep (whole file)</strong>{' '}
+                      — progress appears here (not at the bottom of the page).
+                    </p>
+                  ) : (
+                    <>
+                      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="text-sm">
+                          Status: <span className="font-medium uppercase">{fecSweepJob.status}</span>
+                          {' · '}
+                          {fecSweepJob.processed_count}/{fecSweepJob.total_count} checked
+                          {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} hits` : ''}
+                        </p>
+                        {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
+                          <span className="text-xs opacity-70">
+                            Hit rate {fecSweepHitRate}% · $0 API cost
+                          </span>
+                        )}
+                      </div>
+                      {(fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
+                        <div className="mt-2">
+                          <div className="mb-1 flex justify-between text-xs opacity-80">
+                            <span>
+                              {fecSweepJob.status === 'queued' && fecSweepJob.processed_count === 0
+                                ? 'Starting worker…'
+                                : 'Progress'}
+                            </span>
+                            <span>{fecSweepProgressPct}%</span>
+                          </div>
+                          <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/30">
+                            <div
+                              className="h-full bg-sky-400 transition-all duration-500"
+                              style={{ width: `${Math.max(fecSweepProgressPct, fecSweepJob.status === 'queued' ? 2 : 0)}%` }}
+                            />
+                          </div>
+                          <p className="mt-2 text-xs opacity-60">
+                            Runs in the background — safe to leave this page open. Updates every 3s.
+                            {fecSweepJob.status === 'queued' && fecSweepJob.processed_count === 0
+                              ? ' If stuck at 0% for several minutes, apply migration 003_fec_sweep.sql or check Vercel logs.'
+                              : ''}
+                          </p>
+                        </div>
+                      )}
+                      {fecSweepJob.status === 'completed' && (
+                        <p className="mt-2 text-xs opacity-80">
+                          Complete — {fecSweepJob.hits_count} of {fecSweepJob.processed_count}{' '}
+                          voters had Schedule A hits
+                          {fecSweepJob.failed_count > 0
+                            ? ` · ${fecSweepJob.failed_count} API errors`
+                            : ''}
+                          .
+                        </p>
+                      )}
+                      {fecSweepJob.status === 'failed' && fecSweepJob.error_message && (
+                        <p className="mt-2 text-xs text-red-200">{fecSweepJob.error_message}</p>
+                      )}
+                      {fecSweepSampleHits.length > 0 && (
+                        <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs opacity-90">
+                          {fecSweepSampleHits.map((hit) => (
+                            <li key={hit.row_index}>
+                              Row {hit.row_index}: {hit.contributor_name} · {hit.match_level} ·{' '}
+                              {hit.result_count} match(es)
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -1144,7 +1287,11 @@ export default function DashboardPage() {
                   }
                   className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
                 >
-                  {analyzeBusy ? 'Running…' : `Run ${activeAnalyzeTest.label.toLowerCase()}`}
+                  {analyzeBusy && analyzeTest === 'fec-sweep'
+                    ? 'Starting FEC sweep…'
+                    : analyzeBusy
+                      ? 'Running…'
+                      : `Run ${activeAnalyzeTest.label.toLowerCase()}`}
                 </button>
                 {fecSweepJob &&
                   (fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
@@ -1158,54 +1305,6 @@ export default function DashboardPage() {
                     </button>
                   )}
               </div>
-
-              {fecSweepJob && (
-                <div className="rounded-lg border border-white/15 bg-black/20 p-3">
-                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                    <h4 className="text-sm font-medium">
-                      FEC sweep · {fecSweepJob.status} · {fecSweepJob.processed_count}/
-                      {fecSweepJob.total_count}
-                      {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} hits` : ''}
-                    </h4>
-                    {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
-                      <span className="text-xs opacity-70">
-                        Hit rate {fecSweepHitRate}% · $0 API cost
-                      </span>
-                    )}
-                  </div>
-                  {(fecSweepJob.status === 'running' || fecSweepJob.status === 'queued') && (
-                    <div className="mb-2">
-                      <div className="mb-1 flex justify-between text-xs opacity-80">
-                        <span>Progress</span>
-                        <span>{fecSweepProgressPct}%</span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-black/30">
-                        <div
-                          className="h-full bg-sky-500 transition-all"
-                          style={{ width: `${fecSweepProgressPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {fecSweepJob.status === 'completed' && (
-                    <p className="text-xs opacity-80">
-                      Complete — {fecSweepJob.hits_count} of {fecSweepJob.processed_count} checked
-                      voters had Schedule A hits
-                      {fecSweepJob.failed_count > 0 ? ` · ${fecSweepJob.failed_count} API errors` : ''}.
-                    </p>
-                  )}
-                  {fecSweepSampleHits.length > 0 && (
-                    <ul className="mt-2 max-h-32 space-y-1 overflow-auto text-xs opacity-90">
-                      {fecSweepSampleHits.map((hit) => (
-                        <li key={hit.row_index}>
-                          Row {hit.row_index}: {hit.contributor_name} · {hit.match_level} ·{' '}
-                          {hit.result_count} match(es)
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
 
               {analyzeScorecard && (
                 <div className="mt-4 rounded-lg border border-white/15 bg-black/20 p-3">
