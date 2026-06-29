@@ -6,7 +6,31 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-29
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
-## Where to pick up (continuity note — 2026-06-29)
+## Where to pick up (continuity note — 2026-06-29, post–Tier 0 validation)
+
+**Shipped to prod:** Evidence accumulator UI + Tier 0 free pass (`main` deployed). Neon indexes:
+FL contrib **14.2M** (`2008-2026`), Sunbiz **20.6M** (`2026q2-cor0…cor9`). Calhoun free pass done.
+
+**Calhoun proof (`CAL_20250812.txt`, 736 NPA+ACT):**
+- FEC: 27 raw → **3 confirmed** (`FEC✓`) → **3 fused lean** (Foster Left 95% ActBlue×3; Hatcher Right 95%;
+  Curl Right 95% WinRed/Trump JFC)
+- Free pass: **429** Sunbiz · **26** FL layer-2 entity · **3** FL layer-1 person · **344** household
+- **733** fused `Undetermined` — expected (identity without partisan committee text)
+
+**Inspect in prod:** Upload → Evidence accumulator → `FEC✓` in Arms column, or name-search layer-2
+examples (rows 57, 224, 280). Timeline = audit; fused lean only when arms supply ideology.
+
+**Next best (priority order):**
+1. **Professor walkthrough** — demo rows 273/402/569 (lean) + row 224 or 280 (Sunbiz→layer-2, Undetermined lean)
+2. **UI filters** — voter list: `FEC✓ only`, `has layer-2`, `has Sunbiz` (no filter today; name search only)
+3. **Sunbiz lookup perf** — free pass ~84 min / 736 voters; prefix or trigram index on `officer_name_norm`
+4. **Layer-2 lean audit** — do any of 26 entity donations carry partisan committee names worth labeling?
+5. **Apify-modular eval** — Alachua curated subset vs `grok-full` (paid depth on promising rows only)
+6. **Scorecard Tier-A metrics** — donation/media/civic % separate from social %
+
+Docs updated: `enrichment-pipeline.html`, `evidence-accumulator-pitch.html`. CLI: `scripts/run-free-pass.ts`.
+
+## Where to pick up (continuity note — 2026-06-29, morning)
 
 **Evidence accumulator (D-023):** Multi-arm ledger (`evidence_events`), fusion (`voter_lean_fusion` →
 `lean_results`), dashboard split-pane **Evidence accumulator** above **Research lab**. FEC sweep
@@ -15,7 +39,7 @@ writes events per voter; **Sync FEC → ledger** backfills completed sweeps. **A
 **Tier 0 Free Pass:** `006_reference_data.sql` — `fl_contributions` + `sunbiz_officers` bulk indexes;
 import scripts; dashboard **Run free pass** (layer 2 entity donations). **ACT** = FL registration
 status (active on rolls), not political engagement. Anchor profile; FEC; scorecard → ledger.
-Docs: `enrichment-pipeline.html`, `evidence-accumulator-pitch.html`. Migrations through `006`.
+Migrations through `006`.
 
 ## Where to pick up (continuity note — 2026-06-28)
 
@@ -78,7 +102,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Analyze UI: subset + test picker | ✅ | `app/dashboard/page.tsx`, `lib/test-row-indices.ts`. |
 | Enrichment test + scorecard APIs | ✅ | `POST /api/enrichment/test`, `scorecard` accept `rowIndices`. |
 | FEC direct contributor lookup (subset) | ✅ | `POST /api/enrichment/fec` — 0/7 on curated Calhoun validation. |
-| FEC whole-file sweep (batch) | ✅ | Calhoun 736/736; 27 raw, 3 confirmed after identity scoring. |
+| FEC whole-file sweep (batch) | ✅ | Calhoun 736/736; 27 raw, 3 confirmed, 3 fused lean (ActBlue / Harris / WinRed). |
+| Tier 0 Free Pass (FL + Sunbiz indexes) | ✅ | Indexes in Neon; Calhoun run; multi-shard Sunbiz lookup. |
+| Free pass CLI | ✅ | `scripts/run-free-pass.ts --county CAL`. |
 | FEC identity scoring + disambiguate | ✅ | `lib/fec/identity-match.ts`, `donation-lean.ts`, `fec-disambiguate`. |
 | Evidence accumulator + fusion | ✅ | `005_evidence_ledger.sql`, `lib/evidence/*`, Evidence workspace UI. |
 | Tier-A OSINT query plan (donations, media, civic) | ✅ | `lib/enrichment/query-builder.ts` (Grok/Apify path). |
@@ -89,13 +115,14 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Automated tests | ⬜ | None. See `docs/USE_CASES.md`. |
 
 ## Top of the backlog
-1. **FEC hit-rate eval** — curated subset via dashboard FEC test; document yield in `COST-ESTIMATES.md` / here.
-2. **Apify-modular eval** — same subset as scorecard; inspect actors and crawl quality.
-3. **Crawl URL policy** — skip social login walls; prefer Tier-A domains from SERP.
-4. **Scorecard Tier-A metrics** — donation/media/civic % alongside social %.
-5. **Field validation** — professor compares exploratory Street View cues vs ground truth.
-6. **Tests** — parsers, `applyInferenceGuardrails`, `buildResultsSql`, FEC mapper.
-7. **Batch re-enable criteria** — document $/voter + coverage thresholds before flipping `LEANLINK_ENABLE_BATCH_INFERENCE`.
+1. **Professor demo** — Calhoun Evidence accumulator walkthrough (FEC lean rows + layer-2 identity rows).
+2. **Evidence list filters** — `FEC✓`, layer-2, Sunbiz hit in `evidence-workspace.tsx`.
+3. **Sunbiz index perf** — speed up `lookupSunbizOfficersForVoter` for county-scale free pass.
+4. **Layer-2 lean yield** — review 26 Calhoun entity donations for partisan committee labeling.
+5. **Apify-modular eval** — Alachua curated subset; inspect actors and crawl quality.
+6. **Scorecard Tier-A metrics** — donation/media/civic % alongside social %.
+7. **Tests** — parsers, fusion, FEC/FL donation-lean, `buildResultsSql`.
+8. **Batch re-enable criteria** — document $/voter + coverage thresholds before `LEANLINK_ENABLE_BATCH_INFERENCE`.
 
 ## Spec
 - Doc index: [`docs/README.md`](README.md)

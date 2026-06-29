@@ -43,7 +43,7 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research-only POC · Florida NPAs · Tier 0 Free Pass + paid depth · Last updated 2026-06-29</p>
+    <p class="subtitle">Research-only POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-06-29</p>
 
     <div class="card">
       <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
@@ -95,11 +95,11 @@
 
     <h3>Reference data refresh (client quarterly snapshot)</h3>
     <table>
-      <thead><tr><th>Index</th><th>Source</th><th>Refresh</th></tr></thead>
+      <thead><tr><th>Index</th><th>Source</th><th>Refresh</th><th>Loaded (Neon)</th></tr></thead>
       <tbody>
-        <tr><td>Sunbiz officers</td><td>SFTP quarterly <code>cordata.zip</code></td><td>Jan / Apr / Jul / Oct (+ optional daily merge)</td></tr>
-        <tr><td>FL state contributions</td><td>DOS tab export via <code>contrib.exe</code></td><td>Monthly in-cycle; quarterly off-cycle</td></tr>
-        <tr><td>FEC</td><td>Live Schedule A API today</td><td>Per sweep; bulk FEC optional later</td></tr>
+        <tr><td>Sunbiz officers</td><td>SFTP <code>sftp.floridados.gov</code> → <code>doc/quarterly/cor/cordata.zip</code> (extract <code>cordata0.txt</code>–<code>cordata9.txt</code>)</td><td>Jan / Apr / Jul / Oct</td><td><strong>20.6M</strong> officers · snapshot <code>2026q2-cor0…cor9</code></td></tr>
+        <tr><td>FL state contributions</td><td>DOS monthly TSV via <code>scripts/download-fl-contrib.ts</code></td><td>Monthly in-cycle; quarterly off-cycle</td><td><strong>14.2M</strong> rows · snapshot <code>2008-2026</code></td></tr>
+        <tr><td>FEC</td><td>Live Schedule A API</td><td>Per upload sweep</td><td>Per-voter events in ledger (no bulk index yet)</td></tr>
       </tbody>
     </table>
 
@@ -141,17 +141,40 @@
     <h2 id="free-pass">4. Tier 0 implementation</h2>
     <ul>
       <li><code>migrations/006_reference_data.sql</code> — <code>reference_snapshots</code>, <code>fl_contributions</code>, <code>sunbiz_officers</code></li>
-      <li><code>scripts/import-fl-contrib-tsv.ts</code> — bulk DOS contrib import</li>
-      <li><code>scripts/import-sunbiz-cor.ts</code> — quarterly cor fixed-width import</li>
-      <li><code>lib/free-pass/run-upload.ts</code> — whole-upload local matching</li>
+      <li><code>scripts/download-fl-contrib.ts</code> + <code>scripts/import-fl-contrib-dir.ts</code> — bulk FL contrib import</li>
+      <li><code>scripts/import-sunbiz-cor.ts</code> — quarterly cor fixed-width import (one snapshot label per shard, e.g. <code>2026q2-cor3</code>)</li>
+      <li><code>lib/sunbiz/lookup.ts</code> — <code>getActiveSunbizSnapshotIds()</code> queries all shards in the active quarter</li>
+      <li><code>lib/free-pass/run-upload.ts</code> — whole-upload local matching (layer 1 person → Sunbiz → layer 2 entity)</li>
+      <li><code>scripts/run-free-pass.ts</code> — CLI runner (<code>--county CAL</code> or <code>--upload-id</code>)</li>
       <li>Dashboard: <strong>Run free pass</strong> on Evidence accumulator (<code>POST .../evidence</code> action <code>free-pass</code>)</li>
     </ul>
 
-    <h2 id="fec">5. FEC arm (D-021)</h2>
-    <p><span class="tag tag-real">Live</span> Direct FEC Open API Schedule A + deterministic identity
-    (<code>lib/fec/identity-match.ts</code>, <code>donation-lean.ts</code>). Calhoun: 27 raw → 3 confirmed.</p>
+    <h2 id="calhoun">5. Calhoun validation (736 NPA + ACT)</h2>
+    <p><span class="tag tag-real">Validated</span> Whole-file FEC sweep + Tier 0 free pass on <code>CAL_20250812.txt</code>. Deployed to Vercel prod; data in shared Neon.</p>
+    <table>
+      <thead><tr><th>Arm</th><th>Yield</th><th>Lean labels?</th></tr></thead>
+      <tbody>
+        <tr><td>FEC</td><td>27 raw → <strong>3 confirmed</strong> (<code>FEC✓</code> in UI)</td><td>Yes — 3 fused (see below)</td></tr>
+        <tr><td>Sunbiz</td><td><strong>429</strong> officer matches (58%)</td><td>No — identity bridge only</td></tr>
+        <tr><td>FL contrib layer 1</td><td><strong>3</strong> person hits</td><td>Only if committee name is partisan</td></tr>
+        <tr><td>FL contrib layer 2</td><td><strong>26</strong> entity hits via Sunbiz</td><td>Only if entity donation committee is partisan</td></tr>
+        <tr><td>Household</td><td><strong>344</strong> co-address events</td><td>No</td></tr>
+      </tbody>
+    </table>
+    <p><strong>FEC fused lean (NPA registrants, lean from donations only):</strong></p>
+    <ul>
+      <li>Row 273 · Dianne D Foster — 3× ActBlue → <strong>Left · 95%</strong></li>
+      <li>Row 402 · Jerry S Hatcher — 1× Friends of Katherine Harris (R) → <strong>Right · 95%</strong> (event-level 70%)</li>
+      <li>Row 569 · Robert Curl — 14× WinRed + Trump Save America JFC → <strong>Right · 95%</strong></li>
+    </ul>
+    <p><strong>733 / 736</strong> remain <code>Undetermined</code> fused lean — expected when arms supply identity without ideological signals. Evidence timeline still holds full audit.</p>
+    <p style="font-size:0.88rem;color:var(--muted);">Free pass runtime ~84 min for 736 voters (Sunbiz <code>LIKE</code> across ~21M rows) — optimize with better indexes if scaling counties.</p>
 
-    <h2 id="osint">6. Paid OSINT modes (Tier 3)</h2>
+    <h2 id="fec">6. FEC arm (D-021)</h2>
+    <p><span class="tag tag-real">Live</span> Direct FEC Open API Schedule A + deterministic identity
+    (<code>lib/fec/identity-match.ts</code>, <code>donation-lean.ts</code>). Calhoun: 27 raw → 3 confirmed → 3 labeled.</p>
+
+    <h2 id="osint">7. Paid OSINT modes (Tier 3)</h2>
     <table>
       <thead><tr><th>Mode</th><th>Fetch</th><th>Grok</th><th>Use</th></tr></thead>
       <tbody>
@@ -162,7 +185,7 @@
     </table>
     <p>Scorecard and enrichment test append <code>osint</code> events to the ledger. Full-file batch remains gated (D-020).</p>
 
-    <h2 id="guardrails">7. Guardrails</h2>
+    <h2 id="guardrails">8. Guardrails</h2>
     <ul>
       <li>D-013: Identity separate from lean</li>
       <li>D-016: Lean requires ideological <code>signals[]</code> in matches</li>
@@ -170,7 +193,7 @@
       <li>Layer 2 entity donations: lower fusion weight than direct person FEC/FL hits</li>
     </ul>
 
-    <h2 id="code">8. Code map</h2>
+    <h2 id="code">9. Code map</h2>
     <table>
       <thead><tr><th>Module</th><th>Path</th></tr></thead>
       <tbody>
@@ -185,12 +208,14 @@
       </tbody>
     </table>
 
-    <h2 id="eval">9. How to evaluate</h2>
+    <h2 id="eval">10. How to evaluate</h2>
     <ol>
-      <li>Apply <code>006_reference_data.sql</code> on Neon.</li>
-      <li>Import FL contrib TSV + Sunbiz cor file(s) via scripts.</li>
+      <li>Apply migrations <code>005</code> + <code>006</code> on Neon (<code>scripts/check-migrations.ts</code>).</li>
+      <li>Import FL contrib: <code>download-fl-contrib.ts</code> → <code>import-fl-contrib-dir.ts</code>.</li>
+      <li>Import Sunbiz: SFTP <code>cordata.zip</code> → import each <code>cordata0.txt</code>–<code>cordata9.txt</code> via <code>import-sunbiz-cor.ts</code>.</li>
       <li>Upload county file → confirm NPA+ACT count.</li>
-      <li>FEC sweep (optional, $0) → <strong>Run free pass</strong> on Evidence accumulator.</li>
+      <li>FEC sweep ($0) → <strong>Run free pass</strong> (dashboard or <code>run-free-pass.ts</code>).</li>
+      <li>In Evidence accumulator: scan <code>FEC✓</code> rows for fused lean; search names for <code>fl_contrib_entity</code> layer-2 timeline events.</li>
       <li>Paid OSINT only on curated subset after Free Pass review.</li>
     </ol>
 
