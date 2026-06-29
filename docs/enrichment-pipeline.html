@@ -43,11 +43,25 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research-only POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-06-29</p>
+    <p class="subtitle">Research-only POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-06-29 (voter filters shipped)</p>
 
     <div class="card">
       <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
       Not for contacting, marketing, or targeting individuals.
+    </div>
+
+    <div class="card accent">
+      <strong>Continuity (pick up next session):</strong>
+      <ol style="margin:0.5rem 0 0;">
+        <li><strong>Professor walkthrough</strong> — Calhoun upload; use Evidence accumulator filters (below).</li>
+        <li><strong>Layer-2 lean audit</strong> — review 26 entity donations for partisan committee names.</li>
+        <li><strong>Sunbiz lookup perf</strong> — prefix/trigram index before county-scale free pass (~84 min / 736 today).</li>
+        <li><strong>Paid depth</strong> — Apify-modular or scorecard on Sunbiz + layer-2 rows after free-pass review.</li>
+      </ol>
+      <p style="margin:0.75rem 0 0;font-size:0.88rem;color:var(--muted);">
+        Filters live in prod (<code>main</code> · <code>components/evidence-workspace.tsx</code>).
+        Pitch deck: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a>.
+      </p>
     </div>
 
     <h2 id="ingest">1. Ingest filter (what “NPA + ACT” means)</h2>
@@ -149,6 +163,20 @@
       <li>Dashboard: <strong>Run free pass</strong> on Evidence accumulator (<code>POST .../evidence</code> action <code>free-pass</code>)</li>
       <li>Voter list filters: <code>GET .../evidence?list=1&amp;fec=1</code>, <code>layer2=1</code>, <code>sunbiz=1</code> (combinable; UI toggles in <code>evidence-workspace.tsx</code>)</li>
     </ul>
+    <div class="card">
+      <h3 style="margin-top:0;">Evidence accumulator — voter list UI</h3>
+      <p>Left pane, below <strong>Filter by name…</strong>: toggle pills <strong>FEC✓</strong> · <strong>Layer-2</strong> · <strong>Sunbiz</strong> (combinable; <strong>Clear</strong> resets all).</p>
+      <p><strong>Arms column badges:</strong> <code>FEC✓</code> confirmed donor · <code>L2</code> FL contrib entity bridge · <code>SB</code> Sunbiz officer match.</p>
+      <p><strong>Sunbiz → layer 2:</strong> officer match supplies corp names for entity FL contrib lookup in the same free pass; Sunbiz alone does not assign lean.</p>
+      <table>
+        <thead><tr><th>Filter</th><th>Calhoun expected</th><th>Demo rows</th></tr></thead>
+        <tbody>
+          <tr><td><code>FEC✓</code></td><td><strong>3</strong></td><td>273 Foster (Left) · 402 Hatcher (Right) · 569 Curl (Right)</td></tr>
+          <tr><td><code>Layer-2</code></td><td><strong>26</strong></td><td>224 or 280 — Sunbiz → <code>fl_contrib_entity</code>, lean often Undetermined</td></tr>
+          <tr><td><code>Sunbiz</code></td><td><strong>429</strong></td><td>Any <code>SB</code> row — identity bridge; feeds layer 2 when entity donates</td></tr>
+        </tbody>
+      </table>
+    </div>
 
     <h2 id="calhoun">5. Calhoun validation (736 NPA + ACT)</h2>
     <p><span class="tag tag-real">Validated</span> Whole-file FEC sweep + Tier 0 free pass on <code>CAL_20250812.txt</code>. Deployed to Vercel prod; data in shared Neon.</p>
@@ -206,6 +234,7 @@
         <tr><td>FEC</td><td><code>lib/fec/*</code></td></tr>
         <tr><td>Grok OSINT</td><td><code>lib/enrichment/grok-pipeline.ts</code></td></tr>
         <tr><td>Dashboard</td><td><code>components/evidence-workspace.tsx</code></td></tr>
+        <tr><td>Evidence list API + filters</td><td><code>app/api/uploads/[id]/evidence/route.ts</code></td></tr>
       </tbody>
     </table>
 
@@ -216,9 +245,22 @@
       <li>Import Sunbiz: SFTP <code>cordata.zip</code> → import each <code>cordata0.txt</code>–<code>cordata9.txt</code> via <code>import-sunbiz-cor.ts</code>.</li>
       <li>Upload county file → confirm NPA+ACT count.</li>
       <li>FEC sweep ($0) → <strong>Run free pass</strong> (dashboard or <code>run-free-pass.ts</code>).</li>
-      <li>In Evidence accumulator: toggle <strong>FEC✓</strong>, <strong>Layer-2</strong>, or <strong>Sunbiz</strong> filters (or combine with name search) to scan labeled donors, entity-bridge rows, and officer matches.</li>
-      <li>Paid OSINT only on curated subset after Free Pass review.</li>
+      <li>In Evidence accumulator: toggle <strong>FEC✓</strong> (expect <strong>3</strong>), <strong>Layer-2</strong> (<strong>26</strong>), or <strong>Sunbiz</strong> (<strong>429</strong>) — combine with name search; click a row for timeline + fused lean.</li>
+      <li>Professor demo path: FEC rows 273/402/569 (labeled) → Layer-2 row 224 or 280 (identity without lean).</li>
+      <li>Paid OSINT only on curated subset after Free Pass review (e.g. Sunbiz + layer-2 promising rows).</li>
     </ol>
+
+    <h2 id="next">11. Roadmap (post–filters)</h2>
+    <table>
+      <thead><tr><th>Priority</th><th>Item</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Professor walkthrough</td><td>Human validation of identity-vs-lean story on Calhoun</td></tr>
+        <tr><td>2</td><td>Layer-2 lean audit</td><td>Confirm 26 entity hits lack partisan committee text (or fix fusion)</td></tr>
+        <tr><td>3</td><td>Sunbiz index perf</td><td>County-scale free pass blocked at ~84 min / 736 voters</td></tr>
+        <tr><td>4</td><td>Apify-modular eval</td><td>Paid depth on promising rows only</td></tr>
+        <tr><td>5</td><td>Scorecard Tier-A metrics</td><td>donation / media / civic % separate from social %</td></tr>
+      </tbody>
+    </table>
 
     <footer>LeanLink NPA FL · Enrichment Pipeline Spec · © 2026</footer>
   </div>
