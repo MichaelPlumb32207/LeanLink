@@ -12,10 +12,10 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-29
 `lean_results`), dashboard split-pane **Evidence accumulator** above **Research lab**. FEC sweep
 writes events per voter; **Sync FEC → ledger** backfills completed sweeps. **Anchor profile**
 (`lib/anchor/*`): name variants (Maria↔Marcia, email maiden) + co-address household index;
-**Build anchor profiles** button writes `household` arm events; FEC strict tries variants on miss;
-OSINT query plan + scorecard append to ledger. Calhoun FEC: 736 checked, 27 raw hits, **3
-confirmed**, **3 fused lean** (2 Left, 1 Right), $0 FEC cost. Pitch:
-`docs/evidence-accumulator-pitch.html`. Apply `004_fec_identity.sql` + `005_evidence_ledger.sql`.
+**Tier 0 Free Pass:** `006_reference_data.sql` — `fl_contributions` + `sunbiz_officers` bulk indexes;
+import scripts; dashboard **Run free pass** (layer 2 entity donations). **ACT** = FL registration
+status (active on rolls), not political engagement. Anchor profile; FEC; scorecard → ledger.
+Docs: `enrichment-pipeline.html`, `evidence-accumulator-pitch.html`. Migrations through `006`.
 
 ## Where to pick up (continuity note — 2026-06-28)
 
