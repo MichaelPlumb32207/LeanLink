@@ -26,16 +26,24 @@ function pushUnique(target: string[], seen: Set<string>, query: string) {
   target.push(q);
 }
 
+function searchNamesFromBundle(bundle: EnrichmentBundle): string[] {
+  const names = bundle.anchor_profile?.fec_query_names ?? [bundle.anchor.name_full];
+  return [...new Set(names.filter(Boolean))].slice(0, 4);
+}
+
 function buildDonationQueries(
-  anchor: EnrichmentBundle['anchor'],
+  bundle: EnrichmentBundle,
   seen: Set<string>,
   donations: string[],
 ) {
+  const { anchor } = bundle;
   const county = flCountyLabel(anchor.county_code);
-  const name = anchor.name_full;
 
-  pushUnique(donations, seen, `site:fec.gov "${name}" Florida`);
-  pushUnique(donations, seen, `site:fec.gov "${name}" ${anchor.city}`);
+  for (const name of searchNamesFromBundle(bundle)) {
+    pushUnique(donations, seen, `site:fec.gov "${name}" Florida`);
+    pushUnique(donations, seen, `site:fec.gov "${name}" ${anchor.city}`);
+  }
+  const name = anchor.name_full;
   pushUnique(
     donations,
     seen,
@@ -155,6 +163,19 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
     pushUnique(social, seen, `site:linkedin.com/in "${maiden}" Florida`);
   }
 
+  for (const altName of searchNamesFromBundle(bundle).slice(1, 3)) {
+    pushUnique(social, seen, `site:facebook.com "${altName}" ${anchor.city}`);
+    pushUnique(social, seen, `"${altName}" ${anchor.city} Florida`);
+  }
+
+  for (const member of bundle.anchor_profile.household_members.slice(0, 2)) {
+    pushUnique(
+      social,
+      seen,
+      `"${member.name_full}" ${anchor.city} Florida (same address household context)`,
+    );
+  }
+
   pushUnique(social, seen, `site:facebook.com "${anchor.name_full}" ${anchor.city}`);
   pushUnique(social, seen, `site:linkedin.com/in "${anchor.name_full}" Florida`);
   pushUnique(social, seen, `site:instagram.com "${anchor.name_full}" ${anchor.city}`);
@@ -169,7 +190,7 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
     pushUnique(contact, seen, `"${contact_on_file.phone}" ${anchor.city}`);
   }
 
-  buildDonationQueries(anchor, seen, donations);
+  buildDonationQueries(bundle, seen, donations);
   buildLocalMediaQueries(anchor, seen, local_media);
   buildCivicProfessionalQueries(anchor, seen, civic_professional);
 

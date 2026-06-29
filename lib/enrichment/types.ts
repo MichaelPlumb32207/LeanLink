@@ -1,3 +1,4 @@
+import type { AnchorProfile } from '@/lib/anchor/profile';
 import type { BallotFavors } from '@/lib/fl-voter-history';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
 import type { EmailInsights } from '@/lib/enrichment/email-insights';
@@ -87,6 +88,8 @@ export interface EnrichmentBundle {
   residence_on_file: ResidenceOnFile;
   contact_on_file: ContactOnFile;
   email_insights: EmailInsights;
+  /** File-grounded name variants + co-residents — widens queries, not global identity. */
+  anchor_profile: AnchorProfile;
   history: HistoryContext;
   ballot_favors: BallotFavors;
 }

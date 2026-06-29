@@ -1,3 +1,4 @@
+import { buildAnchorProfile } from '@/lib/anchor/profile';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
 import type { FecScoredLookupResult } from '@/lib/fec/score-lookup-result';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
@@ -13,6 +14,7 @@ export function buildFecSweepEvidenceEvent(params: {
   sweep_job_id: string;
 }): EvidenceEventInput {
   const { scored, has_hits } = params;
+  const anchorProfile = buildAnchorProfile(params.voter, []);
   const top = scored.identity.contributions[0];
   const urls =
     scored.identity.contributions
@@ -54,6 +56,7 @@ export function buildFecSweepEvidenceEvent(params: {
       match_level: params.match_level,
       has_hits,
       contributor_name: params.voter.name.full,
+      fec_query_names: anchorProfile.fec_query_names,
     },
     cost_usd: 0,
     dedupe_key: params.sweep_job_id,

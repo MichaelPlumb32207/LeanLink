@@ -4,7 +4,7 @@ import {
   getFecSweepDeadlineMs,
   sleep,
 } from '@/lib/fec/sweep-config';
-import { lookupFecContributions } from '@/lib/fec/contributor-lookup';
+import { lookupFecForVoter } from '@/lib/fec/lookup-voter';
 import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
 import { buildFecSweepEvidenceEvent } from '@/lib/evidence/fec-events';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
@@ -68,49 +68,18 @@ export async function claimFecSweepRows(
   return rows;
 }
 
-async function lookupWithRelaxedFallback(record: ParsedFlVoterRecord): Promise<{
-  lookup: Awaited<ReturnType<typeof lookupFecContributions>>;
-  match_level: 'strict' | 'state_only' | 'none';
-}> {
-  const strict = await lookupFecContributions({
-    name: record.name.full,
-    city: record.residence.city,
-    state: record.residence.state || 'FL',
-    zip: record.residence.zip,
-    matchLevel: 'strict',
-  });
-
-  if (strict.contributions.length > 0) {
-    return { lookup: strict, match_level: 'strict' };
-  }
-  if (strict.error) {
-    return { lookup: strict, match_level: 'none' };
-  }
-
-  const relaxed = await lookupFecContributions({
-    name: record.name.full,
-    state: record.residence.state || 'FL',
-    matchLevel: 'state_only',
-  });
-
-  if (relaxed.contributions.length > 0) {
-    return { lookup: relaxed, match_level: 'state_only' };
-  }
-
-  return { lookup: strict, match_level: 'none' };
-}
-
 export async function processFecSweepRow(
   client: PoolClient,
   jobId: string,
   userId: string,
   row: FecSweepClaimedRow,
 ): Promise<void> {
-  const { lookup, match_level } = await lookupWithRelaxedFallback(row.raw_data);
-  const has_hits = lookup.contributions.length > 0;
+  const fecLookup = await lookupFecForVoter(row.raw_data);
+  const { lookup, match_level, contributions, names_tried, variant_used } = fecLookup;
+  const has_hits = contributions.length > 0;
   const scored = scoreFecLookupForVoter({
     voter: row.raw_data,
-    contributions: lookup.contributions,
+    contributions,
     matchLevel: has_hits ? match_level : 'none',
   });
 
@@ -146,8 +115,8 @@ export async function processFecSweepRow(
       lookup.result_count,
       has_hits,
       match_level,
-      JSON.stringify(lookup.contributions.slice(0, 20)),
-      JSON.stringify(lookup.query),
+      JSON.stringify(contributions.slice(0, 20)),
+      JSON.stringify({ ...lookup.query, names_tried, variant_used }),
       lookup.error ?? null,
       scored.identity.identity_band,
       scored.identity.best_score,

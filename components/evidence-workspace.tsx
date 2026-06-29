@@ -116,21 +116,22 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
     [voters, selectedId],
   );
 
-  const handleSyncFec = async () => {
+  const runEvidenceAction = async (action: 'sync-fec' | 'build-anchor') => {
     setSyncing(true);
     setError(null);
     try {
       const res = await fetch(`/api/uploads/${uploadId}/evidence`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'sync-fec' }),
+        body: JSON.stringify({ action }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Sync failed');
+      if (!res.ok) throw new Error(data.error ?? 'Action failed');
       if (data.summary) setSummary(data.summary);
       await refreshVoters();
+      if (selectedId) await loadDetail(selectedId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sync failed');
+      setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
       setSyncing(false);
     }
@@ -160,7 +161,15 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
           </button>
           <button
             type="button"
-            onClick={() => void handleSyncFec()}
+            onClick={() => void runEvidenceAction('build-anchor')}
+            disabled={syncing}
+            className="rounded-lg border border-sky-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
+          >
+            {syncing ? 'Building…' : 'Build anchor profiles'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runEvidenceAction('sync-fec')}
             disabled={syncing}
             className="rounded-lg border border-emerald-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
           >

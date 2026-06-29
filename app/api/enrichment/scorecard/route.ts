@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
-import { buildEnrichmentBundle } from '@/lib/enrichment/build-bundle';
+import {
+  buildBundleWithAnchorProfile,
+  ensureUploadHouseholdIndex,
+} from '@/lib/anchor/enrichment-context';
+import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
+import { buildOsintEvidenceEvent } from '@/lib/evidence/osint-events';
 import { parseEnrichmentMode, type EnrichmentMode } from '@/lib/enrichment/modes';
 import { runEnrichmentPipeline } from '@/lib/enrichment/grok-pipeline';
 import {
@@ -84,6 +89,10 @@ export async function POST(request: Request) {
         ? body.rowIndices
         : defaultScorecardRowIndices(uploadMeta.filename);
 
+    const householdIndex = await withUserDb(userEmail, (client) =>
+      ensureUploadHouseholdIndex(client, body.uploadId!, userEmail),
+    );
+
     const scorecardRows = [];
 
     for (const rowIndex of rowIndices) {
@@ -96,12 +105,28 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const bundle = buildEnrichmentBundle(
+        const bundle = buildBundleWithAnchorProfile(
           row.raw_data,
           row.history_summary,
           row.ballot_favors,
+          { voterRecordId: row.id, householdIndex },
         );
         const pipeline = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
+
+        await withUserDb(userEmail, async (client) => {
+          await appendEvidenceEvent(
+            client,
+            buildOsintEvidenceEvent({
+              upload_id: body.uploadId!,
+              voter_record_id: row.id,
+              user_id: userEmail,
+              mode,
+              result: pipeline,
+              cost_usd: pipeline.debug?.usage?.cost_usd ?? null,
+            }),
+          );
+          await fuseAndPersistVoter(client, row.id, body.uploadId!, userEmail);
+        });
 
         scorecardRows.push(
           buildScorecardRow(

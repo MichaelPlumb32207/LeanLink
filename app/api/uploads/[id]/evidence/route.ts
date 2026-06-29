@@ -6,6 +6,7 @@ import {
   getUploadEvidenceSummary,
   listEvidenceForVoter,
 } from '@/lib/evidence/ledger';
+import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
@@ -143,6 +144,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return NextResponse.json({ error: 'No FEC sweep job for this upload' }, { status: 404 });
       }
 
+      return NextResponse.json(result);
+    }
+
+    if (body.action === 'build-anchor') {
+      const result = await withUserDb(userEmail, async (client) => {
+        const synced = await syncAnchorProfilesToLedger(client, uploadId, userEmail);
+        const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
+        return { synced, summary };
+      });
       return NextResponse.json(result);
     }
 

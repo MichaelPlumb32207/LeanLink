@@ -4,7 +4,7 @@ import { withUserDb } from '@/lib/db';
 import { defaultScorecardRowIndices } from '@/lib/enrichment/scorecard';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import { runFecDisambiguatePipeline } from '@/lib/fec/fec-disambiguate-pipeline';
-import { lookupFecContributions } from '@/lib/fec/contributor-lookup';
+import { lookupFecForVoter } from '@/lib/fec/lookup-voter';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
@@ -150,25 +150,9 @@ export async function POST(request: Request) {
       }
 
       if (contributions.length === 0 && (source === 'live' || fecSource === 'live')) {
-        const strict = await lookupFecContributions({
-          name: row.raw_data.name.full,
-          city: row.raw_data.residence.city,
-          state: row.raw_data.residence.state || 'FL',
-          zip: row.raw_data.residence.zip,
-          matchLevel: 'strict',
-        });
-        if (strict.contributions.length > 0) {
-          contributions = strict.contributions;
-          matchLevel = 'strict';
-        } else if (!strict.error) {
-          const relaxed = await lookupFecContributions({
-            name: row.raw_data.name.full,
-            state: row.raw_data.residence.state || 'FL',
-            matchLevel: 'state_only',
-          });
-          contributions = relaxed.contributions;
-          matchLevel = relaxed.contributions.length > 0 ? 'state_only' : 'none';
-        }
+        const live = await lookupFecForVoter(row.raw_data);
+        contributions = live.contributions;
+        matchLevel = live.match_level;
         fecSource = 'live';
       }
 

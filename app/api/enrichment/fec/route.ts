@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
-import { lookupFecContributions } from '@/lib/fec/contributor-lookup';
+import { lookupFecForVoter } from '@/lib/fec/lookup-voter';
 import { defaultScorecardRowIndices } from '@/lib/enrichment/scorecard';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 
@@ -74,18 +74,19 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const lookup = await lookupFecContributions({
-        name: row.raw_data.name.full,
-        city: row.raw_data.residence.city,
-        state: row.raw_data.residence.state || 'FL',
-        zip: row.raw_data.residence.zip,
-      });
+      const fecLookup = await lookupFecForVoter(row.raw_data);
+      const lookup = {
+        ...fecLookup.lookup,
+        contributions: fecLookup.contributions,
+      };
 
       rows.push({
         rowIndex,
         voterRecordId: row.id,
         name: row.raw_data.name.full,
         city: row.raw_data.residence.city,
+        names_tried: fecLookup.names_tried,
+        variant_used: fecLookup.variant_used,
         error: lookup.error ?? null,
         lookup,
       });

@@ -3,6 +3,8 @@ import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { summarizeVoterHistory } from '@/lib/fl-voter-history';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { normalizePhone, phoneSearchVariants } from '@/lib/enrichment/normalize';
+import { buildAnchorProfile } from '@/lib/anchor/profile';
+import type { AnchorProfile } from '@/lib/anchor/profile';
 import type { EnrichmentBundle, HistoryContext } from '@/lib/enrichment/types';
 
 export function historyToContext(summary: VoterHistorySummary): HistoryContext {
@@ -24,6 +26,7 @@ export function buildEnrichmentBundle(
   record: ParsedFlVoterRecord,
   historySummary: VoterHistorySummary | null | undefined,
   ballotFavors: BallotFavors,
+  anchorProfile?: AnchorProfile,
 ): EnrichmentBundle {
   const history = historyToContext(
     historySummary ?? summarizeVoterHistory(undefined, new Set()),
@@ -58,6 +61,7 @@ export function buildEnrichmentBundle(
       phone_search_variants: phoneSearchVariants(record.phone),
     },
     email_insights: parseEmailInsights(record.email, record.name.full),
+    anchor_profile: anchorProfile ?? buildAnchorProfile(record, []),
     history,
     ballot_favors: ballotFavors,
   };
