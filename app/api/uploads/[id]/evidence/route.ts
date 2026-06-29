@@ -12,6 +12,10 @@ import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 
+function truthyQueryParam(value: string | null): boolean {
+  return value === '1' || value === 'true';
+}
+
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser();
@@ -26,12 +30,33 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       if (list) {
         const limit = Math.min(Number(searchParams.get('limit') ?? 500), 2000);
         const nameFilter = searchParams.get('name')?.trim();
+        const fecOnly = truthyQueryParam(searchParams.get('fec'));
+        const layer2Only = truthyQueryParam(searchParams.get('layer2'));
+        const sunbizOnly = truthyQueryParam(searchParams.get('sunbiz'));
 
         const params: (string | number)[] = [uploadId, userEmail];
-        let nameSql = '';
+        let filterSql = '';
         if (nameFilter) {
           params.push(`%${nameFilter}%`);
-          nameSql = ` AND vr.raw_data->'name'->>'full' ILIKE $${params.length}`;
+          filterSql += ` AND vr.raw_data->'name'->>'full' ILIKE $${params.length}`;
+        }
+        if (fecOnly) {
+          filterSql += ` AND EXISTS (
+               SELECT 1 FROM evidence_events ee
+               WHERE ee.voter_record_id = vr.id AND ee.arm = 'fec' AND ee.probable_same_person
+             )`;
+        }
+        if (layer2Only) {
+          filterSql += ` AND EXISTS (
+               SELECT 1 FROM evidence_events ee
+               WHERE ee.voter_record_id = vr.id AND ee.source = 'fl_contrib_entity'
+             )`;
+        }
+        if (sunbizOnly) {
+          filterSql += ` AND EXISTS (
+               SELECT 1 FROM evidence_events ee
+               WHERE ee.voter_record_id = vr.id AND ee.arm = 'sunbiz'
+             )`;
         }
         params.push(limit);
 
@@ -39,10 +64,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           `SELECT vr.id, vr.row_index, vr.raw_data,
                   vlf.lean, vlf.confidence, vlf.fusion_status, vlf.contributing_arms,
                   (SELECT COUNT(*)::int FROM evidence_events ee WHERE ee.voter_record_id = vr.id) AS event_count,
-                  (SELECT BOOL_OR(ee.probable_same_person) FROM evidence_events ee WHERE ee.voter_record_id = vr.id AND ee.arm = 'fec') AS fec_confirmed
+                  (SELECT BOOL_OR(ee.probable_same_person) FROM evidence_events ee
+                   WHERE ee.voter_record_id = vr.id AND ee.arm = 'fec') AS fec_confirmed,
+                  (SELECT EXISTS (
+                     SELECT 1 FROM evidence_events ee
+                     WHERE ee.voter_record_id = vr.id AND ee.arm = 'sunbiz'
+                   )) AS has_sunbiz,
+                  (SELECT EXISTS (
+                     SELECT 1 FROM evidence_events ee
+                     WHERE ee.voter_record_id = vr.id AND ee.source = 'fl_contrib_entity'
+                   )) AS has_layer2
            FROM voter_records vr
            LEFT JOIN voter_lean_fusion vlf ON vlf.voter_record_id = vr.id
-           WHERE vr.upload_id = $1 AND vr.user_id = $2${nameSql}
+           WHERE vr.upload_id = $1 AND vr.user_id = $2${filterSql}
            ORDER BY vr.row_index
            LIMIT $${params.length}`,
           params,

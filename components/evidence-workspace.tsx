@@ -19,7 +19,11 @@ type VoterListRow = {
   contributing_arms: string[] | null;
   event_count: number;
   fec_confirmed: boolean | null;
+  has_sunbiz: boolean | null;
+  has_layer2: boolean | null;
 };
+
+type VoterArmFilter = 'fec' | 'layer2' | 'sunbiz';
 
 type EvidenceEvent = {
   id: string;
@@ -53,6 +57,7 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VoterDetail | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [armFilters, setArmFilters] = useState<Set<VoterArmFilter>>(new Set());
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,11 +72,23 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
   const refreshVoters = useCallback(async () => {
     const params = new URLSearchParams({ list: '1', limit: '1000' });
     if (nameFilter.trim()) params.set('name', nameFilter.trim());
+    if (armFilters.has('fec')) params.set('fec', '1');
+    if (armFilters.has('layer2')) params.set('layer2', '1');
+    if (armFilters.has('sunbiz')) params.set('sunbiz', '1');
     const res = await fetch(`/api/uploads/${uploadId}/evidence?${params}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? 'Failed to load voters');
     setVoters(data.voters ?? []);
-  }, [uploadId, nameFilter]);
+  }, [uploadId, nameFilter, armFilters]);
+
+  const toggleArmFilter = (filter: VoterArmFilter) => {
+    setArmFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filter)) next.delete(filter);
+      else next.add(filter);
+      return next;
+    });
+  };
 
   const loadDetail = useCallback(
     async (voterRecordId: string) => {
@@ -260,6 +277,41 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
             onKeyDown={(e) => e.key === 'Enter' && void refreshVoters()}
             className="mb-2 w-full rounded-lg border bg-black/20 px-3 py-2 text-sm"
           />
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {(
+              [
+                { id: 'fec' as const, label: 'FEC✓', active: 'border-emerald-300/70 bg-emerald-500/15 text-emerald-200' },
+                { id: 'layer2' as const, label: 'Layer-2', active: 'border-sky-300/70 bg-sky-500/15 text-sky-200' },
+                { id: 'sunbiz' as const, label: 'Sunbiz', active: 'border-amber-300/70 bg-amber-500/15 text-amber-200' },
+              ] as const
+            ).map((f) => {
+              const on = armFilters.has(f.id);
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => toggleArmFilter(f.id)}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] transition-colors ${
+                    on ? f.active : 'border-white/15 bg-black/20 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+            {(nameFilter.trim() || armFilters.size > 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNameFilter('');
+                  setArmFilters(new Set());
+                }}
+                className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] opacity-60 hover:opacity-100"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-black/60">
@@ -288,8 +340,24 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
                         : ''}
                     </td>
                     <td className="py-1.5">
-                      {v.fec_confirmed ? (
-                        <span className="text-emerald-300">FEC✓</span>
+                      {v.fec_confirmed || v.has_layer2 || v.has_sunbiz ? (
+                        <span className="flex flex-wrap gap-1">
+                          {v.fec_confirmed && (
+                            <span className="text-emerald-300" title="FEC confirmed donor">
+                              FEC✓
+                            </span>
+                          )}
+                          {v.has_layer2 && (
+                            <span className="text-sky-300" title="FL contrib layer-2 entity hit">
+                              L2
+                            </span>
+                          )}
+                          {v.has_sunbiz && (
+                            <span className="text-amber-300" title="Sunbiz officer match">
+                              SB
+                            </span>
+                          )}
+                        </span>
                       ) : v.event_count > 0 ? (
                         <span className="opacity-60">{v.event_count}</span>
                       ) : (

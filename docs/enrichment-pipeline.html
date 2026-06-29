@@ -147,6 +147,7 @@
       <li><code>lib/free-pass/run-upload.ts</code> — whole-upload local matching (layer 1 person → Sunbiz → layer 2 entity)</li>
       <li><code>scripts/run-free-pass.ts</code> — CLI runner (<code>--county CAL</code> or <code>--upload-id</code>)</li>
       <li>Dashboard: <strong>Run free pass</strong> on Evidence accumulator (<code>POST .../evidence</code> action <code>free-pass</code>)</li>
+      <li>Voter list filters: <code>GET .../evidence?list=1&amp;fec=1</code>, <code>layer2=1</code>, <code>sunbiz=1</code> (combinable; UI toggles in <code>evidence-workspace.tsx</code>)</li>
     </ul>
 
     <h2 id="calhoun">5. Calhoun validation (736 NPA + ACT)</h2>
@@ -215,7 +216,7 @@
       <li>Import Sunbiz: SFTP <code>cordata.zip</code> → import each <code>cordata0.txt</code>–<code>cordata9.txt</code> via <code>import-sunbiz-cor.ts</code>.</li>
       <li>Upload county file → confirm NPA+ACT count.</li>
       <li>FEC sweep ($0) → <strong>Run free pass</strong> (dashboard or <code>run-free-pass.ts</code>).</li>
-      <li>In Evidence accumulator: scan <code>FEC✓</code> rows for fused lean; search names for <code>fl_contrib_entity</code> layer-2 timeline events.</li>
+      <li>In Evidence accumulator: toggle <strong>FEC✓</strong>, <strong>Layer-2</strong>, or <strong>Sunbiz</strong> filters (or combine with name search) to scan labeled donors, entity-bridge rows, and officer matches.</li>
       <li>Paid OSINT only on curated subset after Free Pass review.</li>
     </ol>
 
