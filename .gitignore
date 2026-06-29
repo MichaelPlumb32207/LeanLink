@@ -62,6 +62,9 @@ samples/*.csv
 samples/leanlink-*.csv
 !samples/.gitkeep
 
+# Reference bulk downloads (large; local / Neon only)
+data/reference/
+
 # Misc local artifacts
 *.pem
 *.key

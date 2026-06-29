@@ -1,21 +1,32 @@
 import { contributorNameNorm, parseFlContribTsvLine } from '@/lib/fl-contrib/parse-tsv';
 import { createReadStream } from 'fs';
 import { Pool } from 'pg';
+import { readdir } from 'fs/promises';
 import { createInterface } from 'readline';
+import { join } from 'path';
 
-export async function importFlContribTsv(params: {
-  filePath: string;
+export async function importFlContribDirectory(params: {
+  dirPath: string;
   label: string;
   dateFrom?: string;
   dateTo?: string;
   batchSize?: number;
-}): Promise<{ snapshot_id: string; row_count: number }> {
-  const batchSize = params.batchSize ?? 500;
+}): Promise<{ snapshot_id: string; row_count: number; files: number }> {
+  const batchSize = params.batchSize ?? 1000;
+  const entries = await readdir(params.dirPath);
+  const files = entries
+    .filter((f) => f.endsWith('.tsv') && f.startsWith('flc_'))
+    .sort()
+    .map((f) => join(params.dirPath, f));
+
+  if (files.length === 0) {
+    throw new Error(`No flc_*.tsv files in ${params.dirPath}`);
+  }
+
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
   const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
   const client = await pool.connect();
-
   try {
     await client.query('BEGIN');
 
@@ -32,19 +43,12 @@ export async function importFlContribTsv(params: {
         params.label,
         params.dateFrom ?? null,
         params.dateTo ?? null,
-        `import from ${params.filePath}`,
+        `import ${files.length} files from ${params.dirPath}`,
       ],
     );
     const snapshotId = snap.rows[0].id;
-
     await client.query(`DELETE FROM fl_contributions WHERE snapshot_id = $1`, [snapshotId]);
 
-    const rl = createInterface({
-      input: createReadStream(params.filePath, { encoding: 'utf8' }),
-      crlfDelay: Infinity,
-    });
-
-    let lineNo = 0;
     let rowCount = 0;
     let batch: unknown[][] = [];
 
@@ -68,30 +72,38 @@ export async function importFlContribTsv(params: {
       );
       rowCount += batch.length;
       batch = [];
+      if (rowCount % 50000 === 0) {
+        console.log(`  …${rowCount.toLocaleString()} rows inserted`);
+      }
     };
 
-    for await (const line of rl) {
-      lineNo += 1;
-      const parsed = parseFlContribTsvLine(line, lineNo === 1);
-      if (!parsed) continue;
-
-      batch.push([
-        snapshotId,
-        parsed.contributor_name,
-        contributorNameNorm(parsed.contributor_name),
-        parsed.address,
-        parsed.city,
-        parsed.state,
-        parsed.zip5,
-        parsed.amount,
-        parsed.contribution_date,
-        parsed.committee_name,
-        parsed.contribution_type,
-        parsed.occupation,
-        JSON.stringify(parsed),
-      ]);
-
-      if (batch.length >= batchSize) await flush();
+    for (const filePath of files) {
+      const rl = createInterface({
+        input: createReadStream(filePath, { encoding: 'utf8' }),
+        crlfDelay: Infinity,
+      });
+      let lineNo = 0;
+      for await (const line of rl) {
+        lineNo += 1;
+        const parsed = parseFlContribTsvLine(line, lineNo === 1);
+        if (!parsed) continue;
+        batch.push([
+          snapshotId,
+          parsed.contributor_name,
+          contributorNameNorm(parsed.contributor_name),
+          parsed.address,
+          parsed.city,
+          parsed.state,
+          parsed.zip5,
+          parsed.amount,
+          parsed.contribution_date,
+          parsed.committee_name,
+          parsed.contribution_type,
+          parsed.occupation,
+          JSON.stringify(parsed),
+        ]);
+        if (batch.length >= batchSize) await flush();
+      }
     }
     await flush();
 
@@ -99,9 +111,8 @@ export async function importFlContribTsv(params: {
       `UPDATE reference_snapshots SET row_count = $2 WHERE id = $1`,
       [snapshotId, rowCount],
     );
-
     await client.query('COMMIT');
-    return { snapshot_id: snapshotId, row_count: rowCount };
+    return { snapshot_id: snapshotId, row_count: rowCount, files: files.length };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

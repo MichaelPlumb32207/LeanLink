@@ -26,7 +26,13 @@ export function parseFlContribTsvLine(line: string, isHeader = false): FlContrib
   if (cols.length < 7) return null;
 
   const contributor_name = cols[4]?.trim();
-  if (!contributor_name || contributor_name.toLowerCase() === 'contributor') return null;
+  if (
+    !contributor_name ||
+    /^contributor/i.test(contributor_name) ||
+    /^candidate\/committee/i.test(cols[0]?.trim() ?? '')
+  ) {
+    return null;
+  }
 
   const geo = parseCityStateZip(cols[6]?.trim() ?? '');
 
