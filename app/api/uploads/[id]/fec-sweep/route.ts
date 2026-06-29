@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
+import { rescoreFecSweepJob } from '@/lib/fec/rescore-results';
 import { FEC_REQUEST_INTERVAL_MS, triggerFecSweepWorker } from '@/lib/fec/sweep-runner';
 
 export interface FecSweepJobRow {
@@ -10,6 +11,7 @@ export interface FecSweepJobRow {
   processed_count: number;
   failed_count: number;
   hits_count: number;
+  confirmed_hits_count?: number;
   total_count: number;
   error_message: string | null;
   created_at: string;
@@ -42,7 +44,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       if (!job) return { job: null, sampleHits: [] };
 
       const hitsRes = await client.query(
-        `SELECT row_index, contributor_name, match_level, result_count, contributions
+        `SELECT row_index, contributor_name, match_level, result_count,
+                probable_same_person, identity_band, fec_lean, fec_lean_confidence
          FROM fec_lookup_results
          WHERE sweep_job_id = $1 AND has_hits = TRUE
          ORDER BY row_index
@@ -87,6 +90,46 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const userEmail = session.user.email;
     const { id: uploadId } = await context.params;
     const body = (await request.json().catch(() => ({}))) as { action?: string };
+
+    if (body.action === 'rescore') {
+      const rescored = await withUserDb(userEmail, async (client) => {
+        const jobRes = await client.query<{ id: string }>(
+          `SELECT id FROM fec_sweep_jobs
+           WHERE upload_id = $1 AND user_id = $2
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [uploadId, userEmail],
+        );
+        const jobId = jobRes.rows[0]?.id;
+        if (!jobId) return null;
+        return rescoreFecSweepJob(client, jobId);
+      });
+
+      if (!rescored) {
+        return NextResponse.json({ error: 'No FEC sweep job to rescore' }, { status: 404 });
+      }
+
+      const job = await withUserDb(userEmail, async (client) => {
+        const res = await client.query<FecSweepJobRow>(
+          `SELECT * FROM fec_sweep_jobs
+           WHERE upload_id = $1 AND user_id = $2
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [uploadId, userEmail],
+        );
+        return res.rows[0] ?? null;
+      });
+
+      return NextResponse.json({
+        rescored: rescored.rescored,
+        job,
+        hit_rate_pct: job ? hitRatePct(job) : 0,
+        confirmed_hit_rate_pct:
+          job && job.processed_count > 0
+            ? Math.round(((job.confirmed_hits_count ?? 0) / job.processed_count) * 1000) / 10
+            : 0,
+      });
+    }
 
     if (body.action === 'cancel') {
       const cancelled = await withUserDb(userEmail, async (client) => {

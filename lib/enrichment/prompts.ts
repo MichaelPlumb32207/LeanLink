@@ -1,6 +1,8 @@
 import type { EnrichmentBundle } from '@/lib/enrichment/types';
 import type { EnrichmentMode } from '@/lib/enrichment/modes';
 import type { StreetViewContextSummary } from '@/lib/enrichment/types';
+import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
+import type { FecIdentityMatchResult } from '@/lib/fec/identity-match';
 import { buildSearchQueryPlan } from '@/lib/enrichment/query-builder';
 import { regionalMediaContextLabel } from '@/lib/enrichment/regional-media';
 import { flCountyLabel } from '@/lib/fl-counties';
@@ -183,4 +185,88 @@ ${searchSection}
 
 Return JSON:
 ${JSON_SCHEMA}`;
+}
+
+const FEC_DISAMBIGUATE_JSON_SCHEMA = `{
+  "identity_resolution_status": "probable" | "ambiguous" | "none",
+  "identity_best_match_score": 0.0 to 1.0,
+  "identity_matches": [
+    {
+      "platform": "donation",
+      "url": "fec.gov receipt URL from FEC_ROWS",
+      "match_score": 0.0 to 1.0,
+      "match_reasons": ["..."],
+      "signals": ["partisan signal from committee/candidate ONLY when same-person confirmed"]
+    }
+  ],
+  "lean": "Left" | "Right" | "Independent" | "Undetermined",
+  "lean_confidence": 0 to 100,
+  "lean_signals_found": true | false,
+  "evidence": ["..."],
+  "search_summary": "which FEC row(s) match and any corroboration searched"
+}`;
+
+export function buildFecDisambiguateSystemPrompt(): string {
+  return `You are LeanLink FEC identity disambiguation — research-only, Florida NPA voters.
+
+You already have FEC Schedule A rows (FEC_ROWS) and deterministic identity scores (DETERMINISTIC_SCORES).
+Your job is ONLY:
+1. Decide which FEC contribution row(s), if any, are the SAME PERSON as the voter anchor.
+2. If identity is probable for at least one row, infer lean from donation recipient (committee/candidate party).
+3. Do NOT search for social profiles, media, or directories unless needed to break a tie on employer+city.
+
+RULES:
+- Prefer deterministic scores — override only with explicit corroboration from web_search (employer, city, occupation).
+- Maximum 2 web_search calls — employer + city corroboration only.
+- identity_matches MUST use platform "donation" and fec.gov URLs from FEC_ROWS.
+- lean_signals_found requires probable identity AND explicit partisan recipient (WinRed/ActBlue, party-named committee, etc.).
+- If no FEC row is the same person: identity_resolution_status = "none", lean = "Undetermined".
+- Return ONLY valid JSON.
+
+${TIER_A_LEAN_SOURCES}`;
+}
+
+export function buildFecDisambiguateUserPrompt(
+  bundle: EnrichmentBundle,
+  deterministic: FecIdentityMatchResult,
+  contributions: FecContributionHit[],
+): string {
+  const contact = contactForPrompt(bundle);
+  const scoredSummary = deterministic.contributions.map((s, i) => ({
+    index: i,
+    identity_score: s.identity_score,
+    match_reasons: s.match_reasons,
+    contributor_name: s.contribution.contributor_name,
+    contributor_city: s.contribution.contributor_city,
+    contributor_zip: s.contribution.contributor_zip,
+    contributor_employer: s.contribution.contributor_employer,
+    contributor_occupation: s.contribution.contributor_occupation,
+    committee_name: s.contribution.committee_name,
+    candidate_name: s.contribution.candidate_name,
+    fec_url: s.contribution.fec_url,
+  }));
+
+  return `Disambiguate FEC contributions for this voter. Return JSON.
+
+VOTER ANCHOR:
+${JSON.stringify(bundle.anchor, null, 2)}
+
+RESIDENCE ON FILE:
+${JSON.stringify(bundle.residence_on_file, null, 2)}
+
+CONTACT ON FILE (corroboration only):
+${JSON.stringify(contact, null, 2)}
+
+DETERMINISTIC_SCORES:
+identity_band: ${deterministic.identity_band}
+best_score: ${deterministic.best_score}
+probable_same_person: ${deterministic.probable_same_person}
+
+${JSON.stringify(scoredSummary, null, 2)}
+
+FEC_ROWS (full — do not invent rows):
+${JSON.stringify(contributions, null, 2)}
+
+Return JSON:
+${FEC_DISAMBIGUATE_JSON_SCHEMA}`;
 }

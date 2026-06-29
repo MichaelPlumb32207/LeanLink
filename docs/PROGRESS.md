@@ -1,10 +1,18 @@
 # LeanLink — Build Progress
 
 Running status of what's actually built vs. stubbed vs. not started. The honest source of
-truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-28.
+truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-29.
 
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
+
+## Where to pick up (continuity note — 2026-06-29)
+
+**Evidence accumulator (D-023):** Multi-arm ledger (`evidence_events`), fusion (`voter_lean_fusion` →
+`lean_results`), dashboard split-pane **Evidence accumulator** above **Research lab**. FEC sweep
+writes events per voter; **Sync FEC → ledger** backfills completed sweeps. Calhoun FEC: 736 checked,
+27 raw hits, **3 confirmed**, **3 fused lean** (2 Left, 1 Right), $0 FEC cost. Pitch HTML:
+`docs/evidence-accumulator-pitch.html`. Apply `004_fec_identity.sql` + `005_evidence_ledger.sql`.
 
 ## Where to pick up (continuity note — 2026-06-28)
 
@@ -67,7 +75,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Analyze UI: subset + test picker | ✅ | `app/dashboard/page.tsx`, `lib/test-row-indices.ts`. |
 | Enrichment test + scorecard APIs | ✅ | `POST /api/enrichment/test`, `scorecard` accept `rowIndices`. |
 | FEC direct contributor lookup (subset) | ✅ | `POST /api/enrichment/fec` — 0/7 on curated Calhoun validation. |
-| FEC whole-file sweep (batch) | 🟡 | `003_fec_sweep.sql`, worker + dashboard — apply migration, then run. |
+| FEC whole-file sweep (batch) | ✅ | Calhoun 736/736; 27 raw, 3 confirmed after identity scoring. |
+| FEC identity scoring + disambiguate | ✅ | `lib/fec/identity-match.ts`, `donation-lean.ts`, `fec-disambiguate`. |
+| Evidence accumulator + fusion | ✅ | `005_evidence_ledger.sql`, `lib/evidence/*`, Evidence workspace UI. |
 | Tier-A OSINT query plan (donations, media, civic) | ✅ | `lib/enrichment/query-builder.ts` (Grok/Apify path). |
 | Lean guardrails (signals in `identity_matches`) | ✅ | `applyInferenceGuardrails` — don't trust `lean_signals_found` alone. |
 | Apify fetch layer (Google Search + web crawl) | 🟡 | `lib/apify/*`, `apify-modular` — actors need live eval. |

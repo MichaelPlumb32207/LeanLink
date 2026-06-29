@@ -6,6 +6,17 @@ current as design shifts.
 
 ---
 
+## D-023 · Multi-arm evidence accumulator + fused lean
+**Decision:** Add `evidence_events` ledger (per voter, per arm) and `voter_lean_fusion` with
+`lib/evidence/fusion.ts` rules. Each arm appends: identity band/score, optional lean signal,
+evidence strings, URLs, cost. FEC sweep and OSINT test runs write events; fusion upserts
+`lean_results` when status is `fused` or `provisional`. Dashboard **Evidence accumulator**
+(split-pane command bar + voter timeline) sits above **Research lab** (former Analyze).
+Arm registry in `lib/evidence/arms.ts` — pluggable per research effort. Pitch:
+`docs/evidence-accumulator-pitch.html`. **Why:** Researchers need explainable lean labels built
+from auditable sources, not one-shot model output; supports adding/removing arms (FEC, OSINT,
+media, household) without rewriting the core.
+
 ## D-022 · Analyze UI: test subset + single test picker
 **Decision:** Dashboard **Analyze** section takes an editable comma-separated **row-index
 subset** (defaults to county curated ~7 rows), then one **test** choice: enrichment (single

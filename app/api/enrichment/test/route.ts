@@ -9,6 +9,8 @@ import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import type { ApifyPipelineResult } from '@/lib/enrichment/apify-pipeline';
 import { getApifyApiToken } from '@/lib/apify/config';
 import { getXaiApiKey } from '@/lib/xai/client';
+import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
+import { buildOsintEvidenceEvent } from '@/lib/evidence/osint-events';
 
 function isApifyResult(
   result: Awaited<ReturnType<typeof runEnrichmentPipeline>>,
@@ -152,6 +154,22 @@ export async function POST(request: Request) {
     }
 
     const result = await runEnrichmentPipeline(bundle, mode, { includeDebug: true });
+
+    await withUserDb(userEmail, async (client) => {
+      await appendEvidenceEvent(
+        client,
+        buildOsintEvidenceEvent({
+          upload_id: body.uploadId!,
+          voter_record_id: row.id,
+          user_id: userEmail,
+          mode,
+          result,
+          cost_usd: result.debug?.usage?.cost_usd ?? null,
+        }),
+      );
+      await fuseAndPersistVoter(client, row.id, body.uploadId!, userEmail);
+    });
+
     return NextResponse.json(formatTestResponse(row.id, bundle, mode, result));
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {

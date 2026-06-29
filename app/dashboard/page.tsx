@@ -20,8 +20,15 @@ import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
 import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 import { formatRowIndices, parseRowIndicesInput } from '@/lib/test-row-indices';
+import { EvidenceWorkspace } from '@/components/evidence-workspace';
 
-type AnalyzeTest = 'enrichment' | 'scorecard' | 'street-view' | 'fec' | 'fec-sweep';
+type AnalyzeTest =
+  | 'enrichment'
+  | 'scorecard'
+  | 'street-view'
+  | 'fec'
+  | 'fec-sweep'
+  | 'fec-disambiguate';
 
 type FecSweepJob = {
   id: string;
@@ -29,6 +36,7 @@ type FecSweepJob = {
   processed_count: number;
   failed_count: number;
   hits_count: number;
+  confirmed_hits_count?: number;
   total_count: number;
   error_message?: string | null;
 };
@@ -76,6 +84,14 @@ const ANALYZE_TEST_OPTIONS: {
     needsMode: false,
     multiRow: true,
     wholeUpload: true,
+  },
+  {
+    id: 'fec-disambiguate',
+    label: 'FEC disambiguate',
+    description:
+      'Score FEC hits vs voter (deterministic); Grok only when ambiguous. Uses sweep results when available.',
+    needsMode: false,
+    multiRow: true,
   },
 ];
 
@@ -156,7 +172,16 @@ export default function DashboardPage() {
   const [fecSweepJob, setFecSweepJob] = useState<FecSweepJob | null>(null);
   const [fecSweepHitRate, setFecSweepHitRate] = useState<number | null>(null);
   const [fecSweepSampleHits, setFecSweepSampleHits] = useState<
-    { row_index: number; contributor_name: string; match_level: string; result_count: number }[]
+    {
+      row_index: number;
+      contributor_name: string;
+      match_level: string;
+      result_count: number;
+      probable_same_person?: boolean;
+      identity_band?: string | null;
+      fec_lean?: string | null;
+      fec_lean_confidence?: number | null;
+    }[]
   >([]);
   const [fecSweepLastUpdated, setFecSweepLastUpdated] = useState<Date | null>(null);
   const [analyzeNotice, setAnalyzeNotice] = useState<{
@@ -500,6 +525,33 @@ export default function DashboardPage() {
     if (defaults.length > 0) setActiveRowIndex(defaults[0]);
   };
 
+  const handleRescoreFecSweep = async () => {
+    if (!selectedUploadId) return;
+    setAnalyzeBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/uploads/${selectedUploadId}/fec-sweep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rescore' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = [data.error, data.hint].filter(Boolean).join(' — ');
+        throw new Error(err || 'FEC rescore failed');
+      }
+      if (data.job) setFecSweepJob(data.job);
+      await refreshFecSweep(selectedUploadId);
+      setMessage(
+        `FEC identity rescore: ${data.rescored} rows · ${data.job?.confirmed_hits_count ?? 0} confirmed matches`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'FEC rescore failed');
+    } finally {
+      setAnalyzeBusy(false);
+    }
+  };
+
   const handleCancelFecSweep = async () => {
     if (!selectedUploadId) return;
     setAnalyzeBusy(true);
@@ -669,6 +721,39 @@ export default function DashboardPage() {
         setAnalyzeOutputJson(JSON.stringify(data, null, 2));
         setMessage(
           `FEC lookup: ${data.rows_with_hits}/${data.row_count} rows with Schedule A hits`,
+        );
+        return;
+      }
+
+      if (analyzeTest === 'fec-disambiguate') {
+        const res = await fetch('/api/enrichment/fec-disambiguate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uploadId: selectedUploadId,
+            rowIndices,
+            useGrok: true,
+            source: 'sweep',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? data.hint ?? 'FEC disambiguate failed');
+        setAnalyzeOutputJson(JSON.stringify(data, null, 2));
+        const grokRows = (data.rows ?? []).filter((r: { grok_used?: boolean }) => r.grok_used).length;
+        const costRows = (data.rows ?? []).filter(
+          (r: { usage?: { cost_usd?: number } }) => typeof r.usage?.cost_usd === 'number',
+        );
+        const totalCost = costRows.reduce(
+          (sum: number, r: { usage?: { cost_usd?: number } }) => sum + (r.usage?.cost_usd ?? 0),
+          0,
+        );
+        setAnalyzeCost(
+          costRows.length > 0
+            ? `$${totalCost.toFixed(4)} · fec-disambiguate · ${grokRows} Grok row(s)`
+            : `fec-disambiguate · $0 (deterministic only)`,
+        );
+        setMessage(
+          `FEC disambiguate: ${data.confirmed_matches}/${data.row_count} confirmed · ${data.rows_with_fec_lean} with FEC lean · ${grokRows} Grok`,
         );
         return;
       }
@@ -986,14 +1071,20 @@ export default function DashboardPage() {
         </section>
 
         {selectedUploadId && selectedUpload && (
+          <EvidenceWorkspace uploadId={selectedUploadId} />
+        )}
+
+        {selectedUploadId && selectedUpload && (
           <section className="panel rounded-2xl p-6 space-y-4">
             <div>
-              <h2 className="text-xl font-semibold">Analyze selected upload</h2>
+              <h2 className="text-xl font-semibold">Research lab</h2>
               <p className="mt-1 text-sm opacity-80">
                 <span className="font-medium">{selectedUpload.filename}</span>
                 {selectedUpload.history_filename
                   ? ` with ${selectedUpload.history_filename}`
                   : ' (no history — turnout/opposition scores will be limited)'}
+                {' · '}
+                Curated subset tests below (FEC sweep lives in Evidence accumulator).
               </p>
             </div>
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
@@ -1231,7 +1322,10 @@ export default function DashboardPage() {
                           Status: <span className="font-medium uppercase">{fecSweepJob.status}</span>
                           {' · '}
                           {fecSweepJob.processed_count}/{fecSweepJob.total_count} checked
-                          {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} hits` : ''}
+                          {fecSweepJob.hits_count > 0 ? ` · ${fecSweepJob.hits_count} raw hits` : ''}
+                          {(fecSweepJob.confirmed_hits_count ?? 0) > 0
+                            ? ` · ${fecSweepJob.confirmed_hits_count} confirmed`
+                            : ''}
                         </p>
                         <div className="flex flex-wrap items-center gap-2 text-xs opacity-70">
                           {fecSweepHitRate !== null && fecSweepJob.processed_count > 0 && (
@@ -1278,8 +1372,9 @@ export default function DashboardPage() {
                       )}
                       {fecSweepJob.status === 'completed' && (
                         <p className="mt-2 text-xs opacity-80">
-                          Complete — {fecSweepJob.hits_count} of {fecSweepJob.processed_count}{' '}
-                          voters had Schedule A hits
+                          Complete — {fecSweepJob.hits_count} raw hits,{' '}
+                          {fecSweepJob.confirmed_hits_count ?? 0} confirmed (of{' '}
+                          {fecSweepJob.processed_count} checked)
                           {fecSweepJob.failed_count > 0
                             ? ` · ${fecSweepJob.failed_count} API errors`
                             : ''}
@@ -1295,6 +1390,9 @@ export default function DashboardPage() {
                             <li key={hit.row_index}>
                               Row {hit.row_index}: {hit.contributor_name} · {hit.match_level} ·{' '}
                               {hit.result_count} match(es)
+                              {hit.identity_band ? ` · ${hit.identity_band}` : ''}
+                              {hit.probable_same_person ? ' · confirmed' : ''}
+                              {hit.fec_lean ? ` · lean ${hit.fec_lean}` : ''}
                             </li>
                           ))}
                         </ul>
@@ -1332,6 +1430,17 @@ export default function DashboardPage() {
                       className="rounded-lg border border-amber-400/60 px-4 py-2.5 text-sm hover:opacity-80 disabled:opacity-50"
                     >
                       Cancel FEC sweep
+                    </button>
+                  )}
+                {fecSweepJob &&
+                  (fecSweepJob.status === 'completed' || fecSweepJob.processed_count > 0) && (
+                    <button
+                      type="button"
+                      onClick={handleRescoreFecSweep}
+                      disabled={analyzeBusy || busy}
+                      className="rounded-lg border border-white/25 px-4 py-2.5 text-sm hover:opacity-80 disabled:opacity-50"
+                    >
+                      Rescore identity
                     </button>
                   )}
               </div>

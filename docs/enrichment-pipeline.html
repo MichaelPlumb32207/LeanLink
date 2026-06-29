@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research-only POC · Florida NPA voters · Test-subset eval first · Last updated 2026-06-28</p>
+    <p class="subtitle">Research-only POC · Florida NPA voters · Multi-arm evidence accumulator · Last updated 2026-06-29</p>
 
     <div class="card">
       <strong>Research posture:</strong> Output informs a UF political-science professor's research, courses, and publications.
@@ -43,34 +43,36 @@
 
     <h2 id="flow">1. Pipeline overview</h2>
     <div class="card">
-      <strong>POC path:</strong> Upload ingests voters only. Dashboard <strong>Analyze</strong>:
-      enter a row-index subset (defaults ~7 curated rows/county), pick one test — enrichment,
-      scorecard, Street View exploratory, or <strong>FEC contributor lookup</strong> (D-021, D-022).
-      Full-file batch is <strong>disabled</strong> unless <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> (D-020).
+      <strong>Target architecture (D-023):</strong> Upload ingests NPA subset. <strong>Evidence arms</strong>
+      (FEC, OSINT, media, civic, household — pluggable via <code>lib/evidence/arms.ts</code>) each:
+      retrieve → identity gate → lean signal → append <code>evidence_events</code>. Fusion writes
+      <code>voter_lean_fusion</code> and <code>lean_results</code> with audit trail. Dashboard
+      <strong>Evidence accumulator</strong> shows upload command bar + split-pane voter timeline.
+      <strong>Research lab</strong> (subset tests) remains for POC validation. Full-file Grok batch
+      <strong>disabled</strong> unless <code>LEANLINK_ENABLE_BATCH_INFERENCE=true</code> (D-020).
+      Pitch: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a>.
     </div>
     <pre class="mermaid">
 flowchart TB
   subgraph ingest [Ingest - no AI cost]
-    A[FL registration extract] --> B[Identity anchor + contact]
-    H[FL history extract] --> C[Turnout / primary engagement]
+    A[FL registration extract] --> B[NPA + Active subset]
+    H[FL history extract] --> C[Turnout / opposition math]
   end
-  subgraph enrich [Per-voter / subset tests]
-    B --> T{Test}
-    T -->|FEC lookup| FEC[FEC Schedule A API]
-    FEC --> FECout[Contributor hits]
-    T -->|Grok modes| M{Mode}
-    M -->|grok-full| D[Grok web_search + x_search]
-    M -->|apify-modular| P[Apify Google + crawl]
-    P --> SV[Street View exploratory]
-    SV --> S[Grok synthesize only]
-    P --> S
-    D --> E[OSINT matches + signals]
-    S --> E
+  subgraph arms [Evidence arms - pluggable]
+    B --> FEC[FEC Schedule A]
+    B --> OSINT[Grok / Apify OSINT]
+    B --> MEDIA[Local media]
+    B --> CIVIC[Civic filings]
   end
-  E --> F[Guardrails + lean + confidence]
-  C --> J[Opposition mobilization]
-  F --> J
-  J --> K[Dashboard / Export]
+  subgraph gate [Per-arm identity gate]
+    FEC --> L[evidence_events ledger]
+    OSINT --> L
+    MEDIA --> L
+    CIVIC --> L
+  end
+  L --> F[fuseEvidenceEvents]
+  F --> R[lean_results + export]
+  C --> R
     </pre>
 
     <h2 id="inputs">2. Input data (what we use)</h2>
@@ -128,9 +130,16 @@ flowchart TB
 
     <h3>FEC contributor lookup (D-021)</h3>
     <p><span class="tag tag-real">Deterministic</span> Direct FEC Open API Schedule A search by
-    contributor name + FL state/city/zip. No Grok. Use to measure donation hit rate before inferring
-    lean from Tier-A signals. Grok <code>site:fec.gov</code> queries in the query plan are indirect
-    and have shown poor yield in limited tests.</p>
+    contributor name + FL state/city/zip. No Grok. Whole-file sweep + per-row identity scoring
+    (<code>lib/fec/identity-match.ts</code>, <code>donation-lean.ts</code>). Calhoun: 27 raw → 3 confirmed.
+    Grok <code>site:fec.gov</code> queries remain indirect and poor yield vs direct API.</p>
+
+    <h3>Evidence accumulator (D-023)</h3>
+    <p><span class="tag tag-real">Ledger</span> Each arm appends <code>evidence_events</code> with
+    identity band, lean signal, evidence strings, URLs, cost. <code>fuseEvidenceEvents</code> merges
+    into <code>voter_lean_fusion</code> and <code>lean_results</code>. Arm registry:
+    <code>lib/evidence/arms.ts</code>. APIs: <code>GET .../evidence-summary</code>,
+    <code>GET/POST .../evidence</code>. UI: <code>components/evidence-workspace.tsx</code>.</p>
 
     <h3>Street View (research arm — D-018)</h3>
     <p><span class="tag tag-rule">Separate</span> Dashboard exposes <code>exploratory</code> only
