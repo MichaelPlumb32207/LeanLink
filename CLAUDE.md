@@ -22,7 +22,7 @@ npm run lint     # eslint (next lint)
 There is **no test runner and no typecheck script** yet (`tsc --noEmit` works ad hoc via
 the tsconfig). There is **no migration runner**: apply `migrations/001_initial_schema.sql`
 then `migrations/002_history_columns.sql`, then `migrations/003_fec_sweep.sql`, then
-`migrations/004_fec_identity.sql`, then `migrations/005_evidence_ledger.sql` to Neon by hand
+`migrations/004_fec_identity.sql`, then `migrations/005_evidence_ledger.sql`, then `migrations/006_reference_data.sql` to Neon by hand
 (`psql "$DATABASE_URL" -f ...`), in order. Migrations are additive and idempotent
 (`IF NOT EXISTS`). See `docs/SETUP.md`.
 

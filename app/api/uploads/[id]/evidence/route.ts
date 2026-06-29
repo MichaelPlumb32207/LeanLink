@@ -6,6 +6,7 @@ import {
   getUploadEvidenceSummary,
   listEvidenceForVoter,
 } from '@/lib/evidence/ledger';
+import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
@@ -144,6 +145,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return NextResponse.json({ error: 'No FEC sweep job for this upload' }, { status: 404 });
       }
 
+      return NextResponse.json(result);
+    }
+
+    if (body.action === 'free-pass') {
+      const result = await withUserDb(userEmail, async (client) => {
+        const run = await runFreePassForUpload(client, uploadId, userEmail);
+        const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
+        return { run, summary };
+      });
       return NextResponse.json(result);
     }
 

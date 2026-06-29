@@ -11,6 +11,8 @@ const LEAN_WEIGHT: Record<LeanLabel, number> = {
 function armWeight(arm: EvidenceArmId, identityBand: string | null): number {
   let w = 1;
   if (arm === 'fec') w = 1.25;
+  if (arm === 'fl_contrib') w = 1.15;
+  if (arm === 'sunbiz') w = 0.5;
   if (arm === 'osint') w = 1;
   if (arm === 'local_media' || arm === 'civic') w = 1.1;
   if (arm === 'household') w = 0.55;

@@ -3,6 +3,8 @@ import type { FecIdentityBand } from '@/lib/fec/identity-match';
 
 export type EvidenceArmId =
   | 'fec'
+  | 'fl_contrib'
+  | 'sunbiz'
   | 'osint'
   | 'local_media'
   | 'civic'

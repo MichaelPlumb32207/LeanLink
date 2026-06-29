@@ -116,7 +116,7 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
     [voters, selectedId],
   );
 
-  const runEvidenceAction = async (action: 'sync-fec' | 'build-anchor') => {
+  const runEvidenceAction = async (action: 'sync-fec' | 'build-anchor' | 'free-pass') => {
     setSyncing(true);
     setError(null);
     try {
@@ -158,6 +158,14 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
             className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
           >
             Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => void runEvidenceAction('free-pass')}
+            disabled={syncing}
+            className="rounded-lg border border-emerald-300/60 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium hover:opacity-80 disabled:opacity-50"
+          >
+            {syncing ? 'Running…' : 'Run free pass'}
           </button>
           <button
             type="button"

@@ -20,6 +20,22 @@ export const EVIDENCE_ARMS: EvidenceArmDefinition[] = [
     sort_order: 10,
   },
   {
+    id: 'fl_contrib',
+    label: 'FL state contributions',
+    description: 'Bulk-indexed DOS campaign finance — person + entity (layer 2) lookups.',
+    cost_tier: 'free',
+    default_enabled: true,
+    sort_order: 15,
+  },
+  {
+    id: 'sunbiz',
+    label: 'Sunbiz officers',
+    description: 'Bulk-indexed corporate officer matches; bridges to entity donations.',
+    cost_tier: 'free',
+    default_enabled: true,
+    sort_order: 16,
+  },
+  {
     id: 'osint',
     label: 'OSINT (Grok)',
     description: 'Social-first web search, Tier-A donations/media/civic in synthesis.',
