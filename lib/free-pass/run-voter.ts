@@ -12,10 +12,7 @@ import {
 } from '@/lib/fl-contrib/lookup';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
-import {
-  getActiveSunbizSnapshotId,
-  lookupSunbizOfficersForVoter,
-} from '@/lib/sunbiz/lookup';
+import { lookupSunbizOfficersForVoter } from '@/lib/sunbiz/lookup';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -46,7 +43,7 @@ export async function runFreePassForVoter(
     user_id: string;
     voter: ParsedFlVoterRecord;
     flSnapshotId: string | null;
-    sunbizSnapshotId: string | null;
+    sunbizSnapshotIds: string[];
     householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
   },
 ): Promise<FreePassVoterResult> {
@@ -113,11 +110,12 @@ export async function runFreePassForVoter(
   }
 
   let sunbizEntities: { corp_name: string }[] = [];
-  if (params.sunbizSnapshotId) {
-    const sunbizLabel = await snapshotLabel(client, params.sunbizSnapshotId);
+  if (params.sunbizSnapshotIds.length > 0) {
+    const sunbizLabel = await snapshotLabel(client, params.sunbizSnapshotIds[0]);
+    const quarterLabel = sunbizLabel.replace(/-cor\d+$/, '');
     const officers = await lookupSunbizOfficersForVoter({
       client,
-      snapshotId: params.sunbizSnapshotId,
+      snapshotIds: params.sunbizSnapshotIds,
       voter: params.voter,
     });
     sunbiz_hits = officers.length;
@@ -128,7 +126,7 @@ export async function runFreePassForVoter(
       voter_record_id: params.voter_record_id,
       user_id: params.user_id,
       hits: officers,
-      snapshot_label: sunbizLabel,
+      snapshot_label: quarterLabel,
     });
     if (sunbizEvent) {
       await appendEvidenceEvent(client, sunbizEvent);

@@ -1,6 +1,6 @@
 import { getActiveFlContribSnapshotId } from '@/lib/fl-contrib/lookup';
 import { runFreePassForVoter, type FreePassVoterResult } from '@/lib/free-pass/run-voter';
-import { getActiveSunbizSnapshotId } from '@/lib/sunbiz/lookup';
+import { getActiveSunbizSnapshotIds } from '@/lib/sunbiz/lookup';
 import { loadUploadHouseholdIndex } from '@/lib/anchor/upload-index';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
@@ -9,7 +9,7 @@ export interface FreePassUploadResult {
   processed: number;
   events_total: number;
   fl_contrib_snapshot: string | null;
-  sunbiz_snapshot: string | null;
+  sunbiz_snapshots: string[];
   missing_indexes: string[];
   rows: FreePassVoterResult[];
 }
@@ -20,10 +20,10 @@ export async function runFreePassForUpload(
   userId: string,
 ): Promise<FreePassUploadResult> {
   const flSnapshotId = await getActiveFlContribSnapshotId(client);
-  const sunbizSnapshotId = await getActiveSunbizSnapshotId(client);
+  const sunbizSnapshotIds = await getActiveSunbizSnapshotIds(client);
   const missing_indexes: string[] = [];
   if (!flSnapshotId) missing_indexes.push('fl_contrib');
-  if (!sunbizSnapshotId) missing_indexes.push('sunbiz_cor');
+  if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
 
   const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
 
@@ -47,7 +47,7 @@ export async function runFreePassForUpload(
       user_id: userId,
       voter: voter.raw_data,
       flSnapshotId,
-      sunbizSnapshotId,
+      sunbizSnapshotIds,
       householdIndex,
     });
     results.push(result);
@@ -58,7 +58,7 @@ export async function runFreePassForUpload(
     processed: voters.length,
     events_total,
     fl_contrib_snapshot: flSnapshotId,
-    sunbiz_snapshot: sunbizSnapshotId,
+    sunbiz_snapshots: sunbizSnapshotIds,
     missing_indexes,
     rows: results,
   };

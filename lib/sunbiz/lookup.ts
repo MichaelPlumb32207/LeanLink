@@ -19,16 +19,41 @@ export interface SunbizOfficerHit {
   match_reasons: string[];
 }
 
-export async function getActiveSunbizSnapshotId(
+/** Quarter prefix from labels like `2026q2-cor3` → `2026q2`. */
+function sunbizQuarterPrefix(label: string): string {
+  const m = label.match(/^(.+)-cor\d+$/);
+  return m?.[1] ?? label;
+}
+
+export async function getActiveSunbizSnapshotIds(
   client: PoolClient,
-): Promise<string | null> {
-  const res = await client.query<{ id: string }>(
-    `SELECT id FROM reference_snapshots
+): Promise<string[]> {
+  const latest = await client.query<{ label: string }>(
+    `SELECT label FROM reference_snapshots
      WHERE source = 'sunbiz_cor'
      ORDER BY imported_at DESC
      LIMIT 1`,
   );
-  return res.rows[0]?.id ?? null;
+  const label = latest.rows[0]?.label;
+  if (!label) return [];
+
+  const prefix = sunbizQuarterPrefix(label);
+  const res = await client.query<{ id: string }>(
+    `SELECT id FROM reference_snapshots
+     WHERE source = 'sunbiz_cor'
+       AND (label = $1 OR label LIKE $2)
+     ORDER BY label`,
+    [label, `${prefix}-cor%`],
+  );
+  return res.rows.map((r) => r.id);
+}
+
+/** Latest single snapshot id (legacy); prefer getActiveSunbizSnapshotIds for sharded cor imports. */
+export async function getActiveSunbizSnapshotId(
+  client: PoolClient,
+): Promise<string | null> {
+  const ids = await getActiveSunbizSnapshotIds(client);
+  return ids[ids.length - 1] ?? null;
 }
 
 function scoreOfficerMatch(
@@ -77,10 +102,12 @@ function scoreOfficerMatch(
 
 export async function lookupSunbizOfficersForVoter(params: {
   client: PoolClient;
-  snapshotId: string;
+  snapshotIds: string[];
   voter: ParsedFlVoterRecord;
   limit?: number;
 }): Promise<SunbizOfficerHit[]> {
+  if (params.snapshotIds.length === 0) return [];
+
   const lastNorm = officerNameNorm(params.voter.name.last);
   const voterZip = zip5(params.voter.residence.zip);
   const limit = params.limit ?? 20;
@@ -89,11 +116,11 @@ export async function lookupSunbizOfficersForVoter(params: {
     `SELECT id, snapshot_id, corp_number, corp_name, corp_status, filing_type,
             officer_title, officer_name, officer_city, officer_zip5, officer_address
      FROM sunbiz_officers
-     WHERE snapshot_id = $1
+     WHERE snapshot_id = ANY($1::uuid[])
        AND officer_name_norm LIKE '%' || $2 || '%'
        AND ($3 = '' OR officer_zip5 = $3)
      LIMIT $4`,
-    [params.snapshotId, lastNorm, voterZip, limit],
+    [params.snapshotIds, lastNorm, voterZip, limit],
   );
 
   const scored = res.rows.map((row) => {

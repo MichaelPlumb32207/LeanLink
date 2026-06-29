@@ -1,7 +1,7 @@
 import { corpNameNorm, officerNameNorm, parseSunbizCorLine } from '@/lib/sunbiz/parse-cor';
-import { pool } from '@/lib/db';
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
+import { Pool } from 'pg';
 
 export async function importSunbizCorFile(params: {
   filePath: string;
@@ -9,6 +9,9 @@ export async function importSunbizCorFile(params: {
   batchSize?: number;
 }): Promise<{ snapshot_id: string; row_count: number }> {
   const batchSize = params.batchSize ?? 800;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
   const client = await pool.connect();
 
   try {
@@ -42,7 +45,7 @@ export async function importSunbizCorFile(params: {
       let p = 1;
       for (const row of batch) {
         placeholders.push(
-          `($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`,
+          `($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`,
         );
         values.push(...row);
       }
@@ -96,5 +99,6 @@ export async function importSunbizCorFile(params: {
     throw error;
   } finally {
     client.release();
+    await pool.end();
   }
 }
