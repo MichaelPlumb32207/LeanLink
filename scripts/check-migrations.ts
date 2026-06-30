@@ -36,6 +36,7 @@ const EXPECTED = [
   'reference_snapshots',
   'fl_contributions',
   'sunbiz_officers',
+  'committee_lean_labels',
 ];
 
 async function main() {

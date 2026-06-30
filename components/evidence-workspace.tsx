@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CommitteeLeanManager } from '@/components/committee-lean-manager';
+import { CommitteeQuickLabel } from '@/components/committee-quick-label';
+import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
 
@@ -37,6 +40,10 @@ type EvidenceEvent = {
   evidence: string[];
   urls: string[];
   created_at: string;
+  payload: {
+    unresolved_committees?: string[];
+    committees?: string[];
+  } | null;
 };
 
 type VoterDetail = {
@@ -61,6 +68,7 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [committeeManagerOpen, setCommitteeManagerOpen] = useState(false);
 
   const refreshSummary = useCallback(async () => {
     const res = await fetch(`/api/uploads/${uploadId}/evidence-summary`);
@@ -133,6 +141,27 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
     [voters, selectedId],
   );
 
+  const unresolvedCommittees = useMemo(() => {
+    if (!detail) return [];
+    const names = new Set<string>();
+    for (const ev of detail.events) {
+      if (ev.arm !== 'fl_contrib') continue;
+      for (const c of ev.payload?.unresolved_committees ?? []) {
+        if (c?.trim()) names.add(c);
+      }
+    }
+    return [...names];
+  }, [detail]);
+
+  const humanJudgmentEvent = useMemo(() => {
+    if (!detail) return null;
+    return (
+      detail.events.find(
+        (ev) => ev.arm === 'human_judgment' && ev.source === 'street_view_review',
+      ) ?? null
+    );
+  }, [detail]);
+
   const runEvidenceAction = async (action: 'sync-fec' | 'build-anchor' | 'free-pass') => {
     setSyncing(true);
     setError(null);
@@ -200,8 +229,21 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
           >
             {syncing ? 'Syncing FEC…' : 'Sync FEC → ledger'}
           </button>
+          <button
+            type="button"
+            onClick={() => setCommitteeManagerOpen(true)}
+            className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-sm hover:opacity-80"
+          >
+            Committee lean
+          </button>
         </div>
       </div>
+
+      <CommitteeLeanManager
+        uploadId={uploadId}
+        open={committeeManagerOpen}
+        onClose={() => setCommitteeManagerOpen(false)}
+      />
 
       {error && (
         <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
@@ -404,6 +446,44 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
                 </div>
               </div>
 
+              {unresolvedCommittees.length > 0 && (
+                <div className="rounded-lg border border-violet-300/25 bg-violet-500/5 px-3 py-2 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-violet-200/90">
+                    Unresolved committees
+                  </p>
+                  <p className="mt-1 text-xs opacity-75">
+                    No automatic lean — label to apply across linked NPAs.
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {unresolvedCommittees.map((name) => (
+                      <li key={name} className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs opacity-90">{name}</span>
+                        <CommitteeQuickLabel
+                          uploadId={uploadId}
+                          committeeName={name}
+                          onSaved={() => void loadDetail(detail.voter.id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => setCommitteeManagerOpen(true)}
+                    className="mt-2 text-xs text-violet-200 underline opacity-80 hover:opacity-100"
+                  >
+                    Open full committee manager
+                  </button>
+                </div>
+              )}
+
+              <ResidenceTiebreaker
+                uploadId={uploadId}
+                voterRecordId={detail.voter.id}
+                fusedLean={detail.fusion.lean}
+                humanEvent={humanJudgmentEvent}
+                onSaved={() => void loadDetail(detail.voter.id)}
+              />
+
               <div>
                 <h4 className="text-xs font-semibold uppercase tracking-wide opacity-60 mb-2">
                   Evidence timeline
@@ -419,7 +499,10 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
                       >
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                           <span className="font-medium">
-                            {ev.arm} · {ev.source}
+                            {ev.arm === 'human_judgment' ? 'Human estimate' : ev.arm} · {ev.source}
+                            {ev.arm === 'human_judgment' && (
+                              <span className="ml-1 text-violet-300">(researcher)</span>
+                            )}
                           </span>
                           <span className="text-xs opacity-60">
                             {new Date(ev.created_at).toLocaleString()}

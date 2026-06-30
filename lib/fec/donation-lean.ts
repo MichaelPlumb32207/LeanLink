@@ -37,6 +37,7 @@ const RIGHT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] =
   { pattern: /\bmaga\b/i, confidence: 82, label: 'MAGA-affiliated' },
   { pattern: /\bconservative\b/i, confidence: 70, label: 'Conservative committee' },
   { pattern: /\bliberty\b/i, confidence: 65, label: 'Liberty-oriented PAC' },
+  { pattern: /\b\(rep\)/i, confidence: 82, label: 'FL recipient (REP)' },
 ];
 
 const LEFT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = [
@@ -47,6 +48,7 @@ const LEFT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = 
   { pattern: /\b(?:kamala\s+)?harris\s+(?:for|2024)\b/i, confidence: 80, label: 'Harris campaign' },
   { pattern: /\bprogressive\b/i, confidence: 72, label: 'Progressive committee' },
   { pattern: /\b(?:emily'?s list|moveon)\b/i, confidence: 78, label: 'Progressive advocacy PAC' },
+  { pattern: /\b\(dem\)/i, confidence: 82, label: 'FL recipient (DEM)' },
 ];
 
 const NEUTRAL_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = [

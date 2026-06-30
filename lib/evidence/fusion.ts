@@ -8,10 +8,14 @@ const LEAN_WEIGHT: Record<LeanLabel, number> = {
   Undetermined: 0,
 };
 
-function armWeight(arm: EvidenceArmId, identityBand: string | null): number {
+function armWeight(
+  arm: EvidenceArmId,
+  identityBand: string | null,
+  source?: string,
+): number {
   let w = 1;
   if (arm === 'fec') w = 1.25;
-  if (arm === 'fl_contrib') w = 1.15;
+  if (arm === 'fl_contrib') w = source === 'fl_contrib_entity' ? 0.55 : 1.15;
   if (arm === 'sunbiz') w = 0.5;
   if (arm === 'osint') w = 1;
   if (arm === 'local_media' || arm === 'civic') w = 1.1;
@@ -34,9 +38,18 @@ export function fuseEvidenceEvents(events: EvidenceEventRow[]): FusionResult {
 
   for (const event of events) {
     event_count += 1;
-    if (!event.probable_same_person && event.arm !== 'turnout') continue;
+    if (event.arm === 'human_judgment' || event.arm === 'street_view') continue;
 
-    const weight = armWeight(event.arm, event.identity_band);
+    const entityBridgeLean =
+      event.arm === 'fl_contrib' &&
+      event.source === 'fl_contrib_entity' &&
+      event.identity_band === 'probable' &&
+      event.lean_signal &&
+      event.lean_signal !== 'Undetermined';
+
+    if (!event.probable_same_person && event.arm !== 'turnout' && !entityBridgeLean) continue;
+
+    const weight = armWeight(event.arm, event.identity_band, event.source);
     if (weight <= 0) continue;
 
     if (event.lean_signal && event.lean_signal !== 'Undetermined' && event.lean_confidence) {

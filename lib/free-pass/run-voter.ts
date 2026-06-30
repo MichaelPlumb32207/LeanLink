@@ -10,6 +10,7 @@ import {
   lookupFlContributionsByContributor,
   lookupFlContributionsByEntityName,
 } from '@/lib/fl-contrib/lookup';
+import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { lookupSunbizOfficersForVoter } from '@/lib/sunbiz/lookup';
@@ -45,6 +46,7 @@ export async function runFreePassForVoter(
     flSnapshotId: string | null;
     sunbizSnapshotIds: string[];
     householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
+    researcherLabels?: Map<string, ResearcherCommitteeLabel>;
   },
 ): Promise<FreePassVoterResult> {
   let events_written = 0;
@@ -103,6 +105,7 @@ export async function runFreePassForVoter(
         hits: dedupedL1,
         match_layer: 1,
         snapshot_label: flLabel,
+        researcher_labels: params.researcherLabels,
       }),
     );
     events_written += 1;
@@ -163,6 +166,7 @@ export async function runFreePassForVoter(
           match_layer: 2,
           snapshot_label: flLabel,
           entity_name: sunbizEntities[0]?.corp_name,
+          researcher_labels: params.researcherLabels,
         }),
       );
       events_written += 1;

@@ -1,7 +1,20 @@
+import { committeeNameNorm } from '@/lib/committee-lean/normalize';
+import { unresolvedCommitteeNames } from '@/lib/committee-lean/infer';
+import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 import { inferLeanFromFlContributions } from '@/lib/fl-contrib/donation-lean';
 import type { FlContribIdentityResult } from '@/lib/fl-contrib/identity-match';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
+
+function shouldInferFlContribLean(
+  identity: FlContribIdentityResult,
+  match_layer: 1 | 2,
+  hitCount: number,
+): boolean {
+  if (hitCount === 0) return false;
+  if (identity.probable_same_person) return true;
+  return match_layer === 2 && identity.identity_band === 'probable';
+}
 
 export function buildFlContribEvidenceEvent(params: {
   upload_id: string;
@@ -12,19 +25,25 @@ export function buildFlContribEvidenceEvent(params: {
   match_layer: 1 | 2;
   snapshot_label: string;
   entity_name?: string;
+  researcher_labels?: Map<string, ResearcherCommitteeLabel>;
 }): EvidenceEventInput {
-  const lean =
-    params.identity.probable_same_person && params.hits.length > 0
-      ? inferLeanFromFlContributions(params.hits, {
-          layer: params.match_layer,
-          entity_name: params.entity_name,
-        })
-      : {
-          lean: 'Undetermined' as const,
-          confidence: 0,
-          lean_signals_found: false,
-          evidence: [] as string[],
-        };
+  const committees = [
+    ...new Set(params.hits.map((h) => h.committee_name).filter(Boolean) as string[]),
+  ];
+  const unresolved = unresolvedCommitteeNames(committees, params.researcher_labels);
+
+  const lean = shouldInferFlContribLean(params.identity, params.match_layer, params.hits.length)
+    ? inferLeanFromFlContributions(params.hits, {
+        layer: params.match_layer,
+        entity_name: params.entity_name,
+        researcher_labels: params.researcher_labels,
+      })
+    : {
+        lean: 'Undetermined' as const,
+        confidence: 0,
+        lean_signals_found: false,
+        evidence: [] as string[],
+      };
 
   const evidence: string[] = [];
   if (params.hits.length === 0) {
@@ -56,6 +75,9 @@ export function buildFlContribEvidenceEvent(params: {
       match_layer: params.match_layer,
       hit_count: params.hits.length,
       entity_name: params.entity_name ?? null,
+      committees,
+      committee_norms: committees.map((c) => committeeNameNorm(c)),
+      unresolved_committees: unresolved,
     },
     cost_usd: 0,
     dedupe_key: `fl_contrib_l${params.match_layer}`,

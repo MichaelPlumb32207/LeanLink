@@ -76,6 +76,14 @@ export const EVIDENCE_ARMS: EvidenceArmDefinition[] = [
     sort_order: 60,
   },
   {
+    id: 'human_judgment',
+    label: 'Researcher estimate',
+    description: 'Human lean guess after Street View / map review — never auto-inferred.',
+    cost_tier: 'free',
+    default_enabled: false,
+    sort_order: 65,
+  },
+  {
     id: 'turnout',
     label: 'Voting history',
     description: 'Turnout and opposition mobilization — behavioral, not ideological.',

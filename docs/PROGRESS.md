@@ -1,10 +1,31 @@
 # LeanLink — Build Progress
 
 Running status of what's actually built vs. stubbed vs. not started. The honest source of
-truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-29 (evening).
+truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-30.
 
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
+
+## Where to pick up (continuity note — 2026-06-30, pre-deploy)
+
+**⚠️ Before you stop for validation:** local changes are **not on Vercel** until **`git commit` +
+`git push origin HEAD:main`** (run `npm run build` first). Prod still serves commit `20bbc88` until
+then. Neon migration **`007_committee_lean.sql` is already applied**; dashboard/API for committee
+lean and updated free-pass logic require deploy.
+
+**Built locally (unshipped):**
+- `(REP)` / `(DEM)` committee parser (`lib/committee-lean/infer.ts`)
+- Layer-2 lean when entity bridge is `probable` · fusion weight **0.55×** for `fl_contrib_entity`
+- **Committee lean** — uncertain queue + researcher labels (`007`) + modal + per-voter quick label
+- **Researcher tiebreaker** — Street View + human estimate (`human_judgment` arm)
+- `scripts/audit-layer2.ts` — Calhoun layer-2 committee audit
+
+**Do not wait on dashboard free pass on Vercel** — evidence route has no extended `maxDuration`; use
+CLI `npx tsx scripts/run-free-pass.ts --county CAL` after deploy (or chunk worker later). Aborted
+prod free-pass attempt (signed out) should roll back; prior Calhoun demo data unchanged.
+
+**Validate after deploy:** Calhoun demo path unchanged · optional **Committee lean** button ·
+re-run free pass for new parsers/payloads · row 280 may show layer-2 Right from `(REP)`.
 
 ## Where to pick up (continuity note — 2026-06-29, post–voter filters)
 

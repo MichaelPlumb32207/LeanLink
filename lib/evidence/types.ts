@@ -10,6 +10,7 @@ export type EvidenceArmId =
   | 'civic'
   | 'household'
   | 'street_view'
+  | 'human_judgment'
   | 'turnout';
 
 export type FusionStatus = 'undetermined' | 'provisional' | 'fused' | 'conflicted';

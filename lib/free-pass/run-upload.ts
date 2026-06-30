@@ -1,3 +1,4 @@
+import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { getActiveFlContribSnapshotId } from '@/lib/fl-contrib/lookup';
 import { runFreePassForVoter, type FreePassVoterResult } from '@/lib/free-pass/run-voter';
 import { getActiveSunbizSnapshotIds } from '@/lib/sunbiz/lookup';
@@ -26,6 +27,7 @@ export async function runFreePassForUpload(
   if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
 
   const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
+  const researcherLabels = await loadResearcherCommitteeLabels(client, userId);
 
   const { rows: voters } = await client.query<{
     id: string;
@@ -49,6 +51,7 @@ export async function runFreePassForUpload(
       flSnapshotId,
       sunbizSnapshotIds,
       householdIndex,
+      researcherLabels,
     });
     results.push(result);
     events_total += result.events_written;

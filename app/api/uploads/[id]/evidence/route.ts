@@ -10,7 +10,13 @@ import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
+import { buildHumanJudgmentEvent } from '@/lib/evidence/human-judgment';
+import { appendEvidenceEvent } from '@/lib/evidence/ledger';
+import type { LeanLabel } from '@/lib/enrichment/types';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
+import { formatResidenceAddress } from '@/lib/google/street-view';
+
+const HUMAN_LEAN_LABELS: LeanLabel[] = ['Left', 'Right', 'Independent', 'Undetermined'];
 
 function truthyQueryParam(value: string | null): boolean {
   return value === '1' || value === 'true';
@@ -158,6 +164,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = (await request.json().catch(() => ({}))) as {
       action?: string;
       voterRecordId?: string;
+      lean?: string;
+      note?: string;
+      confidence?: number;
     };
 
     if (body.action === 'sync-fec') {
@@ -205,6 +214,49 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return fuseAndPersistVoter(client, body.voterRecordId!, uploadId, userEmail);
       });
       return NextResponse.json({ fusion });
+    }
+
+    if (body.action === 'human-lean-guess') {
+      if (!body.voterRecordId) {
+        return NextResponse.json({ error: 'voterRecordId is required' }, { status: 400 });
+      }
+      const lean = body.lean as LeanLabel;
+      if (!HUMAN_LEAN_LABELS.includes(lean)) {
+        return NextResponse.json(
+          { error: 'lean must be Left, Right, Independent, or Undetermined' },
+          { status: 400 },
+        );
+      }
+
+      const result = await withUserDb(userEmail, async (client) => {
+        const voterRes = await client.query<{ raw_data: ParsedFlVoterRecord }>(
+          `SELECT raw_data FROM voter_records
+           WHERE id = $1 AND upload_id = $2 AND user_id = $3`,
+          [body.voterRecordId, uploadId, userEmail],
+        );
+        const voter = voterRes.rows[0];
+        if (!voter) return { error: 'not_found' as const };
+
+        const address = formatResidenceAddress(voter.raw_data.residence);
+        const event = buildHumanJudgmentEvent({
+          upload_id: uploadId,
+          voter_record_id: body.voterRecordId!,
+          user_id: userEmail,
+          lean,
+          note: body.note,
+          confidence: body.confidence,
+          address_used: address,
+        });
+        await appendEvidenceEvent(client, event);
+        const events = await listEvidenceForVoter(client, body.voterRecordId!);
+        return { events, fusion: fuseEvidenceEvents(events) };
+      });
+
+      if ('error' in result && result.error === 'not_found') {
+        return NextResponse.json({ error: 'Voter not found' }, { status: 404 });
+      }
+
+      return NextResponse.json(result);
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
