@@ -193,7 +193,8 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
         <div>
           <h2 className="text-xl font-semibold">Evidence accumulator</h2>
           <p className="mt-1 text-sm opacity-75">
-            Multi-arm ledger with per-source identity gates and fused lean labels.
+            Multi-arm ledger with per-source identity gates and fused lean labels. Federal FEC is
+            separate — run <strong>FEC sweep</strong> in Research lab, then import results here.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -209,14 +210,16 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
             type="button"
             onClick={() => void runEvidenceAction('free-pass')}
             disabled={syncing}
+            title="Tier 0: FL state contributions (person + Sunbiz entity), Sunbiz officers, household — not federal FEC"
             className="rounded-lg border border-emerald-300/60 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium hover:opacity-80 disabled:opacity-50"
           >
-            {syncing ? 'Running…' : 'Run free pass'}
+            {syncing ? 'Running…' : 'Run FL & Sunbiz match'}
           </button>
           <button
             type="button"
             onClick={() => void runEvidenceAction('build-anchor')}
             disabled={syncing}
+            title="Rebuild co-address household and name-variant anchor events"
             className="rounded-lg border border-sky-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
           >
             {syncing ? 'Building…' : 'Build anchor profiles'}
@@ -225,9 +228,10 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
             type="button"
             onClick={() => void runEvidenceAction('sync-fec')}
             disabled={syncing}
+            title="Copy a completed whole-file FEC sweep (Research lab) into this evidence ledger"
             className="rounded-lg border border-emerald-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
           >
-            {syncing ? 'Syncing FEC…' : 'Sync FEC → ledger'}
+            {syncing ? 'Importing FEC…' : 'Import FEC sweep → ledger'}
           </button>
           <button
             type="button"

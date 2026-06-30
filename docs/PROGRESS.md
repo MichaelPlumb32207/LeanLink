@@ -20,9 +20,9 @@ lean and updated free-pass logic require deploy.
 - **Researcher tiebreaker** — Street View + human estimate (`human_judgment` arm)
 - `scripts/audit-layer2.ts` — Calhoun layer-2 committee audit
 
-**Do not wait on dashboard free pass on Vercel** — evidence route has no extended `maxDuration`; use
-CLI `npx tsx scripts/run-free-pass.ts --county CAL` after deploy (or chunk worker later). Aborted
-prod free-pass attempt (signed out) should roll back; prior Calhoun demo data unchanged.
+**FL & Sunbiz match** (dashboard button; was labeled “Run free pass”) is **not** federal FEC.
+Large counties may hit the serverless time limit on Vercel until we add a background worker; CLI
+fallback: `npx tsx scripts/run-free-pass.ts --county CAL`.
 
 **Validate after deploy:** Calhoun demo path unchanged · optional **Committee lean** button ·
 re-run free pass for new parsers/payloads · row 280 may show layer-2 Right from `(REP)`.
