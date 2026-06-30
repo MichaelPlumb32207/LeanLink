@@ -14,6 +14,8 @@ import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { lookupSunbizOfficersForVoter } from '@/lib/sunbiz/lookup';
+import type { FreePassSteps } from '@/lib/free-pass/steps';
+import { FREE_PASS_ALL } from '@/lib/free-pass/steps';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -47,8 +49,10 @@ export async function runFreePassForVoter(
     sunbizSnapshotIds: string[];
     householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
     researcherLabels?: Map<string, ResearcherCommitteeLabel>;
+    steps?: FreePassSteps;
   },
 ): Promise<FreePassVoterResult> {
+  const steps = params.steps ?? FREE_PASS_ALL;
   let events_written = 0;
   let fl_contrib_layer1 = 0;
   let fl_contrib_layer2 = 0;
@@ -67,12 +71,12 @@ export async function runFreePassForVoter(
     voter: params.voter,
     profile: anchorProfile,
   });
-  if (householdEvent) {
+  if (steps.household && householdEvent) {
     await appendEvidenceEvent(client, householdEvent);
     events_written += 1;
   }
 
-  if (params.flSnapshotId) {
+  if (steps.fl_contrib_l1 && params.flSnapshotId) {
     const flLabel = await snapshotLabel(client, params.flSnapshotId);
     const emailInsights = parseEmailInsights(params.voter.email, params.voter.name.full);
     const names = fecQueryNames(buildNameSearchVariants(params.voter, emailInsights), 3);
@@ -113,7 +117,7 @@ export async function runFreePassForVoter(
   }
 
   let sunbizEntities: { corp_name: string }[] = [];
-  if (params.sunbizSnapshotIds.length > 0) {
+  if (steps.sunbiz && params.sunbizSnapshotIds.length > 0) {
     const sunbizLabel = await snapshotLabel(client, params.sunbizSnapshotIds[0]);
     const quarterLabel = sunbizLabel.replace(/-cor\d+$/, '');
     const officers = await lookupSunbizOfficersForVoter({
@@ -137,7 +141,7 @@ export async function runFreePassForVoter(
     }
   }
 
-  if (params.flSnapshotId && sunbizEntities.length > 0) {
+  if (steps.fl_contrib_l2 && params.flSnapshotId && sunbizEntities.length > 0) {
     const flLabel = await snapshotLabel(client, params.flSnapshotId);
     const layer2Hits = [];
     for (const entity of sunbizEntities.slice(0, 3)) {

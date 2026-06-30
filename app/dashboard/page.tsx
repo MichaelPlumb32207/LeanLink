@@ -21,6 +21,7 @@ import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 import { formatRowIndices, parseRowIndicesInput } from '@/lib/test-row-indices';
 import { EvidenceWorkspace } from '@/components/evidence-workspace';
+import { BALLOT_FAVORS_OPTIONS, ballotFavorsLabel } from '@/lib/ballot-favors';
 
 type AnalyzeTest =
   | 'enrichment'
@@ -80,7 +81,7 @@ const ANALYZE_TEST_OPTIONS: {
   {
     id: 'fec-sweep',
     label: 'FEC sweep (whole file)',
-    description: 'All voters in upload — free throttled FEC API, results stored in DB.',
+    description: 'Same as step ③ in Evidence accumulator — kept here for subset/debug runs.',
     needsMode: false,
     multiRow: true,
     wholeUpload: true,
@@ -479,7 +480,7 @@ export default function DashboardPage() {
         ? ` History attached (${data.votersWithHistory} voters matched).`
         : '';
       setMessage(
-        `Uploaded ${data.rowCount} NPA active voters.${historyNote} Ballot favors ${data.ballotFavors}.`,
+        `Uploaded ${data.rowCount} NPA active voters.${historyNote} Scenario: ${ballotFavorsLabel(data.ballotFavors)}.`,
       );
       setSelectedUploadId(data.uploadId);
       await refreshUploads();
@@ -986,21 +987,23 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-4">
-            <h3 className="mb-2 font-medium">Ballot / contact scenario</h3>
+            <h3 className="mb-2 font-medium">② Research scenario (opposition mobilization)</h3>
             <p className="mb-2 text-xs opacity-70">
-              If outreach favors south, north-leaning voters get higher opposition mobilization scores.
+              Which side is favored in the hypothetical outreach scenario? Affects opposition
+              mobilization scoring only — not lean inference.
             </p>
-            <div className="flex gap-2">
-              {(['south', 'north'] as BallotFavors[]).map((side) => (
+            <div className="flex flex-wrap gap-2">
+              {BALLOT_FAVORS_OPTIONS.map((opt) => (
                 <button
-                  key={side}
+                  key={opt.value}
                   type="button"
-                  onClick={() => setBallotFavors(side)}
+                  onClick={() => setBallotFavors(opt.value)}
+                  title={opt.description}
                   className={`rounded-lg px-4 py-2 text-sm ${
-                    ballotFavors === side ? 'bg-white/20' : 'bg-black/20'
+                    ballotFavors === opt.value ? 'bg-white/20' : 'bg-black/20'
                   }`}
                 >
-                  Favors {side}
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -1012,7 +1015,7 @@ export default function DashboardPage() {
               disabled={busy}
               className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500 disabled:opacity-50"
             >
-              {busy ? 'Uploading…' : file ? 'Upload & Ingest' : 'Choose File'}
+              {busy ? 'Uploading…' : file ? '① Upload & extract NPAs' : 'Choose File'}
             </button>
             {file && (
               <button
@@ -1058,7 +1061,9 @@ export default function DashboardPage() {
                 <div className="text-sm opacity-80">
                   {upload.row_count} voters · upload {upload.status}
                   {upload.history_filename ? ` · + ${upload.history_filename}` : ' · no history file'}
-                  {upload.ballot_favors ? ` · favors ${upload.ballot_favors}` : ''}
+                  {upload.ballot_favors
+                    ? ` · ${ballotFavorsLabel(upload.ballot_favors)}`
+                    : ''}
                 </div>
                 <div className="mt-1 text-xs opacity-70">{jobSummary(upload)}</div>
                 <div className="text-xs opacity-60">
@@ -1071,7 +1076,7 @@ export default function DashboardPage() {
         </section>
 
         {selectedUploadId && selectedUpload && (
-          <EvidenceWorkspace uploadId={selectedUploadId} />
+          <EvidenceWorkspace uploadId={selectedUploadId} upload={selectedUpload} />
         )}
 
         {selectedUploadId && selectedUpload && (
@@ -1084,7 +1089,8 @@ export default function DashboardPage() {
                   ? ` with ${selectedUpload.history_filename}`
                   : ' (no history — turnout/opposition scores will be limited)'}
                 {' · '}
-                Curated subset tests below (FEC sweep lives in Evidence accumulator).
+                Curated subset tests below. Whole-file FEC federal match is in the Evidence
+                accumulator pipeline (step ③).
               </p>
             </div>
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">

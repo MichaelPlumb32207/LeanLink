@@ -6,6 +6,11 @@ import {
   getUploadEvidenceSummary,
   listEvidenceForVoter,
 } from '@/lib/evidence/ledger';
+import {
+  FREE_PASS_ALL,
+  FREE_PASS_FL_CONTRIB,
+  FREE_PASS_SUNBIZ_ENTITY,
+} from '@/lib/free-pass/steps';
 import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
@@ -191,11 +196,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json(result);
     }
 
-    if (body.action === 'free-pass') {
+    if (
+      body.action === 'free-pass' ||
+      body.action === 'match-fl-contrib' ||
+      body.action === 'match-sunbiz-entity' ||
+      body.action === 'match-tier0-all'
+    ) {
+      const steps =
+        body.action === 'match-fl-contrib'
+          ? FREE_PASS_FL_CONTRIB
+          : body.action === 'match-sunbiz-entity'
+            ? FREE_PASS_SUNBIZ_ENTITY
+            : FREE_PASS_ALL;
       const result = await withUserDb(userEmail, async (client) => {
-        const run = await runFreePassForUpload(client, uploadId, userEmail);
+        const run = await runFreePassForUpload(client, uploadId, userEmail, steps);
         const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
-        return { run, summary };
+        return { run, summary, steps: body.action };
       });
       return NextResponse.json(result);
     }

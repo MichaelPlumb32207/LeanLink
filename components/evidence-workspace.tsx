@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
+import { FecSweepPanel } from '@/components/fec-sweep-panel';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
+import { ballotFavorsLabel } from '@/lib/ballot-favors';
 import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
 
@@ -58,7 +60,21 @@ type VoterDetail = {
   };
 };
 
-export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
+type EvidenceUploadMeta = {
+  filename: string;
+  row_count: number;
+  ballot_favors?: string | null;
+};
+
+type Tier0Action = 'match-fl-contrib' | 'match-sunbiz-entity' | 'match-tier0-all';
+
+export function EvidenceWorkspace({
+  uploadId,
+  upload,
+}: {
+  uploadId: string;
+  upload?: EvidenceUploadMeta | null;
+}) {
   const [summary, setSummary] = useState<UploadEvidenceSummary | null>(null);
   const [voters, setVoters] = useState<VoterListRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -162,7 +178,9 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
     );
   }, [detail]);
 
-  const runEvidenceAction = async (action: 'sync-fec' | 'build-anchor' | 'free-pass') => {
+  const runEvidenceAction = async (
+    action: 'sync-fec' | 'build-anchor' | 'free-pass' | Tier0Action,
+  ) => {
     setSyncing(true);
     setError(null);
     try {
@@ -193,53 +211,75 @@ export function EvidenceWorkspace({ uploadId }: { uploadId: string }) {
         <div>
           <h2 className="text-xl font-semibold">Evidence accumulator</h2>
           <p className="mt-1 text-sm opacity-75">
-            Multi-arm ledger with per-source identity gates and fused lean labels. Federal FEC is
-            separate — run <strong>FEC sweep</strong> in Research lab, then import results here.
+            Run each enrichment step, then review fused lean and evidence per voter below.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void refreshAll()}
-            disabled={loading}
-            className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => void runEvidenceAction('free-pass')}
-            disabled={syncing}
-            title="Tier 0: FL state contributions (person + Sunbiz entity), Sunbiz officers, household — not federal FEC"
-            className="rounded-lg border border-emerald-300/60 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium hover:opacity-80 disabled:opacity-50"
-          >
-            {syncing ? 'Running…' : 'Run FL & Sunbiz match'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void runEvidenceAction('build-anchor')}
-            disabled={syncing}
-            title="Rebuild co-address household and name-variant anchor events"
-            className="rounded-lg border border-sky-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
-          >
-            {syncing ? 'Building…' : 'Build anchor profiles'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void runEvidenceAction('sync-fec')}
-            disabled={syncing}
-            title="Copy a completed whole-file FEC sweep (Research lab) into this evidence ledger"
-            className="rounded-lg border border-emerald-400/50 px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
-          >
-            {syncing ? 'Importing FEC…' : 'Import FEC sweep → ledger'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setCommitteeManagerOpen(true)}
-            className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-sm hover:opacity-80"
-          >
-            Committee lean
-          </button>
+        <button
+          type="button"
+          onClick={() => void refreshAll()}
+          disabled={loading}
+          className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">Pipeline</h3>
+        <div className="grid gap-2 text-sm">
+          <p className="text-xs opacity-75">
+            ① <strong>Upload file</strong> — registration extract (+ optional history)
+            {upload ? ` · ${upload.filename}` : ''}
+          </p>
+          <p className="text-xs opacity-75">
+            ② <strong>Extract NPAs</strong> — NPA + Active at ingest
+            {upload ? ` · ${upload.row_count} voters` : ''}
+            {upload?.ballot_favors
+              ? ` · scenario ${ballotFavorsLabel(upload.ballot_favors)}`
+              : ''}
+          </p>
+          {upload && (
+            <FecSweepPanel
+              uploadId={uploadId}
+              voterCount={upload.row_count}
+              onImported={() => void refreshAll()}
+            />
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => void runEvidenceAction('match-fl-contrib')}
+              disabled={syncing}
+              title="FL DOS bulk index — person-name contributions + household anchor"
+              className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {syncing ? 'Running…' : '④ Match FL contributors (person)'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runEvidenceAction('match-sunbiz-entity')}
+              disabled={syncing}
+              title="Sunbiz officer match, then entity FL contributions (layer 2)"
+              className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {syncing ? 'Running…' : '⑤ Sunbiz → FL entity contributions'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runEvidenceAction('match-tier0-all')}
+              disabled={syncing}
+              className="rounded-lg border border-emerald-300/50 px-3 py-1.5 text-xs hover:opacity-90 disabled:opacity-50"
+            >
+              Run ④ + ⑤ together
+            </button>
+            <button
+              type="button"
+              onClick={() => setCommitteeManagerOpen(true)}
+              className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
+            >
+              Committee lean labels
+            </button>
+          </div>
         </div>
       </div>
 

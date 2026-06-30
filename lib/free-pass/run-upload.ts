@@ -1,4 +1,6 @@
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
+import type { FreePassSteps } from '@/lib/free-pass/steps';
+import { FREE_PASS_ALL } from '@/lib/free-pass/steps';
 import { getActiveFlContribSnapshotId } from '@/lib/fl-contrib/lookup';
 import { runFreePassForVoter, type FreePassVoterResult } from '@/lib/free-pass/run-voter';
 import { getActiveSunbizSnapshotIds } from '@/lib/sunbiz/lookup';
@@ -19,6 +21,7 @@ export async function runFreePassForUpload(
   client: PoolClient,
   uploadId: string,
   userId: string,
+  steps: FreePassSteps = FREE_PASS_ALL,
 ): Promise<FreePassUploadResult> {
   const flSnapshotId = await getActiveFlContribSnapshotId(client);
   const sunbizSnapshotIds = await getActiveSunbizSnapshotIds(client);
@@ -52,6 +55,7 @@ export async function runFreePassForUpload(
       sunbizSnapshotIds,
       householdIndex,
       researcherLabels,
+      steps,
     });
     results.push(result);
     events_total += result.events_written;
