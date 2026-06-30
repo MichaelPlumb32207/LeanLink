@@ -987,7 +987,10 @@ export default function DashboardPage() {
           </div>
 
           <div className="mb-4">
-            <h3 className="mb-2 font-medium">② Research scenario (opposition mobilization)</h3>
+            <h3 className="mb-2 font-medium">
+              <span className="mr-2 text-lg font-bold tabular-nums text-emerald-200">2</span>
+              Research scenario (opposition mobilization)
+            </h3>
             <p className="mb-2 text-xs opacity-70">
               Which side is favored in the hypothetical outreach scenario? Affects opposition
               mobilization scoring only — not lean inference.
@@ -1015,7 +1018,7 @@ export default function DashboardPage() {
               disabled={busy}
               className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500 disabled:opacity-50"
             >
-              {busy ? 'Uploading…' : file ? '① Upload & extract NPAs' : 'Choose File'}
+              {busy ? 'Uploading…' : file ? '1 · Upload & extract NPAs' : 'Choose File'}
             </button>
             {file && (
               <button

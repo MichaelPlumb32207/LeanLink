@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
 import { FecSweepPanel } from '@/components/fec-sweep-panel';
+import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { ballotFavorsLabel } from '@/lib/ballot-favors';
 import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
@@ -226,18 +227,22 @@ export function EvidenceWorkspace({
 
       <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">Pipeline</h3>
-        <div className="grid gap-2 text-sm">
-          <p className="text-xs opacity-75">
-            ① <strong>Upload file</strong> — registration extract (+ optional history)
-            {upload ? ` · ${upload.filename}` : ''}
-          </p>
-          <p className="text-xs opacity-75">
-            ② <strong>Extract NPAs</strong> — NPA + Active at ingest
-            {upload ? ` · ${upload.row_count} voters` : ''}
-            {upload?.ballot_favors
-              ? ` · scenario ${ballotFavorsLabel(upload.ballot_favors)}`
-              : ''}
-          </p>
+        <div className="grid gap-3 text-sm">
+          <PipelineStepRow step={1}>
+            <p className="text-xs opacity-85">
+              <strong>Upload file</strong> — registration extract (+ optional history)
+              {upload ? ` · ${upload.filename}` : ''}
+            </p>
+          </PipelineStepRow>
+          <PipelineStepRow step={2}>
+            <p className="text-xs opacity-85">
+              <strong>Extract NPAs</strong> — NPA + Active at ingest
+              {upload ? ` · ${upload.row_count} voters` : ''}
+              {upload?.ballot_favors
+                ? ` · scenario ${ballotFavorsLabel(upload.ballot_favors)}`
+                : ''}
+            </p>
+          </PipelineStepRow>
           {upload && (
             <FecSweepPanel
               uploadId={uploadId}
@@ -245,7 +250,7 @@ export function EvidenceWorkspace({
               onImported={() => void refreshAll()}
             />
           )}
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-1 pl-[calc(1.35rem+0.625rem)]">
             <button
               type="button"
               onClick={() => void runEvidenceAction('match-fl-contrib')}
@@ -253,7 +258,11 @@ export function EvidenceWorkspace({
               title="FL DOS bulk index — person-name contributions + household anchor"
               className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
             >
-              {syncing ? 'Running…' : '④ Match FL contributors (person)'}
+              {syncing ? (
+                'Running…'
+              ) : (
+                <PipelineStepButtonLabel step={4} label="Match FL contributors (person)" />
+              )}
             </button>
             <button
               type="button"
@@ -262,7 +271,11 @@ export function EvidenceWorkspace({
               title="Sunbiz officer match, then entity FL contributions (layer 2)"
               className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
             >
-              {syncing ? 'Running…' : '⑤ Sunbiz → FL entity contributions'}
+              {syncing ? (
+                'Running…'
+              ) : (
+                <PipelineStepButtonLabel step={5} label="Sunbiz → FL entity contributions" />
+              )}
             </button>
             <button
               type="button"
@@ -270,7 +283,7 @@ export function EvidenceWorkspace({
               disabled={syncing}
               className="rounded-lg border border-emerald-300/50 px-3 py-1.5 text-xs hover:opacity-90 disabled:opacity-50"
             >
-              Run ④ + ⑤ together
+              Run steps 4 + 5 together
             </button>
             <button
               type="button"
