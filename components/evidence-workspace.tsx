@@ -5,10 +5,18 @@ import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
 import { FecSweepPanel } from '@/components/fec-sweep-panel';
 import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
+import { PipelineFlowTrack, PipelineScoreboardPanel } from '@/components/pipeline-scoreboard';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { ballotFavorsLabel } from '@/lib/ballot-favors';
 import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
+import {
+  buildPipelineScoreboard,
+  buildPipelineSteps,
+  confirmLongRerun,
+  suggestNextStep,
+  type PipelineStepState,
+} from '@/lib/pipeline-status';
 
 type VoterListRow = {
   id: string;
@@ -84,6 +92,7 @@ export function EvidenceWorkspace({
   const [armFilters, setArmFilters] = useState<Set<VoterArmFilter>>(new Set());
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncingAction, setSyncingAction] = useState<Tier0Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [committeeManagerOpen, setCommitteeManagerOpen] = useState(false);
 
@@ -144,6 +153,16 @@ export function EvidenceWorkspace({
   }, [refreshAll]);
 
   useEffect(() => {
+    const fecStatus = summary?.fec_sweep?.status;
+    const fecRunning = fecStatus === 'running' || fecStatus === 'queued';
+    if (!fecRunning) return;
+    const id = window.setInterval(() => {
+      void refreshSummary().catch(() => {});
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [summary?.fec_sweep?.status, refreshSummary]);
+
+  useEffect(() => {
     if (!selectedId) {
       setDetail(null);
       return;
@@ -179,10 +198,9 @@ export function EvidenceWorkspace({
     );
   }, [detail]);
 
-  const runEvidenceAction = async (
-    action: 'sync-fec' | 'build-anchor' | 'free-pass' | Tier0Action,
-  ) => {
+  const runEvidenceAction = async (action: Tier0Action) => {
     setSyncing(true);
+    setSyncingAction(action);
     setError(null);
     try {
       const res = await fetch(`/api/uploads/${uploadId}/evidence`, {
@@ -199,7 +217,69 @@ export function EvidenceWorkspace({
       setError(e instanceof Error ? e.message : 'Action failed');
     } finally {
       setSyncing(false);
+      setSyncingAction(null);
     }
+  };
+
+  const pipelineSteps = useMemo(
+    () =>
+      summary
+        ? buildPipelineSteps(summary, { tier0_running: syncing })
+        : buildPipelineSteps({
+            upload_id: uploadId,
+            voter_count: upload?.row_count ?? 0,
+            arms: {},
+            fusion: {
+              fused_count: 0,
+              provisional_count: 0,
+              conflicted_count: 0,
+              undetermined_count: 0,
+              by_lean: {},
+            },
+            fec_sweep: null,
+          }),
+    [summary, syncing, uploadId, upload?.row_count],
+  );
+
+  const pipelineScoreboard = useMemo(
+    () => (summary ? buildPipelineScoreboard(summary) : null),
+    [summary],
+  );
+
+  const suggestedStep = useMemo(() => suggestNextStep(pipelineSteps), [pipelineSteps]);
+
+  const fecImported = (summary?.arms.fec?.event_count ?? 0) > 0;
+
+  const runTier0Action = async (action: Tier0Action, stepId: 4 | 5, stepTitle: string) => {
+    const step = pipelineSteps.find((s) => s.id === stepId);
+    if (step?.state === 'locked') return;
+    if (step?.state === 'complete' && !confirmLongRerun(stepTitle)) return;
+    await runEvidenceAction(action);
+  };
+
+  const runTier0All = async () => {
+    const step4 = pipelineSteps.find((s) => s.id === 4);
+    const step5 = pipelineSteps.find((s) => s.id === 5);
+    if (step4?.state === 'locked' && step5?.state === 'locked') return;
+    if (
+      (step4?.state === 'complete' || step5?.state === 'complete') &&
+      !confirmLongRerun('FL contributors + Sunbiz (steps 4 + 5)')
+    ) {
+      return;
+    }
+    await runEvidenceAction('match-tier0-all');
+  };
+
+  const tier0ButtonClass = (stepState: PipelineStepState, stepId: 4 | 5) => {
+    const suggested = suggestedStep === stepId;
+    const base =
+      'rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50';
+    if (stepState === 'locked') return `${base} border-white/10 opacity-40 cursor-not-allowed`;
+    if (stepState === 'complete' && !suggested) {
+      return `${base} border-emerald-400/40 bg-emerald-500/10 opacity-85`;
+    }
+    if (suggested) return `${base} border-amber-400/70 bg-amber-500/20 ring-1 ring-amber-400/50`;
+    return `${base} border-amber-400/50 bg-amber-500/10`;
   };
 
   const fecArm = summary?.arms.fec;
@@ -225,8 +305,17 @@ export function EvidenceWorkspace({
         </button>
       </div>
 
-      <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">Pipeline</h3>
+      <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">Pipeline</h3>
+          {suggestedStep != null && (
+            <p className="text-xs text-amber-200/90">
+              Next: step {suggestedStep} — long runs require confirmation if already complete
+            </p>
+          )}
+        </div>
+        <PipelineFlowTrack steps={pipelineSteps} suggestedStep={suggestedStep} />
+        {pipelineScoreboard && <PipelineScoreboardPanel score={pipelineScoreboard} />}
         <div className="grid gap-3 text-sm">
           <PipelineStepRow step={1}>
             <p className="text-xs opacity-85">
@@ -248,42 +337,82 @@ export function EvidenceWorkspace({
               uploadId={uploadId}
               voterCount={upload.row_count}
               onImported={() => void refreshAll()}
+              stepState={pipelineSteps.find((s) => s.id === 3)?.state ?? 'ready'}
+              suggested={suggestedStep === 3}
+              fecImported={fecImported}
             />
           )}
           <div className="flex flex-wrap gap-2 pt-1 pl-[calc(1.35rem+0.625rem)]">
+            {(() => {
+              const step4 = pipelineSteps.find((s) => s.id === 4)!;
+              const step4Complete = step4.state === 'complete';
+              return (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void runTier0Action('match-fl-contrib', 4, 'FL contributors (person)')
+                  }
+                  disabled={syncing || step4.state === 'locked'}
+                  title={
+                    step4.state === 'locked'
+                      ? 'Import FEC into the ledger first (step 3)'
+                      : 'FL DOS bulk index — person-name contributions + household anchor'
+                  }
+                  className={tier0ButtonClass(step4.state, 4)}
+                >
+                  {syncingAction === 'match-fl-contrib' ? (
+                    'Running…'
+                  ) : step4Complete ? (
+                    <>
+                      <PipelineStepButtonLabel step={4} label="Complete ✓ · Re-run FL contributors" />
+                    </>
+                  ) : (
+                    <PipelineStepButtonLabel step={4} label="Match FL contributors (person)" />
+                  )}
+                </button>
+              );
+            })()}
+            {(() => {
+              const step5 = pipelineSteps.find((s) => s.id === 5)!;
+              const step5Complete = step5.state === 'complete';
+              return (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void runTier0Action('match-sunbiz-entity', 5, 'Sunbiz → FL entity')
+                  }
+                  disabled={syncing || step5.state === 'locked'}
+                  title={
+                    step5.state === 'locked'
+                      ? 'Complete step 4 (FL contributors) first'
+                      : 'Sunbiz officer match, then entity FL contributions (layer 2)'
+                  }
+                  className={tier0ButtonClass(step5.state, 5)}
+                >
+                  {syncingAction === 'match-sunbiz-entity' ? (
+                    'Running…'
+                  ) : step5Complete ? (
+                    <PipelineStepButtonLabel
+                      step={5}
+                      label="Complete ✓ · Re-run Sunbiz → FL entity"
+                    />
+                  ) : (
+                    <PipelineStepButtonLabel step={5} label="Sunbiz → FL entity contributions" />
+                  )}
+                </button>
+              );
+            })()}
             <button
               type="button"
-              onClick={() => void runEvidenceAction('match-fl-contrib')}
-              disabled={syncing}
-              title="FL DOS bulk index — person-name contributions + household anchor"
-              className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {syncing ? (
-                'Running…'
-              ) : (
-                <PipelineStepButtonLabel step={4} label="Match FL contributors (person)" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => void runEvidenceAction('match-sunbiz-entity')}
-              disabled={syncing}
-              title="Sunbiz officer match, then entity FL contributions (layer 2)"
-              className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {syncing ? (
-                'Running…'
-              ) : (
-                <PipelineStepButtonLabel step={5} label="Sunbiz → FL entity contributions" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => void runEvidenceAction('match-tier0-all')}
-              disabled={syncing}
+              onClick={() => void runTier0All()}
+              disabled={
+                syncing ||
+                (pipelineSteps.find((s) => s.id === 4)?.state === 'locked' &&
+                  pipelineSteps.find((s) => s.id === 5)?.state === 'locked')
+              }
               className="rounded-lg border border-emerald-300/50 px-3 py-1.5 text-xs hover:opacity-90 disabled:opacity-50"
             >
-              Run steps 4 + 5 together
+              {syncingAction === 'match-tier0-all' ? 'Running steps 4 + 5…' : 'Run steps 4 + 5 together'}
             </button>
             <button
               type="button"
@@ -312,8 +441,10 @@ export function EvidenceWorkspace({
       <div className="rounded-xl border border-white/15 bg-black/20 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
           <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums">{summary?.voter_count ?? '—'}</div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">NPAs</div>
+            <div className="text-2xl font-semibold tabular-nums">
+              {pipelineScoreboard?.npas_in_file ?? summary?.voter_count ?? '—'}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide opacity-60">NPAs in file</div>
           </div>
           <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
             <div className="text-2xl font-semibold tabular-nums text-emerald-300">
@@ -322,10 +453,13 @@ export function EvidenceWorkspace({
             <div className="text-[10px] uppercase tracking-wide opacity-60">FEC confirmed</div>
           </div>
           <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums">
-              {fusedCount + provisionalCount}
+            <div className="text-2xl font-semibold tabular-nums text-emerald-300">
+              {pipelineScoreboard?.labeled_count ?? fusedCount + provisionalCount}
             </div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">Labeled (fused)</div>
+            <div className="text-[10px] uppercase tracking-wide opacity-60">
+              Labeled now
+              {pipelineScoreboard ? ` (${pipelineScoreboard.labeled_pct}%)` : ''}
+            </div>
           </div>
           <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
             <div className="text-2xl font-semibold tabular-nums">

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
+import { confirmLongRerun } from '@/lib/pipeline-status';
+import type { PipelineStepState } from '@/lib/pipeline-status';
 
 type FecSweepJob = {
   id: string;
@@ -18,10 +20,16 @@ export function FecSweepPanel({
   uploadId,
   voterCount,
   onImported,
+  stepState = 'ready',
+  suggested = false,
+  fecImported = false,
 }: {
   uploadId: string;
   voterCount: number;
   onImported?: () => void;
+  stepState?: PipelineStepState;
+  suggested?: boolean;
+  fecImported?: boolean;
 }) {
   const [job, setJob] = useState<FecSweepJob | null>(null);
   const [hitRate, setHitRate] = useState<number | null>(null);
@@ -50,7 +58,11 @@ export function FecSweepPanel({
     return () => window.clearInterval(id);
   }, [job, refresh]);
 
+  const running = job?.status === 'running' || job?.status === 'queued';
+  const completed = job?.status === 'completed';
+
   const startSweep = async () => {
+    if (completed && !confirmLongRerun('FEC federal match')) return;
     setBusy(true);
     setError(null);
     setImportDone(false);
@@ -101,22 +113,32 @@ export function FecSweepPanel({
       ? Math.min(100, Math.round((job.processed_count / job.total_count) * 100))
       : 0;
 
-  const running = job?.status === 'running' || job?.status === 'queued';
-  const completed = job?.status === 'completed';
+  const locked = stepState === 'locked';
 
   return (
     <PipelineStepRow step={3}>
-      <div className="rounded-lg border border-sky-400/30 bg-sky-950/20 px-3 py-2.5">
+      <div
+        className={`rounded-lg border px-3 py-2.5 ${
+          suggested
+            ? 'border-amber-400/50 bg-amber-950/25 ring-1 ring-amber-400/40'
+            : stepState === 'complete' || fecImported
+              ? 'border-emerald-400/30 bg-emerald-950/20'
+              : 'border-sky-400/30 bg-sky-950/20'
+        }`}
+      >
         <p className="mb-2 text-xs font-medium opacity-90">Federal FEC match</p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => void startSweep()}
-            disabled={busy || running}
+            disabled={busy || running || locked}
+            title={locked ? 'Complete earlier pipeline steps first' : undefined}
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50 ${
               completed && !running
                 ? 'border-white/20 bg-black/20 opacity-70'
-                : 'border-sky-400/50 bg-sky-500/15'
+                : suggested
+                  ? 'border-amber-400/60 bg-amber-500/20'
+                  : 'border-sky-400/50 bg-sky-500/15'
             }`}
           >
             {busy ? (
@@ -124,7 +146,7 @@ export function FecSweepPanel({
             ) : running ? (
               'FEC match running…'
             ) : completed ? (
-              'Re-run FEC federal match'
+              fecImported ? 'Complete ✓ · Re-run FEC match' : 'Re-run FEC federal match'
             ) : (
               <PipelineStepButtonLabel step={3} label="Run FEC federal match" />
             )}
@@ -139,12 +161,20 @@ export function FecSweepPanel({
                 : 'Available when FEC match status is completed'
             }
             className={`rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-40 ${
-              completed
-                ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
-                : 'border-white/15 bg-black/20'
+              fecImported
+                ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 opacity-80'
+                : completed && suggested
+                  ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+                  : completed
+                    ? 'border-emerald-400/60 bg-emerald-500/20 text-emerald-100'
+                    : 'border-white/15 bg-black/20'
             }`}
           >
-            {importing ? 'Importing…' : 'Import FEC → ledger'}
+            {importing
+              ? 'Importing…'
+              : fecImported
+                ? 'Complete ✓ · Re-import FEC'
+                : 'Import FEC → ledger'}
           </button>
         </div>
         {error && <p className="mt-2 text-xs text-red-200">{error}</p>}
