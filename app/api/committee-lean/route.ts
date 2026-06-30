@@ -66,7 +66,6 @@ export async function POST(request: Request) {
           ? await refusionFlContribForCommittee(client, {
               user_id: userEmail,
               committee_name: body.committee_name!,
-              upload_id: body.upload_id ?? null,
             })
           : { voters_refused: 0 };
 

@@ -14,6 +14,8 @@ type CommitteeRow = {
 
 const LEAN_OPTIONS: LeanLabel[] = ['Left', 'Right', 'Independent'];
 
+type CommitteeDraft = { lean: LeanLabel | ''; notes: string };
+
 export function CommitteeLeanManager({
   uploadId,
   open,
@@ -28,7 +30,8 @@ export function CommitteeLeanManager({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, { lean: LeanLabel; notes: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, CommitteeDraft>>({});
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!uploadId) return;
@@ -53,9 +56,14 @@ export function CommitteeLeanManager({
   }, [open, uploadId, refresh]);
 
   const saveLabel = async (committeeName: string) => {
-    const draft = drafts[committeeName] ?? { lean: 'Left' as LeanLabel, notes: '' };
+    const draft = drafts[committeeName] ?? { lean: '', notes: '' };
+    if (!draft.lean) {
+      setError('Choose a lean before saving.');
+      return;
+    }
     setSaving(committeeName);
     setError(null);
+    setSaveNotice(null);
     try {
       const res = await fetch('/api/committee-lean', {
         method: 'POST',
@@ -64,13 +72,23 @@ export function CommitteeLeanManager({
           committee_name: committeeName,
           lean: draft.lean,
           notes: draft.notes.trim() || undefined,
-          upload_id: uploadId ?? undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error([data.error, data.hint].filter(Boolean).join(' — '));
       setUncertain(data.queue?.uncertain ?? []);
       setLabeled(data.queue?.labeled ?? []);
+      const n = data.refusion?.voters_refused ?? 0;
+      setSaveNotice(
+        n > 0
+          ? `Saved — re-fused ${n} voter${n === 1 ? '' : 's'} across all uploads (no re-run needed).`
+          : 'Saved — label stored for future FL contrib matches (no voters to re-fuse yet).',
+      );
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[committeeName];
+        return next;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -87,8 +105,8 @@ export function CommitteeLeanManager({
           <div>
             <h2 className="text-lg font-semibold">Committee &amp; entity lean</h2>
             <p className="mt-1 text-sm opacity-75">
-              Committees the system could not classify automatically. Label opportunistically — linked
-              NPA voters re-fuse after save.
+              Committees the parser could not classify. Labels are <strong>global</strong> (all counties)
+              — saving re-fuses matching voters automatically; no pipeline re-run required.
             </p>
           </div>
           <button
@@ -106,6 +124,11 @@ export function CommitteeLeanManager({
               {error}
             </p>
           )}
+          {saveNotice && (
+            <p className="rounded-lg border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+              {saveNotice}
+            </p>
+          )}
           {loading && <p className="text-sm opacity-60">Loading…</p>}
 
           <section>
@@ -117,7 +140,7 @@ export function CommitteeLeanManager({
             ) : (
               <ul className="space-y-2">
                 {uncertain.map((row) => {
-                  const draft = drafts[row.committee_name] ?? { lean: 'Left' as LeanLabel, notes: '' };
+                  const draft = drafts[row.committee_name] ?? { lean: '', notes: '' };
                   return (
                     <li
                       key={row.committee_name_norm}
@@ -138,12 +161,13 @@ export function CommitteeLeanManager({
                               ...prev,
                               [row.committee_name]: {
                                 ...draft,
-                                lean: e.target.value as LeanLabel,
+                                lean: e.target.value as LeanLabel | '',
                               },
                             }))
                           }
                           className="rounded-lg border bg-black/25 px-2 py-1 text-xs"
                         >
+                          <option value="">Select lean…</option>
                           {LEAN_OPTIONS.map((o) => (
                             <option key={o} value={o}>
                               {o}
@@ -164,7 +188,7 @@ export function CommitteeLeanManager({
                         />
                         <button
                           type="button"
-                          disabled={saving === row.committee_name}
+                          disabled={saving === row.committee_name || !draft.lean}
                           onClick={() => void saveLabel(row.committee_name)}
                           className="rounded-lg border border-violet-300/50 bg-violet-500/15 px-2.5 py-1 text-xs font-medium disabled:opacity-50"
                         >

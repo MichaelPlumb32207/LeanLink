@@ -42,6 +42,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         const limit = Math.min(Number(searchParams.get('limit') ?? 500), 2000);
         const nameFilter = searchParams.get('name')?.trim();
         const fecOnly = truthyQueryParam(searchParams.get('fec'));
+        const flContribOnly = truthyQueryParam(searchParams.get('fl_contrib'));
         const layer2Only = truthyQueryParam(searchParams.get('layer2'));
         const sunbizOnly = truthyQueryParam(searchParams.get('sunbiz'));
 
@@ -55,6 +56,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
           filterSql += ` AND EXISTS (
                SELECT 1 FROM evidence_events ee
                WHERE ee.voter_record_id = vr.id AND ee.arm = 'fec' AND ee.probable_same_person
+             )`;
+        }
+        if (flContribOnly) {
+          filterSql += ` AND EXISTS (
+               SELECT 1 FROM evidence_events ee
+               WHERE ee.voter_record_id = vr.id AND ee.source = 'fl_contrib_index'
              )`;
         }
         if (layer2Only) {
@@ -81,6 +88,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
                      SELECT 1 FROM evidence_events ee
                      WHERE ee.voter_record_id = vr.id AND ee.arm = 'sunbiz'
                    )) AS has_sunbiz,
+                  (SELECT EXISTS (
+                     SELECT 1 FROM evidence_events ee
+                     WHERE ee.voter_record_id = vr.id AND ee.source = 'fl_contrib_index'
+                   )) AS has_fl_contrib,
                   (SELECT EXISTS (
                      SELECT 1 FROM evidence_events ee
                      WHERE ee.voter_record_id = vr.id AND ee.source = 'fl_contrib_entity'

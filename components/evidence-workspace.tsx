@@ -34,10 +34,11 @@ type VoterListRow = {
   event_count: number;
   fec_confirmed: boolean | null;
   has_sunbiz: boolean | null;
+  has_fl_contrib: boolean | null;
   has_layer2: boolean | null;
 };
 
-type VoterArmFilter = 'fec' | 'layer2' | 'sunbiz';
+type VoterArmFilter = 'fec' | 'fl_contrib' | 'layer2' | 'sunbiz';
 
 type EvidenceEvent = {
   id: string;
@@ -107,6 +108,7 @@ export function EvidenceWorkspace({
     const params = new URLSearchParams({ list: '1', limit: '1000' });
     if (nameFilter.trim()) params.set('name', nameFilter.trim());
     if (armFilters.has('fec')) params.set('fec', '1');
+    if (armFilters.has('fl_contrib')) params.set('fl_contrib', '1');
     if (armFilters.has('layer2')) params.set('layer2', '1');
     if (armFilters.has('sunbiz')) params.set('sunbiz', '1');
     const res = await fetch(`/api/uploads/${uploadId}/evidence?${params}`);
@@ -257,19 +259,6 @@ export function EvidenceWorkspace({
     await runEvidenceAction(action);
   };
 
-  const runTier0All = async () => {
-    const step4 = pipelineSteps.find((s) => s.id === 4);
-    const step5 = pipelineSteps.find((s) => s.id === 5);
-    if (step4?.state === 'locked' && step5?.state === 'locked') return;
-    if (
-      (step4?.state === 'complete' || step5?.state === 'complete') &&
-      !confirmLongRerun('FL contributors + Sunbiz (steps 4 + 5)')
-    ) {
-      return;
-    }
-    await runEvidenceAction('match-tier0-all');
-  };
-
   const tier0ButtonClass = (stepState: PipelineStepState, stepId: 4 | 5) => {
     const suggested = suggestedStep === stepId;
     const base =
@@ -404,18 +393,6 @@ export function EvidenceWorkspace({
             })()}
             <button
               type="button"
-              onClick={() => void runTier0All()}
-              disabled={
-                syncing ||
-                (pipelineSteps.find((s) => s.id === 4)?.state === 'locked' &&
-                  pipelineSteps.find((s) => s.id === 5)?.state === 'locked')
-              }
-              className="rounded-lg border border-emerald-300/50 px-3 py-1.5 text-xs hover:opacity-90 disabled:opacity-50"
-            >
-              {syncingAction === 'match-tier0-all' ? 'Running steps 4 + 5…' : 'Run steps 4 + 5 together'}
-            </button>
-            <button
-              type="button"
               onClick={() => setCommitteeManagerOpen(true)}
               className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
             >
@@ -514,7 +491,16 @@ export function EvidenceWorkspace({
             {(
               [
                 { id: 'fec' as const, label: 'FEC✓', active: 'border-emerald-300/70 bg-emerald-500/15 text-emerald-200' },
-                { id: 'layer2' as const, label: 'Layer-2', active: 'border-sky-300/70 bg-sky-500/15 text-sky-200' },
+                {
+                  id: 'fl_contrib' as const,
+                  label: 'FL contrib',
+                  active: 'border-orange-300/70 bg-orange-500/15 text-orange-200',
+                },
+                {
+                  id: 'layer2' as const,
+                  label: 'FL entity',
+                  active: 'border-sky-300/70 bg-sky-500/15 text-sky-200',
+                },
                 { id: 'sunbiz' as const, label: 'Sunbiz', active: 'border-amber-300/70 bg-amber-500/15 text-amber-200' },
               ] as const
             ).map((f) => {
@@ -573,16 +559,21 @@ export function EvidenceWorkspace({
                         : ''}
                     </td>
                     <td className="py-1.5">
-                      {v.fec_confirmed || v.has_layer2 || v.has_sunbiz ? (
+                      {v.fec_confirmed || v.has_fl_contrib || v.has_layer2 || v.has_sunbiz ? (
                         <span className="flex flex-wrap gap-1">
                           {v.fec_confirmed && (
                             <span className="text-emerald-300" title="FEC confirmed donor">
                               FEC✓
                             </span>
                           )}
+                          {v.has_fl_contrib && (
+                            <span className="text-orange-300" title="FL contributor (person-name match)">
+                              FL
+                            </span>
+                          )}
                           {v.has_layer2 && (
-                            <span className="text-sky-300" title="FL contrib layer-2 entity hit">
-                              L2
+                            <span className="text-sky-300" title="FL contributor via Sunbiz entity">
+                              Ent
                             </span>
                           )}
                           {v.has_sunbiz && (
