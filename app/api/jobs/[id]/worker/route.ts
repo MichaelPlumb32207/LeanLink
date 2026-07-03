@@ -39,6 +39,10 @@ async function claimRows(client: PoolClient, jobId: string, userId: string, limi
        JOIN job ON job.upload_id = vr.upload_id
        WHERE vr.user_id = $2
          AND vr.status = 'pending'
+         AND NOT EXISTS (
+           SELECT 1 FROM voter_lean_fusion vlf
+           WHERE vlf.voter_record_id = vr.id AND vlf.settled_tier IS NOT NULL
+         )
        ORDER BY vr.row_index
        LIMIT $3
        FOR UPDATE OF vr SKIP LOCKED

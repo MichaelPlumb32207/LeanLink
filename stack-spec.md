@@ -17,9 +17,9 @@
 - **Branding**: Default "Matrix" theme with easy toggle to Red (leans-right view) and Blue (leans-left view)
 
 ## Non-Goals for MVP
-- No multi-user / teams yet
+- No multi-user / teams yet (single operator; `account_id` is the seam that later becomes a tenant/login key)
 - No outbound contact / texting features
-- No billing system
+- ~~No billing system~~ — **shipped 2026-07-03**: prepaid accounts + waterfall per-tier billing (`lib/billing/*`, migration 009). See `docs/CLAUDE.md` → "Tiered / prepaid / waterfall product".
 
 ## Nice-to-Haves
 - Responsive dashboard with upload progress, results table, filters, and color-mode toggle

@@ -36,6 +36,45 @@ picture changes materially and must be revisited with counsel first.
 > The original `LeanLink-Plan.html` was drafted before these choices were finalized.
 > It has been reconciled to the above (no Supabase, no n8n, OSINT-only enrichment).
 
+## Tiered / prepaid / waterfall product (2026-07-03)
+
+The engine now supports the model the one-pager (`leanlink-one-pager.html`) sells: submit a
+voter list, run cheap arms first, bill per successful lean at a rising per-tier rate.
+
+- **Generic intake** (`lib/generic-voter-list.ts`) accepts an arbitrary client list
+  (CSV/TSV/paste/JSON, fuzzy headers) and normalizes each row into a `ParsedFlVoterRecord`,
+  so **all existing arms consume it unchanged**. No FL voter file, no voter ID. Anchor gate:
+  name + ≥1 of county/ZIP/street address. Identity hash for these rows is `hashGenericVoter`
+  (name+address+dob+county), separate from the FL `hashVoterPii` (voterId-keyed). Each row
+  gets a data-completeness score (`lib/intake/completeness.ts`, thin/moderate/rich) that
+  reports which arms can reach it. Entry: `sourceType=generic` in `POST /api/uploads`;
+  UI `/dashboard/intake`.
+- **Waterfall settlement** (`lib/evidence/settlement.ts`): a voter "settles" once fusion
+  yields a non-Undetermined lean at ≥ `LEANLINK_SETTLE_THRESHOLD` (default 60). Settlement
+  is set-once at the cheapest contributing tier (0=party, 1=FEC, 2=FL/Sunbiz, 3=OSINT) in
+  `persistFusionForVoter`; **later arms exclude settled voters** from their work-sets
+  (`claimFecSweepRows`, `runFreePassForUpload`, the batch worker). Migration 008 adds the
+  `settled_*` columns. Fusion still runs for unsettled/fall-through voters.
+- **Prepaid billing** (`lib/billing/*`, migration 009): `accounts` hold a `prepaid_balance_usd`
+  (keyed by a slug `account_id`, optional `fec_committee_id`); `billing_ledger` is the
+  append-only signed money log (its `amount_usd` is the rate snapshot, so a later rate edit
+  never re-prices a billed batch); `rate_cards` holds a `default` scope plus per-account
+  overrides (`resolveRates` merges them, no redeploy). Charge points: **baseline** per accepted
+  record at intake, **tier fee** once per settled voter (partial-unique-indexed), **OSINT
+  attempt** per paid `/api/enrichment/test` run. `voter_uploads.account_id` links a batch;
+  `NULL` = internal/test (unbilled). APIs: `/api/accounts`, `/api/accounts/[id]`,
+  `/api/rate-cards`; UI `/dashboard/accounts`.
+
+**Config knobs (money-sensitive, reversible):** `LEANLINK_SETTLE_THRESHOLD`; all fees via the
+`rate_cards` table. OSINT currently bills attempt **and** tier-3 on a hit — set
+`osint_attempt_usd=0` for tier-3-only. Provided-party is stored/scored but emits **no** lean
+yet (treat as a weak prior the arms confirm/override; never bill for echoing a registration).
+
+**Posture note:** billing + generic client lists move the tool toward a sellable service for
+campaigns, distinct from the OSINT-only professor-research posture below. Keep the research
+posture for the UF use case; a campaign/commercial deployment is a deliberate, separately
+reviewed decision.
+
 ## Enrichment policy (POC)
 
 **OSINT only.** No Clearbit / FullContact / commercial data-broker enrichment in the

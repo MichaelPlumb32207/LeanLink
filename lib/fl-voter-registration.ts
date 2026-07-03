@@ -89,6 +89,11 @@ export interface ParsedFlVoterRecord {
   publicRecordsExemption: boolean;
   suppressed: boolean;
   raw: string[];
+  /** Optional client-supplied fields (generic intake); FL extract leaves these unset. */
+  employer?: string | null;
+  occupation?: string | null;
+  /** Provenance: how this record entered the system. Absent = FL DOS extract. */
+  sourceType?: 'fl_extract' | 'generic';
 }
 
 function field(row: string[], index: number): string {

@@ -18,6 +18,14 @@ export interface PipelineScoreboard {
   labeled_pct: number;
   by_lean: Record<string, number>;
   arm_lean_yield: { arm: string; label: string; events: number; lean_signals: number }[];
+  settled_by_tier: Record<string, number>;
+  settled_total: number;
+  billing: {
+    total_usd: number;
+    baseline_usd: number;
+    tier_usd: number;
+    attempt_usd: number;
+  } | null;
 }
 
 export function buildPipelineScoreboard(summary: UploadEvidenceSummary): PipelineScoreboard {
@@ -54,6 +62,16 @@ export function buildPipelineScoreboard(summary: UploadEvidenceSummary): Pipelin
     labeled_pct: npas > 0 ? Math.round((labeled_count / npas) * 1000) / 10 : 0,
     by_lean: summary.fusion.by_lean,
     arm_lean_yield,
+    settled_by_tier: summary.settled.by_tier,
+    settled_total: summary.settled.total,
+    billing: summary.billing
+      ? {
+          total_usd: summary.billing.total_usd,
+          baseline_usd: summary.billing.baseline_usd,
+          tier_usd: summary.billing.tier_usd,
+          attempt_usd: summary.billing.attempt_usd,
+        }
+      : null,
   };
 }
 

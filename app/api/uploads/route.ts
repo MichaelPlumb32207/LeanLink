@@ -7,7 +7,10 @@ import {
   type BallotFavors,
   type VoterHistorySummary,
 } from '@/lib/fl-voter-history';
-import { hashVoterPii } from '@/lib/hash';
+import { hashVoterPii, hashGenericVoter } from '@/lib/hash';
+import { parseGenericVoterList } from '@/lib/generic-voter-list';
+import { resolveRates } from '@/lib/billing/rates';
+import { chargeBaselineBulk, getBalance } from '@/lib/billing/ledger';
 
 export const maxDuration = 120;
 
@@ -15,11 +18,149 @@ function parseBallotFavors(value: FormDataEntryValue | null): BallotFavors {
   return value === 'north' ? 'north' : 'south';
 }
 
+/**
+ * Generic client intake — a flexible voter list (CSV/TSV/pasted/JSON) with no
+ * voter ID. Accepted rows are anchor-gated and carry a completeness score.
+ */
+async function handleGenericUpload(
+  userEmail: string,
+  formData: FormData,
+): Promise<NextResponse> {
+  const file = formData.get('file');
+  const pasted = formData.get('content');
+  const filename =
+    file instanceof File ? file.name : (formData.get('filename') as string) || 'pasted-list';
+
+  let content: string | null = null;
+  if (file instanceof File) content = await file.text();
+  else if (typeof pasted === 'string' && pasted.trim()) content = pasted;
+
+  if (!content) {
+    return NextResponse.json({ error: 'No list content provided' }, { status: 400 });
+  }
+
+  const accountId = ((formData.get('accountId') as string) || '').trim() || null;
+
+  const parsed = parseGenericVoterList(content);
+  if (parsed.accepted.length === 0) {
+    return NextResponse.json(
+      {
+        error: 'No records passed the identity-anchor gate (need name + county/ZIP/address).',
+        rejected: parsed.rejected.length,
+        sampleReasons: parsed.rejected.slice(0, 3).map((r) => r.rejectReason),
+      },
+      { status: 400 },
+    );
+  }
+
+  const result = await withUserDb(userEmail, async (client) => {
+    // If billing to an account, resolve rates and pre-check the prepaid balance
+    // covers at least the baseline for every accepted record.
+    let rates = null as Awaited<ReturnType<typeof resolveRates>> | null;
+    if (accountId) {
+      const balance = await getBalance(client, accountId);
+      if (!balance) throw new Error(`Unknown account_id: ${accountId}`);
+      rates = await resolveRates(client, accountId);
+      const baselineTotal = rates.baseline * parsed.accepted.length;
+      if (balance.prepaid_balance_usd < baselineTotal) {
+        throw new Error(
+          `Insufficient prepaid balance: need $${baselineTotal.toFixed(2)} baseline for ` +
+            `${parsed.accepted.length} records, balance is $${balance.prepaid_balance_usd.toFixed(2)}.`,
+        );
+      }
+    }
+
+    const uploadRes = await client.query<{ id: string }>(
+      `INSERT INTO voter_uploads (user_id, filename, row_count, status, source_type, account_id)
+       VALUES ($1, $2, $3, 'ready', 'generic', $4)
+       RETURNING id`,
+      [userEmail, filename, parsed.accepted.length, accountId],
+    );
+    const uploadId = uploadRes.rows[0].id;
+    const batchSize = 100;
+    const rows = parsed.accepted;
+    const insertedIds: string[] = [];
+
+    for (let start = 0; start < rows.length; start += batchSize) {
+      const chunk = rows.slice(start, start + batchSize);
+      const values: unknown[] = [];
+      const placeholders = chunk.map((row, offset) => {
+        const record = row.record!;
+        const completeness = row.completeness!;
+        const voterHash = hashGenericVoter({
+          name: record.name.full,
+          address: record.residence.full,
+          dob: record.birthDate,
+          county: record.countyCode,
+        });
+        const base = values.length;
+        values.push(
+          uploadId,
+          userEmail,
+          start + offset,
+          JSON.stringify(record),
+          voterHash,
+          completeness.score,
+          completeness.band,
+          JSON.stringify(completeness),
+        );
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, 'pending')`;
+      });
+
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO voter_records
+           (upload_id, user_id, row_index, raw_data, voter_hash,
+            completeness_score, completeness_band, completeness, status)
+         VALUES ${placeholders.join(', ')}
+         ON CONFLICT (upload_id, voter_hash) DO NOTHING
+         RETURNING id`,
+        values,
+      );
+      insertedIds.push(...inserted.rows.map((r) => r.id));
+    }
+
+    // Baseline fee: one $0.03 (default) charge per accepted record, regardless of
+    // any later lean outcome. Skipped entirely for unbilled internal/test batches.
+    let baselineCharged = 0;
+    if (accountId && rates) {
+      baselineCharged = await chargeBaselineBulk(client, {
+        userId: userEmail,
+        accountId,
+        uploadId,
+        voterRecordIds: insertedIds,
+        amount: rates.baseline,
+      });
+    }
+
+    return {
+      uploadId,
+      sourceType: 'generic' as const,
+      accountId,
+      rowCount: insertedIds.length,
+      rejected: parsed.rejected.length,
+      baselineCharged,
+      baselineCostUsd: rates ? Number((rates.baseline * baselineCharged).toFixed(4)) : 0,
+      bandCounts: rows.reduce<Record<string, number>>((acc, r) => {
+        const b = r.completeness!.band;
+        acc[b] = (acc[b] ?? 0) + 1;
+        return acc;
+      }, {}),
+    };
+  });
+
+  return NextResponse.json(result);
+}
+
 export async function POST(request: Request) {
   try {
     const session = await requireUser();
     const userEmail = session.user.email;
     const formData = await request.formData();
+
+    if (formData.get('sourceType') === 'generic') {
+      return await handleGenericUpload(userEmail, formData);
+    }
+
     const file = formData.get('file');
     const historyFile = formData.get('historyFile');
     const ballotFavors = parseBallotFavors(formData.get('ballotFavors'));

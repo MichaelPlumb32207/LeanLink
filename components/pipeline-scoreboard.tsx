@@ -73,6 +73,33 @@ export function PipelineScoreboardPanel({ score }: { score: PipelineScoreboard }
             .join(' · ')}
         </p>
       )}
+      {score.settled_total > 0 && (
+        <p className="mt-2 text-xs opacity-75">
+          Settled (waterfall):{' '}
+          {[
+            ['1', 'FEC'],
+            ['2', 'FL/Sunbiz'],
+            ['3', 'OSINT'],
+            ['0', 'party'],
+          ]
+            .filter(([tier]) => score.settled_by_tier[tier])
+            .map(([tier, label]) => `${label} ${score.settled_by_tier[tier]}`)
+            .join(' · ')}{' '}
+          <span className="opacity-60">({score.settled_total} excluded from later arms)</span>
+        </p>
+      )}
+      {score.billing && (
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+          <span className="font-medium">
+            Billed ${score.billing.total_usd.toFixed(2)}
+          </span>{' '}
+          <span className="opacity-75">
+            = baseline ${score.billing.baseline_usd.toFixed(2)} · leans $
+            {score.billing.tier_usd.toFixed(2)} · OSINT tries $
+            {score.billing.attempt_usd.toFixed(2)}
+          </span>
+        </div>
+      )}
       {score.arm_lean_yield.length > 0 && (
         <div className="mt-3">
           <p className="text-[10px] uppercase tracking-wide opacity-60 mb-1">Arm yield (lean signals)</p>

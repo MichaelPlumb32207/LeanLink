@@ -61,6 +61,10 @@ export async function claimFecSweepRows(
          SELECT 1 FROM fec_lookup_results flr
          WHERE flr.sweep_job_id = $3 AND flr.voter_record_id = vr.id
        )
+       AND NOT EXISTS (
+         SELECT 1 FROM voter_lean_fusion vlf
+         WHERE vlf.voter_record_id = vr.id AND vlf.settled_tier IS NOT NULL
+       )
      ORDER BY vr.row_index
      LIMIT $4`,
     [uploadId, userId, jobId, limit],
@@ -209,6 +213,10 @@ export async function fecSweepRemainingCount(
        AND NOT EXISTS (
          SELECT 1 FROM fec_lookup_results flr
          WHERE flr.sweep_job_id = $3 AND flr.voter_record_id = vr.id
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM voter_lean_fusion vlf
+         WHERE vlf.voter_record_id = vr.id AND vlf.settled_tier IS NOT NULL
        )`,
     [uploadId, userId, jobId],
   );

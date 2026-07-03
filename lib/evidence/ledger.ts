@@ -1,4 +1,7 @@
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
+import { computeSettlement } from '@/lib/evidence/settlement';
+import { getUploadAccountId, chargeSettlement } from '@/lib/billing/ledger';
+import { resolveRates, tierRate } from '@/lib/billing/rates';
 import type {
   EvidenceEventInput,
   EvidenceEventRow,
@@ -121,6 +124,38 @@ export async function persistFusionForVoter(
     ],
   );
 
+  // Waterfall settlement: set once, at the cheapest arm that cleared the bar.
+  // The pipeline runs arms cheap→expensive and re-fuses after each, so the first
+  // crossing is the cheapest tier. `WHERE settled_tier IS NULL` makes it sticky.
+  const settlement = computeSettlement(fusion);
+  if (settlement) {
+    const settled = await client.query(
+      `UPDATE voter_lean_fusion
+       SET settled_arm = $2, settled_tier = $3, settled_at = NOW()
+       WHERE voter_record_id = $1 AND settled_tier IS NULL`,
+      [voterRecordId, settlement.arm, settlement.tier],
+    );
+
+    // Bill the tier success fee exactly once, at the moment of settlement, and
+    // only for batches that bill to an account. Tier 0 (party prior) is free.
+    if (settled.rowCount === 1 && settlement.tier > 0) {
+      const accountId = await getUploadAccountId(client, uploadId);
+      if (accountId) {
+        const rates = await resolveRates(client, accountId);
+        await chargeSettlement(client, {
+          userId,
+          accountId,
+          uploadId,
+          voterRecordId,
+          arm: settlement.arm,
+          tier: settlement.tier,
+          amount: tierRate(rates, settlement.tier),
+          note: `${settlement.arm} lean settled (tier ${settlement.tier})`,
+        });
+      }
+    }
+  }
+
   if (fusion.fusion_status === 'fused' || fusion.fusion_status === 'provisional') {
     const voterHashRes = await client.query<{ voter_hash: string }>(
       `SELECT voter_hash FROM voter_records WHERE id = $1`,
@@ -209,6 +244,30 @@ export async function getUploadEvidenceSummary(
     [uploadId, userId],
   );
 
+  const settledRes = await client.query<{ settled_tier: number; count: string }>(
+    `SELECT settled_tier, COUNT(*)::text AS count
+     FROM voter_lean_fusion
+     WHERE upload_id = $1 AND user_id = $2 AND settled_tier IS NOT NULL
+     GROUP BY settled_tier`,
+    [uploadId, userId],
+  );
+
+  const accountRes = await client.query<{ account_id: string | null }>(
+    `SELECT account_id FROM voter_uploads WHERE id = $1 AND user_id = $2`,
+    [uploadId, userId],
+  );
+  const accountId = accountRes.rows[0]?.account_id ?? null;
+
+  const billingRes = accountId
+    ? await client.query<{ kind: string; total: string }>(
+        `SELECT kind, COALESCE(-SUM(amount_usd), 0)::text AS total
+         FROM billing_ledger
+         WHERE upload_id = $1 AND user_id = $2 AND amount_usd < 0
+         GROUP BY kind`,
+        [uploadId, userId],
+      )
+    : null;
+
   const fecJobRes = await client.query<{
     status: string;
     processed_count: number;
@@ -252,6 +311,31 @@ export async function getUploadEvidenceSummary(
     }
   }
 
+  const settled = { by_tier: {} as Record<string, number>, total: 0 };
+  for (const row of settledRes.rows) {
+    const n = Number(row.count);
+    settled.by_tier[String(row.settled_tier)] = n;
+    settled.total += n;
+  }
+
+  let billing: UploadEvidenceSummary['billing'] = null;
+  if (accountId) {
+    const byKind = { baseline_usd: 0, tier_usd: 0, attempt_usd: 0 };
+    for (const row of billingRes?.rows ?? []) {
+      const amt = Number(row.total);
+      if (row.kind === 'baseline') byKind.baseline_usd = amt;
+      else if (row.kind === 'charge') byKind.tier_usd = amt;
+      else if (row.kind === 'attempt') byKind.attempt_usd = amt;
+    }
+    billing = {
+      account_id: accountId,
+      ...byKind,
+      total_usd: Number(
+        (byKind.baseline_usd + byKind.tier_usd + byKind.attempt_usd).toFixed(4),
+      ),
+    };
+  }
+
   const fecJob = fecJobRes.rows[0];
 
   return {
@@ -259,6 +343,8 @@ export async function getUploadEvidenceSummary(
     voter_count: Number(voterCountRes.rows[0]?.count ?? 0),
     arms,
     fusion,
+    settled,
+    billing,
     fec_sweep: fecJob
       ? {
           status: fecJob.status,

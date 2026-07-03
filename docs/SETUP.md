@@ -41,17 +41,40 @@ Fill in `.env.local`:
 
 ## 2. Database
 
-No migration runner — apply SQL files in order, by hand:
+Apply the SQL files in order. If you have `psql`:
 
 ```bash
-psql "$DATABASE_URL" -f migrations/001_initial_schema.sql
-psql "$DATABASE_URL" -f migrations/002_history_columns.sql
-psql "$DATABASE_URL" -f migrations/003_fec_sweep.sql
+for f in migrations/0*.sql; do psql "$DATABASE_URL" -f "$f"; done
 ```
 
+**No `psql`? Use the bundled Node runner** (uses the project's `pg` driver; reads
+`DATABASE_URL` from the environment or `.env.local`):
+
+```bash
+node scripts/apply-migrations.mjs                       # applies 007, 008, 009 by default
+node scripts/apply-migrations.mjs migrations/009_billing.sql   # or specific files
+```
+
+Full order:
+
+| File | Adds |
+|---|---|
+| `001_initial_schema.sql` | uploads / records / jobs / lean_results + RLS |
+| `002_history_columns.sql` | voting-history summary columns |
+| `003_fec_sweep.sql` | FEC sweep jobs + per-voter lookup results |
+| `004_fec_identity.sql` | FEC identity scoring columns |
+| `005_evidence_ledger.sql` | `evidence_events` + `voter_lean_fusion` |
+| `006_reference_data.sql` | FL contributions + Sunbiz officer bulk indexes |
+| `007_committee_lean.sql` | researcher committee→lean labels |
+| `008_generic_intake_and_settlement.sql` | generic-intake source + completeness cols; waterfall `settled_*` cols |
+| `009_billing.sql` | `accounts`, `billing_ledger`, `rate_cards` (+ default seed), `voter_uploads.account_id` |
+
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
-EXISTS`), so re-running is safe. RLS is enabled by 001 — the app sets `app.current_user`
-per transaction, so nothing extra is needed at the DB level.
+EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.
+**One caveat:** `007_committee_lean.sql` predates the policy-idempotency convention, so a
+`CREATE POLICY ... already exists` error just means 007 is already applied — skip it and
+continue with 008/009. RLS is enabled per table — the app sets `app.current_user` per
+transaction, so nothing extra is needed at the DB level.
 
 ## 3. Google OAuth
 
@@ -95,6 +118,28 @@ full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when bat
   and primary-engagement scoring. Drop it on the dashboard; `_H_` files auto-route.
 
 These contain PII and are **gitignored** — keep them local; never commit.
+
+## 7. Client-list intake + prepaid billing (generic path)
+
+Beyond the FL DOS extract, LeanLink accepts an **arbitrary client voter list** and bills
+research to a prepaid account. To try it in prod:
+
+1. **Billing console** (`/dashboard/accounts`) → create an account (a slug "campaign id",
+   e.g. `smith-for-senate`; optional FEC committee id) → **Record deposit**.
+2. **Client list intake** (`/dashboard/intake`) → paste/drop a CSV (header row; any of
+   `name, county, address, city, state, zip, dob, email, phone, employer, party`) → pick
+   the account → **Ingest list**. Rows need a name + at least one of county/ZIP/address
+   (the anchor gate); each accepted record incurs the **baseline fee**.
+3. Back on the dashboard, select the new upload and run **FEC → FL/Sunbiz → OSINT**. The
+   waterfall **settles** a voter once a confident lean is found and **excludes** it from
+   later (pricier) arms; each settlement bills its tier fee, and each OSINT attempt bills
+   the attempt fee. The scoreboard shows "Settled by tier" + "Billed $…"; the Billing
+   console shows the per-batch invoice + ledger.
+
+Fees are editable in the Billing console rate-card editor (`default` + per-account
+overrides). Verify the billing engine without the UI via `npx tsx scripts/smoke-billing.ts`
+(runs against your DB in a rolled-back transaction — nothing persists). Settlement
+threshold is `LEANLINK_SETTLE_THRESHOLD` (default 60).
 
 ## Troubleshooting
 

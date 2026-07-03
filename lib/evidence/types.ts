@@ -80,6 +80,17 @@ export interface UploadEvidenceSummary {
     undetermined_count: number;
     by_lean: Record<string, number>;
   };
+  settled: {
+    by_tier: Record<string, number>; // "0".."3" → voters settled at that tier
+    total: number;
+  };
+  billing: {
+    account_id: string;
+    baseline_usd: number;
+    tier_usd: number;
+    attempt_usd: number;
+    total_usd: number;
+  } | null;
   fec_sweep: {
     status: string | null;
     processed_count: number;

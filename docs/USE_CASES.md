@@ -128,3 +128,40 @@ without Grok spend.
 | T11.2 | No FEC API key | Falls back to `DEMO_KEY` or returns API error if rate-limited. |
 | T11.3 | Voter not found at row index | Row entry with `error: Voter record not found`. |
 | T11.4 | Dashboard FEC test | JSON shows `rows_with_hits` / `row_count`; no `usage.cost_usd`. |
+
+## UC-12 — Generic client-list intake ✅
+**As** the operator, **I can** ingest an arbitrary client voter list (no FL voter file) via
+`/dashboard/intake`, anchor-gated and scored for completeness.
+
+| ID | Test | Expected |
+|---|---|---|
+| T12.1 | Paste CSV with header `name,county,address,city,zip,dob` | Rows normalized to `ParsedFlVoterRecord`; count shown. |
+| T12.2 | `"Last, First"` quoted name; commas in address | Name split correctly; address preserved (quoted-field parser). |
+| T12.3 | Row with a name but no county/ZIP/address | Rejected at the anchor gate with a reason; other rows still accepted. |
+| T12.4 | Row with only name + ZIP vs. full address + employer | Completeness `thin` vs `rich`; `reachable` gates FL/Sunbiz off without a street. |
+| T12.5 | JSON array with aliased keys (`firstName`, `Zip`) | Parsed via header aliasing. |
+| T12.6 | Same person twice within one list | Deduped on `hashGenericVoter` (name+address+dob+county). |
+
+## UC-13 — Waterfall settlement (skip settled voters) ✅
+**As** the operator, **I want** a confidently-leaned voter excluded from later, pricier arms.
+
+| ID | Test | Expected |
+|---|---|---|
+| T13.1 | FEC yields lean ≥ `LEANLINK_SETTLE_THRESHOLD`, identity confirmed/probable | `voter_lean_fusion.settled_tier=1`; set-once. |
+| T13.2 | Run FL/Sunbiz after a tier-1 settle | Settled voters excluded from the free-pass work-set (no new events). |
+| T13.3 | FEC hit but lean Undetermined or below threshold | Not settled; falls through to next arm. |
+| T13.4 | Multiple arms contribute a lean | Settles at the **cheapest** contributing tier. |
+
+## UC-14 — Prepaid billing (accounts, waterfall pricing) ✅
+**As** the operator, **I can** prepay an account and have research deducted per tier.
+
+| ID | Test | Expected |
+|---|---|---|
+| T14.1 | Create account + deposit (`/dashboard/accounts`) | Balance reflects deposit; one `deposit` ledger row. |
+| T14.2 | Ingest a list billed to the account | One **baseline** charge per accepted record; idempotent on re-upload. |
+| T14.3 | A voter settles at tier N | One tier-N `charge`, once per voter (partial unique index). |
+| T14.4 | Each paid OSINT run | One `attempt` charge (hit or miss), not deduped. |
+| T14.5 | Intake with balance < baseline total | 400 "Insufficient prepaid balance"; nothing ingested. |
+| T14.6 | Edit default fee / set per-account override | New batches bill at resolved rates; prior ledger rows unchanged (rate snapshot). |
+| T14.7 | Unbilled batch (`account_id` NULL) | No ledger rows; arms run free. |
+| T14.8 | `scripts/smoke-billing.ts` | All ✓; rolls back; "Billing engine verified". |

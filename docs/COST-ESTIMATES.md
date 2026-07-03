@@ -28,6 +28,26 @@ Using the single-voter anchor **$0.033/voter**:
 **Working estimate: $250–$500 per 10,000 voters** until we have 10+ samples across scenarios
 (email on file, common surnames, probable matches, etc.).
 
+## Pricing vs. cost (prepaid billing, D-024)
+
+Client-facing fees live in the editable `rate_cards` table (seeded defaults below), not in
+code — tune per account without a redeploy. The waterfall means most voters settle on the
+**free** deterministic arms (FEC/FL/Sunbiz), so the paid Grok cost above is incurred only for
+records that fall through to OSINT.
+
+| Fee | Default | Cost it must cover |
+|---|---|---|
+| Baseline / accepted record | $0.03 | ingest + free-arm attempts; charged on every record, hit or miss |
+| Tier 1 (FEC settle) | $0.15 | free API — margin |
+| Tier 2 (FL/Sunbiz settle) | $0.25 | free indexes — margin |
+| Tier 3 (OSINT settle) | $0.33 | value premium on a Grok/Apify hit |
+| OSINT / attempt | $0.05 | recovers the ~$0.033/voter Grok cost above on **misses** |
+
+The baseline + OSINT-attempt fees exist specifically so a thin-data list (which cascades to
+the expensive OSINT arm and rarely settles cheaply) doesn't consume paid attempts for free.
+Numbers here are the seeded defaults — the one-pager quotes a different set; treat both as
+starting points, adjust in the Billing console.
+
 ### What drives variance
 
 - Number of `web_search_calls` per voter (agentic loop)

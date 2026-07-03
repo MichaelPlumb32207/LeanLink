@@ -6,6 +6,25 @@ current as design shifts.
 
 ---
 
+## D-024 · Tiered / prepaid / waterfall billing + generic client intake
+**Decision:** Turn the evidence engine into the product the one-pager sells. (1) **Generic
+intake** — accept an arbitrary client list (name + one of county/ZIP/address required; no FL
+voter file, no voter ID), normalized to `ParsedFlVoterRecord` so arms are unchanged
+(`lib/generic-voter-list.ts`); per-row completeness score. (2) **Waterfall settlement** — a
+confident lean (≥ `LEANLINK_SETTLE_THRESHOLD`) settles a voter at the cheapest contributing
+tier and later arms skip it (`lib/evidence/settlement.ts`). (3) **Prepaid billing** — an
+`account_id` holds a balance; charge **baseline** per record, **tier fee** per settled lean,
+**OSINT attempt** per paid run; editable `rate_cards` (default + per-account overrides);
+ledger `amount_usd` snapshots the rate (`lib/billing/*`, migration 009). **Why:** the value
+is inferring lean for *unknowns*, priced by how much research it took; a hard waterfall (vs
+pure fusion) makes the per-tier price meaningful and saves real API spend on already-found
+voters. **Chose "hard stop above threshold"** over pure fusion (accuracy vs cost) and a
+**baseline-per-record + attempt-priced OSINT** (vs pure success-only) to stop thin-data lists
+consuming expensive attempts for free. **Overrides:** the `stack-spec.md` "No billing system"
+non-goal. **Open (reversible config):** OSINT hit bills attempt + tier-3 (`osint_attempt_usd=0`
+for tier-3 only); provided-party emits no lean yet (weak-prior recommendation). Single-operator
+now; `account_id` is the seam to future multi-tenant login.
+
 ## D-023 · Multi-arm evidence accumulator + fused lean
 **Decision:** Add `evidence_events` ledger (per voter, per arm) and `voter_lean_fusion` with
 `lib/evidence/fusion.ts` rules. Each arm appends: identity band/score, optional lean signal,

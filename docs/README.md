@@ -25,6 +25,13 @@ Read in this order when joining the project cold.
 4. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate).
 5. **Export** CSV/JSON when fused lean exists in `lean_results`.
 
+## Tiered / prepaid product (2026-07-03)
+
+- **`/dashboard/intake`** — ingest an arbitrary client voter list (no FL voter file); anchor-gated, completeness-scored.
+- **`/dashboard/accounts`** — prepaid billing console: accounts, deposits, per-batch invoices, ledger, editable rate cards.
+- Waterfall settlement skips already-found voters in later arms; billing charges baseline + per-tier + OSINT-attempt.
+- Dev scripts: `node scripts/apply-migrations.mjs` (migrations), `npx tsx scripts/smoke-billing.ts` (billing verifier). See `DECISIONS.md` D-024 and `CLAUDE.md` → "Tiered / prepaid / waterfall product".
+
 ## Key code paths (enrichment)
 
 | Path | Role |

@@ -238,6 +238,8 @@ export function EvidenceWorkspace({
               undetermined_count: 0,
               by_lean: {},
             },
+            settled: { by_tier: {}, total: 0 },
+            billing: null,
             fec_sweep: null,
           }),
     [summary, syncing, uploadId, upload?.row_count],

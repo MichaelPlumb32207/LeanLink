@@ -20,11 +20,13 @@ npm run lint     # eslint (next lint)
 ```
 
 There is **no test runner and no typecheck script** yet (`tsc --noEmit` works ad hoc via
-the tsconfig). There is **no migration runner**: apply `migrations/001_initial_schema.sql`
-then `migrations/002_history_columns.sql`, then `migrations/003_fec_sweep.sql`, then
-`migrations/004_fec_identity.sql`, then `migrations/005_evidence_ledger.sql`, then `migrations/006_reference_data.sql` to Neon by hand
-(`psql "$DATABASE_URL" -f ...`), in order. Migrations are additive and idempotent
-(`IF NOT EXISTS`). See `docs/SETUP.md`.
+the tsconfig). Apply migrations `001` → `009` to Neon in order — either by hand
+(`psql "$DATABASE_URL" -f migrations/00X_*.sql`) or, without `psql`, via
+`node scripts/apply-migrations.mjs` (uses the project's `pg` driver + `.env.local`).
+Migrations are additive and idempotent (`IF NOT EXISTS`; policies `DROP … IF EXISTS` then
+`CREATE`) — except `007_committee_lean.sql`, whose `CREATE POLICY` predates that convention,
+so a "policy already exists" error just means 007 is applied; skip it. `008` adds generic
+intake + waterfall settlement columns; `009` adds prepaid billing. See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 

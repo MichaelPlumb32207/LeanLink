@@ -12,7 +12,9 @@ validation — **not** for contacting, marketing to, or targeting individuals. S
 
 > **Status:** working POC pipeline. Upload + turnout/mobilization scoring are production-ready.
 > Grok OSINT enrichment runs per-voter via dashboard tests; **full-file batch jobs are disabled**
-> until cost/coverage are validated (`LEANLINK_ENABLE_BATCH_INFERENCE`). See
+> until cost/coverage are validated (`LEANLINK_ENABLE_BATCH_INFERENCE`).
+> **New (2026-07-03):** generic client-list intake, waterfall settlement (skip already-found
+> voters), and prepaid per-tier billing — the tiered product the one-pager sells. See
 > [`docs/PROGRESS.md`](docs/PROGRESS.md) for where to pick up.
 
 ## Stack
@@ -25,9 +27,8 @@ No ORM, no n8n, no external queue.
 
 ```bash
 cp .env.example .env.local      # then fill in the values — see docs/SETUP.md
-psql "$DATABASE_URL" -f migrations/001_initial_schema.sql
-psql "$DATABASE_URL" -f migrations/002_history_columns.sql
 npm install
+node scripts/apply-migrations.mjs   # applies migrations in order (no psql needed)
 npm run dev                     # http://localhost:3000
 ```
 

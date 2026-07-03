@@ -6,6 +6,36 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-30
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-03, tiered/prepaid product)
+
+**Shipped this session (build green; migrations 008/009 applied to Neon; billing engine
+verified via `scripts/smoke-billing.ts`):** LeanLink now runs as the tiered, prepaid,
+waterfall product the one-pager (`leanlink-one-pager.html`) sells.
+
+- **Generic client intake** (`lib/generic-voter-list.ts`, `lib/intake/completeness.ts`):
+  arbitrary CSV/TSV/paste/JSON with fuzzy headers, normalized to `ParsedFlVoterRecord` so
+  every arm consumes it unchanged. Anchor gate = name + one of county/ZIP/address. No voter
+  ID → `hashGenericVoter` (name+address+dob+county). Per-record completeness (thin/moderate/
+  rich). New route `/dashboard/intake`; `sourceType=generic` branch in `POST /api/uploads`.
+- **Waterfall settlement** (`lib/evidence/settlement.ts`): once an arm yields a confident
+  lean (≥ `LEANLINK_SETTLE_THRESHOLD`, default 60) it settles the voter at the cheapest
+  contributing tier and **all later arms skip it** (FEC claim, free-pass, batch worker
+  work-sets). Sticky, set-once in `persistFusionForVoter`. Migration 008 `settled_*` cols.
+- **Prepaid billing** (`lib/billing/*`, migration 009): `accounts` hold a balance;
+  `billing_ledger` is the append-only money log; `rate_cards` (`default` + per-account
+  overrides, editable, no redeploy). Charge points: **baseline** per accepted record,
+  **tier fee** once per settled voter, **OSINT attempt** per paid run. APIs `/api/accounts`,
+  `/api/accounts/[id]`, `/api/rate-cards`; UI `/dashboard/accounts` (create/deposit/invoice/
+  ledger/rate editor). Scoreboard shows settled-by-tier + billed totals.
+
+**Open decisions (reversible config):** OSINT hit currently bills attempt **+** tier-3 (set
+`osint_attempt_usd=0` to bill tier-3 only). Provided-party is inert (no lean emitted) —
+recommended treatment is "weak prior, arms still run," not pre-settle.
+
+**Validate in prod:** create account → deposit → `/dashboard/intake` sample list billed to
+it → run FEC/FL/OSINT → scoreboard "Settled by tier" + "Billed $…"; Billing console invoice
+reconciles. Confirm settled voters are skipped by later arms (no new cost).
+
 ## Where to pick up (continuity note — 2026-06-30, pre-deploy)
 
 **⚠️ Before you stop for validation:** local changes are **not on Vercel** until **`git commit` +
@@ -110,6 +140,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 |---|---|---|
 | Google sign-in, single-user lockout | ✅ | `lib/auth.ts`, restricted to `ALLOWED_USER_EMAIL`. |
 | Registration extract parsing (38-field) + NPA/Active filter | ✅ | `lib/fl-voter-registration.ts`. |
+| Generic client-list intake (CSV/paste/JSON, anchor gate, completeness) | ✅ | `lib/generic-voter-list.ts`, `lib/intake/completeness.ts`, `/dashboard/intake`. |
+| Waterfall settlement (skip settled voters in later arms) | ✅ | `lib/evidence/settlement.ts`, migration 008; threshold `LEANLINK_SETTLE_THRESHOLD`. |
+| Prepaid billing (accounts, ledger, rate cards, charge points) | ✅ | `lib/billing/*`, migration 009, `/dashboard/accounts`; verified `scripts/smoke-billing.ts`. |
 | Voting-history extract parsing + turnout scoring | ✅ | `lib/fl-voter-history.ts`. |
 | Upload → hash → batch ingest | ✅ | `app/api/uploads`, `lib/hash.ts`. No Grok on upload. |
 | Job runner: claim/process/heartbeat, self-chaining worker | ✅ | Gated by `lib/batch-inference.ts`. |

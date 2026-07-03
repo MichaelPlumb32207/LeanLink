@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -846,12 +847,26 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold">LeanLink NPA FL Dashboard</h1>
             <p className="text-sm opacity-80">{session?.user?.email}</p>
           </div>
-          <button
-            onClick={() => signOut({ callbackUrl: '/' })}
-            className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
-          >
-            Sign out
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/intake"
+              className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-4 py-2 text-sm hover:opacity-80"
+            >
+              Client list intake
+            </Link>
+            <Link
+              href="/dashboard/accounts"
+              className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
+            >
+              Billing console
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
+            >
+              Sign out
+            </button>
+          </div>
         </header>
 
         <div className="flex flex-wrap gap-2">

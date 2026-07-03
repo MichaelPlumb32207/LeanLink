@@ -36,9 +36,13 @@ export async function runFreePassForUpload(
     id: string;
     raw_data: ParsedFlVoterRecord;
   }>(
-    `SELECT id, raw_data FROM voter_records
-     WHERE upload_id = $1 AND user_id = $2
-     ORDER BY row_index`,
+    `SELECT vr.id, vr.raw_data FROM voter_records vr
+     WHERE vr.upload_id = $1 AND vr.user_id = $2
+       AND NOT EXISTS (
+         SELECT 1 FROM voter_lean_fusion vlf
+         WHERE vlf.voter_record_id = vr.id AND vlf.settled_tier IS NOT NULL
+       )
+     ORDER BY vr.row_index`,
     [uploadId, userId],
   );
 

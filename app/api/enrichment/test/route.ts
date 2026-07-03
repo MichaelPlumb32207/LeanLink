@@ -12,6 +12,8 @@ import { getApifyApiToken } from '@/lib/apify/config';
 import { getXaiApiKey } from '@/lib/xai/client';
 import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
 import { buildOsintEvidenceEvent } from '@/lib/evidence/osint-events';
+import { getUploadAccountId, chargeOsintAttempt } from '@/lib/billing/ledger';
+import { resolveRates } from '@/lib/billing/rates';
 
 function isApifyResult(
   result: Awaited<ReturnType<typeof runEnrichmentPipeline>>,
@@ -181,6 +183,23 @@ export async function POST(request: Request) {
           cost_usd: result.debug?.usage?.cost_usd ?? null,
         }),
       );
+
+      // OSINT is charged per attempt (hit or miss) — this is a paid Grok/Apify
+      // run. A settling hit also bills its tier fee inside fuseAndPersistVoter.
+      const accountId = await getUploadAccountId(client, body.uploadId!);
+      if (accountId) {
+        const rates = await resolveRates(client, accountId);
+        await chargeOsintAttempt(client, {
+          userId: userEmail,
+          accountId,
+          uploadId: body.uploadId!,
+          voterRecordId: row.id,
+          amount: rates.osintAttempt,
+          arm: 'osint',
+          note: `osint attempt (${mode})`,
+        });
+      }
+
       await fuseAndPersistVoter(client, row.id, body.uploadId!, userEmail);
     });
 
