@@ -36,6 +36,13 @@ recommended treatment is "weak prior, arms still run," not pre-settle.
 it → run FEC/FL/OSINT → scoreboard "Settled by tier" + "Billed $…"; Billing console invoice
 reconciles. Confirm settled voters are skipped by later arms (no new cost).
 
+**Fix (same session):** `lib/fec/contributor-lookup.ts` now **retries transient FEC 5xx +
+network errors** (was 429-only), so an intermittent FEC 502 no longer records a real donor as
+a non-donor. Root-caused via `scripts/debug-fec.ts` — a known Calhoun donor (Dianne Foster,
+4 FEC contributions) "missed" purely because FEC threw a 502 and the lookup aborted with no
+retry. Rows that errored *before* this fix are cached as no-hit for their sweep job; re-run
+FEC (fresh job) or re-ingest to pick them up.
+
 ## Where to pick up (continuity note — 2026-06-30, pre-deploy)
 
 **⚠️ Before you stop for validation:** local changes are **not on Vercel** until **`git commit` +

@@ -107,25 +107,54 @@ export async function lookupFecContributions(params: {
   const api_url = `${FEC_API_BASE}/schedules/schedule_a/?${search.toString()}`;
 
   try {
+    // Retry transient failures: 429 (rate limit, long backoff) and 5xx / network
+    // blips (FEC's gateway 502s intermittently — short backoff). Without this a
+    // flaky 502 makes a real donor look like a non-donor with no second chance.
+    const RETRIABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+    const MAX_ATTEMPTS = 4;
     let res: Response | null = null;
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      res = await fetch(api_url, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
+    let networkError: unknown = null;
 
-      if (res.status !== 429) break;
-      await sleep(15_000 * (attempt + 1));
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      try {
+        res = await fetch(api_url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      } catch (err) {
+        networkError = err;
+        res = null;
+        if (attempt < MAX_ATTEMPTS - 1) {
+          await sleep(1_000 * (attempt + 1));
+          continue;
+        }
+        break;
+      }
+
+      if (!RETRIABLE_STATUS.has(res.status)) break;
+      if (attempt < MAX_ATTEMPTS - 1) {
+        // 429 = rate limit (needs a long pause); 5xx = transient (recovers fast).
+        await sleep(res.status === 429 ? 15_000 * (attempt + 1) : 1_000 * (attempt + 1));
+      }
     }
 
-    if (!res || !res.ok) {
-      const text = res ? await res.text() : 'No response';
+    if (!res) {
       return {
         query: { contributor_name, contributor_state, contributor_city, contributor_zip },
         api_url,
         result_count: 0,
         contributions: [],
-        error: `FEC API ${res?.status ?? 'unknown'}: ${text.slice(0, 200)}`,
+        error: `FEC API request failed: ${
+          networkError instanceof Error ? networkError.message : 'no response'
+        }`,
+      };
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        query: { contributor_name, contributor_state, contributor_city, contributor_zip },
+        api_url,
+        result_count: 0,
+        contributions: [],
+        error: `FEC API ${res.status}: ${text.slice(0, 200)}`,
       };
     }
 
