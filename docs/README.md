@@ -15,6 +15,7 @@ Read in this order when joining the project cold.
 | [`USE_CASES.md`](USE_CASES.md) | Use cases + manual QA checklist (future automated tests) | New user-facing behavior |
 | [`COST-ESTIMATES.md`](COST-ESTIMATES.md) | Grok/Apify $/voter bands from live samples | After scorecard or test enrichment runs |
 | [`../leanlink-pitch.html`](../leanlink-pitch.html) | **Client-facing 3-page pitch** — what it is, deliverables, confirmed pricing (print-ready) | Pricing or deliverable changes |
+| [`../onrecord-pitch.html`](../onrecord-pitch.html) | OnRecord brand variant of the pitch (naming A/B — **generated mirror, never hand-edit**; regenerate: `sed -e 's/LeanLink/OnRecord/g' -e 's/leanlink-pitch/onrecord-pitch/g' leanlink-pitch.html > onrecord-pitch.html`, same pattern for the one-pager) | Whenever the LeanLink source doc changes |
 
 **Also useful:** root [`CLAUDE.md`](../CLAUDE.md) (architecture for coding agents), [`stack-spec.md`](../stack-spec.md) (early stack notes — may lag `DECISIONS.md`).
 

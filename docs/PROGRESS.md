@@ -65,6 +65,16 @@ Neon 2026-07-04 and verified in the catalog** (`voter_uploads_fl_extract_unbille
 with `CHECK (source_type <> 'fl_extract' OR account_id IS NULL)`). Schema is current through
 **012**.
 
+**Brand A/B (same day):** parallel **OnRecord** variants of both client docs
+(`onrecord-pitch.html`, `onrecord-one-pager.html`) for the naming decision — identical design,
+name-only swap, so the A/B tests the name and nothing else. These are **generated mirrors** of
+the `leanlink-*` sources (sed command in `docs/README.md`) — edit the LeanLink file, regenerate,
+never hand-edit the OnRecord copies. Footers on all four now read "…by Four Plums, LLC"
+(replaces "Michael Plumb / BitPlum"). Open naming ideas: LeanLink vs OnRecord (owner will pick
+from the parallel docs); descriptor "Florida NPA Intelligence" vs "(voter) lean intelligence"
+(recommended: "voter lean intelligence" as the category line, keep FL/NPA specificity in body
+copy — pending owner decision).
+
 **Client pitch (same day):** new `leanlink-pitch.html` — 3-page print-ready client pitch (what it
 is / deliverable + audit + stage gates / confirmed pricing with a 25k worked example ≈ $4.5k,
 ~$1.45 per lean all-in). Framing: **fully managed service** (Michael operates the system on the

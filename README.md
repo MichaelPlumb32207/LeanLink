@@ -53,7 +53,7 @@ instance from scratch.
 
 ## Documentation
 
-- [`leanlink-pitch.html`](leanlink-pitch.html) — **client-facing pitch** (3 pages, print-ready, confirmed pricing)
+- [`leanlink-pitch.html`](leanlink-pitch.html) — **client-facing pitch** (3 pages, print-ready, confirmed pricing); [`onrecord-pitch.html`](onrecord-pitch.html) is the OnRecord brand variant for the naming A/B
 - [`docs/README.md`](docs/README.md) — **doc index & reading order** (start here for onboarding)
 - [`CLAUDE.md`](CLAUDE.md) — architecture & conventions (for Claude Code / new devs)
 - [`docs/SETUP.md`](docs/SETUP.md) — provisioning runbook
