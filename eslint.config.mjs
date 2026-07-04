@@ -11,7 +11,10 @@ const compat = new FlatCompat({
 const eslintConfig = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   {
-    ignores: ['.next/**', 'out/**', 'build/**', 'next-env.d.ts'],
+    // `.claude/worktrees/**` are linked git worktrees (full repo copies incl.
+    // their own `.next/`) that background agents create inside the repo — never
+    // lint them, or `eslint .` drowns in another checkout's build artifacts.
+    ignores: ['.next/**', 'out/**', 'build/**', 'next-env.d.ts', '.claude/**'],
   },
 ];
 

@@ -39,7 +39,9 @@ D-024's "later arms always skip settled voters" is now the *default*, not an inv
 ## D-025 · Lint gate: migrate `next lint` → ESLint CLI (flat config via FlatCompat)
 **Decision:** `npm run lint` now runs `eslint .` directly. `eslint.config.mjs` loads
 `next/core-web-vitals` + `next/typescript` through `@eslint/eslintrc`'s `FlatCompat`
-(new explicit devDependency) and ignores `.next/`, `out/`, `build/`, `next-env.d.ts`.
+(new explicit devDependency) and ignores `.next/`, `out/`, `build/`, `next-env.d.ts`, and
+`.claude/**` (linked git worktrees that background agents create inside the repo — full repo
+copies whose build artifacts would otherwise drown `eslint .`).
 **Why:** the old config spread `eslint-config-next/core-web-vitals.js` into the flat-config
 array, but `eslint-config-next` 15.x still exports eslintrc-format objects — every run died
 with "nextCoreWebVitals is not iterable", so the pre-push lint gate was dead. `next lint` is
