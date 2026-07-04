@@ -68,3 +68,4 @@ data/reference/
 # Misc local artifacts
 *.pem
 *.key
+fec-data/
