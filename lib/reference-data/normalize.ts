@@ -14,6 +14,21 @@ export function zip5(value: string | null | undefined): string {
   return value.replace(/\D/g, '').slice(0, 5);
 }
 
+const FEC_SUFFIX_TOKENS = new Set(['jr', 'sr', 'ii', 'iii', 'iv']);
+
+/**
+ * Name key for the FEC federal index. The bulk file stores "LAST, FIRST MIDDLE
+ * [SUFFIX]"; normalizeNameKey strips the comma so this yields "last first
+ * middle" with generational suffixes removed — voter-side keys are built in
+ * the same order so exact/prefix matching works.
+ */
+export function fecNameNorm(name: string): string {
+  return normalizeNameKey(name)
+    .split(' ')
+    .filter((t) => !FEC_SUFFIX_TOKENS.has(t))
+    .join(' ');
+}
+
 export function normalizeCity(value: string | null | undefined): string {
   if (!value) return '';
   return value

@@ -6,6 +6,27 @@ current as design shifts.
 
 ---
 
+## D-028 · FEC bulk index replaces the API sweep as primary Tier 1
+**Decision:** Bulk-load FEC federal individual contributions (Florida-filtered, staged
+most-recent-cycle-first) into Neon as the third reference index (`fec_contributions`,
+migration 013), and make the local index the primary Tier 1 arm. The throttled Open-API
+sweep stays as fallback (freshness, spot checks). **Why:** the 4-second API throttle puts a
+40k-county sweep at 4–18 days of fragile self-chained serverless execution (observed live on
+Alachua, 2026-07-04: ~94 rows/hr average with stall windows from FEC 429/5xx backoff, which
+also killed idle-in-transaction Neon connections); the same match against a local index runs
+in minutes, immune to rate limits. Also raises Tier 1 hit rate (cheap to load many cycles of
+donation history) and makes turnaround a sellable feature. **Mechanics:** mirrors the
+fl_contrib/Sunbiz pattern (reference_snapshots + normalized-name index) with two deliberate
+differences — autocommit batches + unique `(snapshot_id, sub_id)` for **resumable** loads
+(re-run to continue; `--fresh` to reload), and **live progress in the snapshot row**
+(`row_count` + notes JSON) readable any time via `scripts/fec-indiv-status.mjs`; lookups only
+use snapshots with `completed_at` set, so a mid-load index is never matched against. Names
+match in FEC's "last first" order with generational suffixes stripped (`fecNameNorm`);
+committee names/party are denormalized from the cycle's committee master at load time.
+Evidence lands on the same arm ('fec', tier 1, source `fec_indiv_index`) so fusion,
+settlement, and billing are unchanged. **Overrides:** the FEC API sweep as the default Tier 1
+path (D-021 remains for per-voter lookups and fallback).
+
 ## D-027 · Two-track use posture: research-only is scoped to FL-extract data
 **Decision (owner, 2026-07-04):** The "research/validation only" posture (D-005) was always a
 guardrail on the *data source* — the FL DOS voter-registration extracts used during

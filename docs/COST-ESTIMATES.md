@@ -95,11 +95,16 @@ Order of magnitude **~$0.01–$0.05/voter** depending on actor pricing and timeo
 after first live `apify_runs` on a curated row. Grok synthesis cost still applies (typically
 lower than `grok-full` because no live search tools).
 
-## FEC Open API (contributor lookup)
+## FEC federal data (Tier 1)
 
-**$0** per query (free API key from fec.gov). Dashboard **FEC contributor lookup** runs on the
-full test subset with no Grok tokens. Use this to measure Schedule A hit rate before inferring
-lean from donations. Set `FEC_API_KEY` in production — `DEMO_KEY` is heavily rate-limited.
+**Bulk index (primary, D-028):** $0 for the data (public bulk files); ~**2 GB Neon storage
+per cycle** (FL-filtered, ~4–5M rows incl. indexes) — the third reference index alongside
+FL-contrib (14.2M) and Sunbiz (20.6M). Matching cost: local queries, effectively $0 and
+**minutes per county** (vs. days on the API).
+
+**Open API (fallback):** $0 per query (free key), but throttled 4 s/request ≈ 450 rows/hr
+max — measured ~94/hr average on Alachua with backoff stalls. Use for freshness/spot checks
+only. Set `FEC_API_KEY` in production — `DEMO_KEY` is heavily rate-limited.
 
 Record after validation runs:
 

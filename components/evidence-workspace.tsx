@@ -88,7 +88,7 @@ type EvidenceUploadMeta = {
   ballot_favors?: string | null;
 };
 
-type Tier0Action = 'match-fl-contrib' | 'match-sunbiz-entity' | 'match-tier0-all';
+type Tier0Action = 'match-fl-contrib' | 'match-sunbiz-entity' | 'match-tier0-all' | 'match-fec-index';
 
 export function EvidenceWorkspace({
   uploadId,
@@ -525,6 +525,15 @@ export function EvidenceWorkspace({
                 </button>
               );
             })()}
+            <button
+              type="button"
+              onClick={() => void runEvidenceAction('match-fec-index')}
+              disabled={syncing}
+              title="Tier 1 via the local FEC bulk index (no API, no throttle). Uploads over 5,000 voters: use scripts/run-fec-index.ts instead."
+              className="rounded-lg border border-emerald-300/50 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {syncingAction === 'match-fec-index' ? 'Running…' : 'Match FEC (local index)'}
+            </button>
             <button
               type="button"
               onClick={() => setCommitteeManagerOpen(true)}

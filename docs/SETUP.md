@@ -71,6 +71,7 @@ Full order:
 | `010_fec_retry.sql` | `fec_lookup_results.retry_attempts` + `last_attempt_at` (background retry of failed FEC lookups) |
 | `011_initiation_and_review.sql` | `initiation` ledger kind + `rate_cards.initiation_usd` (seeded $2,500); `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
 | `012_fl_extract_unbilled.sql` | posture guardrail: `CHECK` that an `fl_extract` upload never carries a billing `account_id` (D-027) |
+| `013_fec_indiv_index.sql` | `fec_contributions` bulk index (FL-filtered FEC federal Schedule A) + `reference_snapshots.completed_at`; makes Tier 1 a local lookup (D-028) |
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
 EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.
@@ -154,6 +155,33 @@ Fees are editable in the Billing console rate-card editor (`default` + per-accou
 overrides). Verify the billing engine without the UI via `npx tsx scripts/smoke-billing.ts`
 (runs against your DB in a rolled-back transaction — nothing persists). Settlement
 threshold is `LEANLINK_SETTLE_THRESHOLD` (default 60).
+
+## 8. FEC federal bulk index (fast Tier 1)
+
+Load a cycle of FEC individual contributions (Florida-filtered, ~4–5M rows ≈ 2 GB with
+indexes) so Tier 1 runs as a local index match in minutes instead of a throttled multi-day
+API sweep. Stage most-recent-cycle-first; older cycles add donation history (and hit rate).
+
+```bash
+# 1. Get the cycle's files (2023–2024 example; ~2.5 GB download)
+curl -LO https://www.fec.gov/files/bulk-downloads/2024/indiv24.zip
+curl -LO https://www.fec.gov/files/bulk-downloads/2024/cm24.zip
+unzip indiv24.zip && unzip cm24.zip        # → itcont.txt, cm.txt
+
+# 2. Load (~30 min; interruption-safe — re-run the same command to resume)
+npx tsx scripts/import-fec-indiv.ts --file itcont.txt --committees cm.txt --label 2024-fl
+
+# 3. Check progress any time, from any terminal (loader also prints a live line)
+node scripts/fec-indiv-status.mjs
+
+# 4. Match an upload against the index
+npx tsx scripts/run-fec-index.ts --upload-id UUID      # county scale (no cap)
+#   …or the dashboard "Match FEC (local index)" button (uploads ≤ 5,000 voters)
+```
+
+Lookups always use the newest **READY** snapshot (`completed_at` set) — a load in progress
+is never matched against. The API sweep (dashboard FEC panel) remains as a fallback for
+freshness/spot checks.
 
 ## Troubleshooting
 

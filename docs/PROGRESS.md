@@ -6,6 +6,26 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-04
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-04 later, FEC bulk index)
+
+**FEC bulk index shipped (D-028, migration 013):** Tier 1 moves from the throttled FEC API
+sweep (observed on Alachua: ~94 rows/hr average, 4–18 day projection, stall windows from FEC
+429/5xx backoff that also dropped idle-in-transaction Neon connections) to a **local bulk
+index** — county-scale matching in minutes. Staged FL-only, most-recent-cycle-first per owner
+decision. Pieces: `migrations/013_fec_indiv_index.sql` (`fec_contributions` + snapshot
+`completed_at` gate), `lib/reference-data/import-fec-indiv.ts` + `scripts/import-fec-indiv.ts`
+(resumable loader: autocommit batches, unique `(snapshot_id, sub_id)`, live progress written
+into the snapshot row every 30 s), `scripts/fec-indiv-status.mjs` (check-anytime progress),
+`lib/fec/local-lookup.ts` (last-first name keys, exact + indexed-prefix), `lib/evidence/
+fec-events.ts#buildFecIndexEvidenceEvent` (same arm 'fec'/tier 1; source `fec_indiv_index`),
+`lib/fec/run-index-upload.ts` (chunked runner, standard claim predicate), `scripts/
+run-fec-index.ts` (county-scale CLI, per-chunk commits) and a dashboard **Match FEC (local
+index)** button (≤5,000 voters; larger → CLI). Runbook: `docs/SETUP.md` §8. **Not yet run:**
+migration 013 must be applied, then download/load the 2024 cycle (~30 min), then match
+Alachua's remainder locally — the crawling API sweep can be cancelled once the index pass
+lands. Verified: FEC file format against fec.gov docs (21 pipe-delimited cols, SUB_ID unique,
+MMDDYYYY dates); `fecNameNorm` unit cases; `tsc` clean.
+
 ## Where to pick up (continuity note — 2026-07-04, pricing + review controls)
 
 **⚠️ Deploy gate:** migration **011** must be applied to Neon **before** this session's code is
@@ -262,7 +282,8 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Analyze UI: subset + test picker | ✅ | `app/dashboard/page.tsx`, `lib/test-row-indices.ts`. |
 | Enrichment test + scorecard APIs | ✅ | `POST /api/enrichment/test`, `scorecard` accept `rowIndices`. |
 | FEC direct contributor lookup (subset) | ✅ | `POST /api/enrichment/fec` — 0/7 on curated Calhoun validation. |
-| FEC whole-file sweep (batch) | ✅ | Calhoun 736/736; 27 raw, 3 confirmed, 3 fused lean (ActBlue / Harris / WinRed). |
+| FEC whole-file sweep (batch, Open API) | ✅ | Calhoun 736/736; now the **fallback** path — throttled ~450/hr max, days at county scale. |
+| FEC bulk index (local Tier 1, D-028) | 🟡 | Code shipped (migration 013, loader, status script, lookup, runner, dashboard button); **awaiting first data load** (SETUP §8). |
 | Tier 0 Free Pass (FL + Sunbiz indexes) | ✅ | Indexes in Neon; Calhoun run; multi-shard Sunbiz lookup. |
 | Free pass CLI | ✅ | `scripts/run-free-pass.ts --county CAL`. |
 | FEC identity scoring + disambiguate | ✅ | `lib/fec/identity-match.ts`, `donation-lean.ts`, `fec-disambiguate`. |
@@ -289,9 +310,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
    tier-3 (current) or tier-3 only (`osint_attempt_usd = 0`). Money-sensitive; owner call.
 4. **Party-prior decision** — provided party is currently inert (no lean emitted). Recommended:
    emit a low-weight tier-0 prior the arms confirm/override, never billed for echoing. Owner call.
-5. **FL-scoped FEC bulk-load** — load FL federal individual contributions into Neon (like the
-   FL-contrib/Sunbiz indexes) to kill FEC API flakiness + rate limits. Costed as modest storage;
-   effort is the ETL. See the cost note in `docs/COST-ESTIMATES.md` discussion.
+5. **FL-scoped FEC bulk-load** — ✅ **shipped 2026-07-04 (D-028, migration 013)**; remaining:
+   apply 013, load the 2024 cycle (SETUP §8), backfill older cycles, then retire the Alachua
+   API sweep in favor of the local pass.
 6. **HTML artifact redraw** — `enrichment-pipeline.html` / `evidence-accumulator-pitch.html` have
    2026-07-04 catch-up banners but still frame the research-POC; give them a billing/waterfall-aware pass.
    *(Partially addressed 2026-07-04: new client-facing `leanlink-pitch.html` (3-page, print-ready,

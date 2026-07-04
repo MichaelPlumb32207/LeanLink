@@ -119,6 +119,7 @@ keep this table current. Do **not** pin prices/rate-limits here (they rot); pin 
 | Live X search | Responses API `tools: [{ type: 'x_search' }]` | n/a | https://docs.x.ai/docs/guides/live-search | 2026-06-27 |
 | Vision (Street View) | Responses API `input_image` + text | `grok-4.3` | https://docs.x.ai/docs/models | 2026-06-27 |
 | FEC contributor lookup | `GET https://api.open.fec.gov/v1/schedules/schedule_a/` | n/a | https://api.open.fec.gov/developers/ | 2026-06-28 |
+| FEC bulk indiv file (Tier 1 index) | `https://www.fec.gov/files/bulk-downloads/{yyyy}/indiv{yy}.zip` (+ `cm{yy}.zip`) | n/a — 21 pipe-delimited cols, no header; SUB_ID unique; dates MMDDYYYY | https://www.fec.gov/campaign-finance-data/contributions-individuals-file-description/ | 2026-07-04 |
 
 Conventions we depend on (these don't change as often and trip you up when they do):
 - Base URL `https://api.x.ai/v1`; auth via `Authorization: Bearer $XAI_API_KEY`.

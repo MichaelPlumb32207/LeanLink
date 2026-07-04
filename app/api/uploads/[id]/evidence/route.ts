@@ -14,6 +14,7 @@ import {
 import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
+import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { buildHumanJudgmentEvent } from '@/lib/evidence/human-judgment';
 import { appendEvidenceEvent } from '@/lib/evidence/ledger';
@@ -205,6 +206,53 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return NextResponse.json({ error: 'No FEC sweep job for this upload' }, { status: 404 });
       }
 
+      return NextResponse.json(result);
+    }
+
+    if (body.action === 'match-fec-index') {
+      const result = await withUserDb(userEmail, async (client) => {
+        const countRes = await client.query<{ row_count: number }>(
+          `SELECT row_count FROM voter_uploads WHERE id = $1 AND user_id = $2`,
+          [uploadId, userEmail],
+        );
+        const rowCount = countRes.rows[0]?.row_count ?? 0;
+        if (rowCount === 0) return { error: 'not_found' as const };
+        // County-scale runs blow the serverless budget — that's the CLI's job.
+        if (rowCount > 5000) return { error: 'too_large' as const, rowCount };
+
+        const snapshot = await getActiveFecIndivSnapshot(client);
+        if (!snapshot) return { error: 'no_snapshot' as const };
+
+        const run = await runFecIndexChunk(client, {
+          uploadId,
+          userId: userEmail,
+          snapshot,
+          limit: rowCount,
+        });
+        const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
+        return { run, summary };
+      });
+
+      if ('error' in result) {
+        if (result.error === 'not_found') {
+          return NextResponse.json({ error: 'Upload not found' }, { status: 404 });
+        }
+        if (result.error === 'too_large') {
+          return NextResponse.json(
+            {
+              error: `Upload has ${result.rowCount} voters — run the FEC index match from the CLI: npx tsx scripts/run-fec-index.ts --upload-id ${uploadId}`,
+            },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(
+          {
+            error: 'No FEC bulk index loaded yet',
+            hint: 'Load one with scripts/import-fec-indiv.ts; check progress with scripts/fec-indiv-status.mjs.',
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(result);
     }
 

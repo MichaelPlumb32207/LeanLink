@@ -32,7 +32,10 @@ so a "policy already exists" error just means 007 is applied; skip it. `008` add
 intake + waterfall settlement columns; `009` adds prepaid billing; `010` adds FEC-retry
 tracking columns; `011` adds the initiation-fee ledger kind + researcher review columns
 (`review_status`/`research_status` — **the arm claim queries reference these, so 011 must be
-applied before deploying code that includes them**). See `docs/SETUP.md`.
+applied before deploying code that includes them**); `012` adds the fl_extract-unbillable
+posture CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
+`reference_snapshots.completed_at` — Tier 1 as a local lookup; loader/runbook in
+`docs/SETUP.md` §8). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -76,6 +79,9 @@ eligible-remaining count) if you add an arm.
    `/api/enrichment/scorecard`, `/api/enrichment/street-view`, `/api/enrichment/fec` (subset), or
    `POST /api/uploads/[id]/fec-sweep` (whole-file FEC batch, free API) — modes in
    `lib/enrichment/modes.ts`; curated rows in `lib/enrichment/suggested-test-rows.ts`.
+   **Tier 1 primary path (D-028):** the local FEC bulk index — `match-fec-index` evidence
+   action (≤5k voters) or `scripts/run-fec-index.ts` at county scale; the API sweep is the
+   fallback. Requires a READY `fec_indiv` snapshot (loader: `scripts/import-fec-indiv.ts`).
 3. `POST /api/uploads/[id]/run` — batch job start — **gated** by `LEANLINK_ENABLE_BATCH_INFERENCE`
    (`lib/batch-inference.ts`, default off). When enabled: creates `processing_jobs`, `triggerWorker`.
 4. `POST /api/jobs/[id]/worker` — batch engine (also gated). Claims rows, runs `inferLean`,
