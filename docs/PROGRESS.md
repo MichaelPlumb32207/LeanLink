@@ -70,10 +70,10 @@ with `CHECK (source_type <> 'fl_extract' OR account_id IS NULL)`). Schema is cur
 name-only swap, so the A/B tests the name and nothing else. These are **generated mirrors** of
 the `leanlink-*` sources (sed command in `docs/README.md`) — edit the LeanLink file, regenerate,
 never hand-edit the OnRecord copies. Footers on all four now read "…by Four Plums, LLC"
-(replaces "Michael Plumb / BitPlum"). Open naming ideas: LeanLink vs OnRecord (owner will pick
-from the parallel docs); descriptor "Florida NPA Intelligence" vs "(voter) lean intelligence"
-(recommended: "voter lean intelligence" as the category line, keep FL/NPA specificity in body
-copy — pending owner decision).
+(replaces "Michael Plumb / BitPlum"). **Descriptor decided (owner-approved 2026-07-04):
+"Voter lean intelligence"** is the category line in mastheads/footers/taglines across all four
+client docs; Florida/NPA specificity stays in the body copy. Still open: the name itself —
+LeanLink vs OnRecord (owner will pick from the parallel docs).
 
 **Client pitch (same day):** new `leanlink-pitch.html` — 3-page print-ready client pitch (what it
 is / deliverable + audit + stage gates / confirmed pricing with a 25k worked example ≈ $4.5k,
