@@ -93,10 +93,10 @@ function hasIdeologicalSignals(matches: OsintMatch[]): boolean {
 }
 
 export function applyInferenceGuardrails(payload: GrokInferencePayload): GrokInferencePayload {
+  const { identity_matches } = payload;
   let {
     identity_resolution_status,
     identity_best_match_score,
-    identity_matches,
     lean,
     lean_confidence,
     lean_signals_found,

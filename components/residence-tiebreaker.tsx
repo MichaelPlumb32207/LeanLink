@@ -181,6 +181,7 @@ export function ResidenceTiebreaker({
               </div>
 
               {context.street_view.image_data_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- src is a data URL; next/image cannot optimize it
                 <img
                   src={context.street_view.image_data_url}
                   alt="Street View of voter residence"

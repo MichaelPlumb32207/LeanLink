@@ -16,11 +16,13 @@ See `docs/CLAUDE.md` for the use posture and AI-vendor verification table, and
 ```bash
 npm run dev      # local dev (Next.js + Turbopack) on :3000
 npm run build    # production build — run before any push to main (Vercel auto-deploys main)
-npm run lint     # eslint (next lint)
+npm run lint     # eslint CLI directly (`eslint .`) — migrated off the deprecated `next lint`
 ```
 
 There is **no test runner and no typecheck script** yet (`tsc --noEmit` works ad hoc via
-the tsconfig). Apply migrations `001` → `010` to Neon in order — either by hand
+the tsconfig). ESLint uses flat config (`eslint.config.mjs`): `eslint-config-next` 15.x
+still ships eslintrc-format configs, so they load through `FlatCompat` — don't spread the
+`eslint-config-next/*` modules directly into the flat array (they aren't iterable). Apply migrations `001` → `010` to Neon in order — either by hand
 (`psql "$DATABASE_URL" -f migrations/00X_*.sql`) or, without `psql`, via
 `node scripts/apply-migrations.mjs` (uses the project's `pg` driver + `.env.local`).
 Migrations are additive and idempotent (`IF NOT EXISTS`; policies `DROP … IF EXISTS` then

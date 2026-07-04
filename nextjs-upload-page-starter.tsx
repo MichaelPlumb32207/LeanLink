@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react'; // or your Google auth
 
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);

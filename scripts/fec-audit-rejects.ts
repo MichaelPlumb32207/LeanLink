@@ -58,7 +58,6 @@ async function main() {
       contributions: row.contributions,
       matchLevel: row.match_level as 'strict' | 'state_only' | 'none',
     });
-    const top = scored.contributions[0];
     const top3 = scored.contributions.slice(0, 3);
 
     console.log(`--- Row ${row.row_index}: ${row.contributor_name} (${row.match_level}) band=${row.identity_band} best=${row.identity_best_score}`);

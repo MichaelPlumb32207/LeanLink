@@ -359,12 +359,11 @@ export default function DashboardPage() {
 
     return () => clearTimeout(timer);
   }, [
+    // Sort/limit changes already re-trigger this effect via refreshResults'
+    // identity (its useCallback deps include sortColumn/sortDirection/previewRowLimit).
     selectedUploadId,
     selectedUpload,
     columnFilters,
-    useServerFetch ? sortColumn : '',
-    useServerFetch ? sortDirection : '',
-    useServerFetch ? previewRowLimit : '',
     jobIsComplete,
     refreshResults,
   ]);

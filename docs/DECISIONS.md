@@ -6,6 +6,17 @@ current as design shifts.
 
 ---
 
+## D-025 · Lint gate: migrate `next lint` → ESLint CLI (flat config via FlatCompat)
+**Decision:** `npm run lint` now runs `eslint .` directly. `eslint.config.mjs` loads
+`next/core-web-vitals` + `next/typescript` through `@eslint/eslintrc`'s `FlatCompat`
+(new explicit devDependency) and ignores `.next/`, `out/`, `build/`, `next-env.d.ts`.
+**Why:** the old config spread `eslint-config-next/core-web-vitals.js` into the flat-config
+array, but `eslint-config-next` 15.x still exports eslintrc-format objects — every run died
+with "nextCoreWebVitals is not iterable", so the pre-push lint gate was dead. `next lint` is
+also deprecated (removed in Next 16), so this is the codemod-recommended migration (done by
+hand for determinism). Rule expectations unchanged; the 8 findings the working gate surfaced
+were fixed in the same commit. **Overrides:** the scaffold's `"lint": "next lint"` script.
+
 ## D-024 · Tiered / prepaid / waterfall billing + generic client intake
 **Decision:** Turn the evidence engine into the product the one-pager sells. (1) **Generic
 intake** — accept an arbitrary client list (name + one of county/ZIP/address required; no FL

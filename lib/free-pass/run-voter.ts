@@ -6,7 +6,6 @@ import { buildHouseholdEvidenceEvent } from '@/lib/evidence/household-events';
 import { buildSunbizEvidenceEvent } from '@/lib/evidence/sunbiz-events';
 import { scoreFlContributionsAgainstVoter } from '@/lib/fl-contrib/identity-match';
 import {
-  getActiveFlContribSnapshotId,
   lookupFlContributionsByContributor,
   lookupFlContributionsByEntityName,
 } from '@/lib/fl-contrib/lookup';

@@ -1,10 +1,20 @@
 # LeanLink — Build Progress
 
 Running status of what's actually built vs. stubbed vs. not started. The honest source of
-truth for "is the product done?" Update as work lands. Last reviewed: 2026-06-30.
+truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-04.
 
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
+
+## Lint gate restored (2026-07-04)
+
+`npm run lint` had been failing on every tree state ("nextCoreWebVitals is not iterable" —
+the flat config spread `eslint-config-next`'s eslintrc-format exports directly), so the
+typecheck → lint → build pre-push gate was running blind on lint. Migrated to the ESLint CLI
+(`eslint .`, FlatCompat-loaded `next/core-web-vitals` + `next/typescript`; see D-025) and
+fixed the 8 findings the working linter surfaced (1 `prefer-const` error, unused
+vars/imports, redundant useEffect deps, one justified `<img>` disable for a data-URL
+Street View image). Gate is green again: lint 0 warnings, `tsc --noEmit` clean, build clean.
 
 ## Where to pick up (continuity note — 2026-07-03, tiered/prepaid product)
 
