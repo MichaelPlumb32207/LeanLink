@@ -68,6 +68,7 @@ Full order:
 | `007_committee_lean.sql` | researcher committee→lean labels |
 | `008_generic_intake_and_settlement.sql` | generic-intake source + completeness cols; waterfall `settled_*` cols |
 | `009_billing.sql` | `accounts`, `billing_ledger`, `rate_cards` (+ default seed), `voter_uploads.account_id` |
+| `010_fec_retry.sql` | `fec_lookup_results.retry_attempts` + `last_attempt_at` (background retry of failed FEC lookups) |
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
 EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.
@@ -104,8 +105,10 @@ full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when bat
    worker route sets `maxDuration = 800` (≈13 min), which exceeds Hobby limits. On Hobby,
    workers are killed early and jobs stall in perpetual sweeper retries.
 2. Set every `.env.local` var in the Vercel project (set `NEXTAUTH_URL` to the prod URL).
-3. `vercel.json` registers the cron (`/api/cron/job-sweeper`, every minute). Vercel sends
-   `x-vercel-cron: 1`; the route also accepts `Authorization: Bearer $CRON_SECRET`.
+3. `vercel.json` registers two crons: `/api/cron/job-sweeper` (every minute, stall recovery)
+   and `/api/cron/fec-retry` (every 5 min — re-attempts FEC lookups that failed on a transient
+   API error; recovered hits flow into the evidence ledger and settle/bill). Vercel sends
+   `x-vercel-cron: 1`; both routes also accept `Authorization: Bearer $CRON_SECRET`.
 4. Deploy by pushing to `main` (`git push origin HEAD:main`) — Vercel auto-builds. Do **not**
    run `vercel --prod` (double build). Commit author email must be a valid GitHub account or
    Vercel blocks the deploy.

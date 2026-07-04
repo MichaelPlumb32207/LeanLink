@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/job-sweeper",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/fec-retry",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

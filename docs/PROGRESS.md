@@ -43,6 +43,13 @@ a non-donor. Root-caused via `scripts/debug-fec.ts` — a known Calhoun donor (D
 retry. Rows that errored *before* this fix are cached as no-hit for their sweep job; re-run
 FEC (fresh job) or re-ingest to pick them up.
 
+**Background FEC retry (same session):** new cron `/api/cron/fec-retry` (every 5 min,
+`vercel.json`) + `lib/fec/retry-failed.ts` + migration 010 (`retry_attempts`/`last_attempt_at`
+on `fec_lookup_results`). Re-attempts rows still carrying an `api_error`, capped at 8 attempts
+spaced ≥10 min, throttled, in each row's user context — a recovered hit flows into the evidence
+ledger and settles/bills automatically. So a flaky-then-recovered FEC self-heals without a manual
+re-run.
+
 ## Where to pick up (continuity note — 2026-06-30, pre-deploy)
 
 **⚠️ Before you stop for validation:** local changes are **not on Vercel** until **`git commit` +
