@@ -20,6 +20,8 @@ const DEFAULT_FILES = [
   'migrations/007_committee_lean.sql',
   'migrations/008_generic_intake_and_settlement.sql',
   'migrations/009_billing.sql',
+  'migrations/010_fec_retry.sql',
+  'migrations/011_initiation_and_review.sql',
 ];
 
 function loadDatabaseUrl() {

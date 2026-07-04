@@ -14,7 +14,10 @@ validation — **not** for contacting, marketing to, or targeting individuals. S
 > Grok OSINT enrichment runs per-voter via dashboard tests; **full-file batch jobs are disabled**
 > until cost/coverage are validated (`LEANLINK_ENABLE_BATCH_INFERENCE`).
 > **New (2026-07-03):** generic client-list intake, waterfall settlement (skip already-found
-> voters), and prepaid per-tier billing — the tiered product the one-pager sells. See
+> voters), and prepaid per-tier billing — the tiered product the one-pager sells.
+> **New (2026-07-04):** pricing confirmed (incl. $2,500 initiation fee), researcher review
+> controls (accept/reopen/re-enroll), waterfall gate with projected next-arm spend, and a
+> multi-arm provenance + audit deliverable export. See
 > [`docs/PROGRESS.md`](docs/PROGRESS.md) for where to pick up.
 
 ## Stack

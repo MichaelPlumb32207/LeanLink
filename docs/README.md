@@ -28,9 +28,11 @@ Read in this order when joining the project cold.
 ## Tiered / prepaid product (2026-07-03)
 
 - **`/dashboard/intake`** — ingest an arbitrary client voter list (no FL voter file); anchor-gated, completeness-scored.
-- **`/dashboard/accounts`** — prepaid billing console: accounts, deposits, per-batch invoices, ledger, editable rate cards.
-- Waterfall settlement skips already-found voters in later arms; billing charges baseline + per-tier + OSINT-attempt.
-- Dev scripts: `node scripts/apply-migrations.mjs` (migrations), `npx tsx scripts/smoke-billing.ts` (billing verifier). See `DECISIONS.md` D-024 and `CLAUDE.md` → "Tiered / prepaid / waterfall product".
+- **`/dashboard/accounts`** — prepaid billing console: accounts, deposits, per-batch invoices, ledger, editable rate cards, one-time **initiation fee** ($2,500 default, billed at account creation).
+- Waterfall settlement skips already-found voters in later arms; billing charges initiation + baseline + per-tier + OSINT-attempt.
+- **Researcher review (2026-07-04):** per-voter **Accept** (freeze lean, close research) / **Reopen** / **Re-enroll** (settled voter re-enters later arms, no re-billing); cohort re-enroll + projected next-arm spend in the evidence workspace **Waterfall gate** strip.
+- Client deliverable (`/api/export/[id]/deliverable`): original columns + Lean/Confidence/Source (all arms)/Status/Evidence; `?format=audit` = one row per evidence event.
+- Dev scripts: `node scripts/apply-migrations.mjs` (migrations), `npx tsx scripts/smoke-billing.ts` (billing verifier). See `DECISIONS.md` D-024/D-026 and `CLAUDE.md` → "Tiered / prepaid / waterfall product".
 
 ## Key code paths (enrichment)
 
@@ -55,8 +57,11 @@ Read in this order when joining the project cold.
 | `POST /api/enrichment/scorecard` | Multi-row metrics (`rowIndices` optional) |
 | `POST /api/enrichment/street-view` | Street View vision (`mode: exploratory`) |
 | `POST /api/enrichment/fec` | FEC Open API contributor lookup (no Grok) |
-| `GET /api/uploads/[id]/evidence-summary` | Upload-level arm stats + fusion counts |
+| `GET /api/uploads/[id]/evidence-summary` | Upload-level arm stats + fusion counts + waterfall gate |
 | `GET/POST /api/uploads/[id]/evidence` | Voter timeline; `sync-fec` backfill |
+| `POST /api/voters/[id]/review` | Researcher accept / reopen / re-enroll one voter |
+| `POST /api/uploads/[id]/re-enroll` | Cohort re-enroll (confidence/tier filters) or withdraw |
+| `GET /api/export/[id]/deliverable` | Client deliverable CSV/JSON; `?format=audit` per-event provenance |
 | `GET /api/enrichment/apify-config` | Actor IDs and limits |
 
-Last reviewed: 2026-06-29.
+Last reviewed: 2026-07-04.

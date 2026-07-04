@@ -69,6 +69,31 @@ export async function recordDeposit(
   );
 }
 
+/**
+ * One-time engagement kickoff fee. Account-level (no upload/voter); charged at
+ * most once per account, ever (partial unique index). Returns true when the
+ * charge was actually written.
+ */
+export async function chargeInitiation(
+  client: PoolClient,
+  args: { userId: string; accountId: string; amount: number; note?: string },
+): Promise<boolean> {
+  const { rows } = await client.query<{ id: string }>(
+    `INSERT INTO billing_ledger (account_id, user_id, kind, amount_usd, note)
+     VALUES ($1, $2, 'initiation', $3, $4)
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [args.accountId, args.userId, -Math.abs(args.amount), args.note ?? 'engagement initiation fee'],
+  );
+  if (rows.length === 0) return false;
+  await client.query(
+    `UPDATE accounts SET prepaid_balance_usd = prepaid_balance_usd - $2, updated_at = NOW()
+     WHERE account_id = $1`,
+    [args.accountId, Math.abs(args.amount)],
+  );
+  return true;
+}
+
 interface ChargeArgs {
   userId: string;
   accountId: string;

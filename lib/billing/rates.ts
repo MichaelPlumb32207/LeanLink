@@ -10,6 +10,7 @@
 import type { PoolClient } from 'pg';
 
 export interface ResolvedRates {
+  initiation: number;
   baseline: number;
   tier1: number;
   tier2: number;
@@ -19,6 +20,7 @@ export interface ResolvedRates {
 
 /** Last-resort fallback if the default row is somehow missing. */
 const HARD_DEFAULTS: ResolvedRates = {
+  initiation: 2500,
   baseline: 0.03,
   tier1: 0.15,
   tier2: 0.25,
@@ -27,6 +29,7 @@ const HARD_DEFAULTS: ResolvedRates = {
 };
 
 interface RateRow {
+  initiation_usd: string | null;
   baseline_usd: string | null;
   tier1_usd: string | null;
   tier2_usd: string | null;
@@ -44,7 +47,7 @@ export async function resolveRates(
 ): Promise<ResolvedRates> {
   const scopes = accountId ? ['default', accountId] : ['default'];
   const { rows } = await client.query<RateRow & { scope: string }>(
-    `SELECT scope, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd
+    `SELECT scope, initiation_usd, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd
      FROM rate_cards WHERE scope = ANY($1)`,
     [scopes],
   );
@@ -56,6 +59,7 @@ export async function resolveRates(
     num(override?.[key]) ?? num(def?.[key]) ?? fallback;
 
   return {
+    initiation: pick('initiation_usd', HARD_DEFAULTS.initiation),
     baseline: pick('baseline_usd', HARD_DEFAULTS.baseline),
     tier1: pick('tier1_usd', HARD_DEFAULTS.tier1),
     tier2: pick('tier2_usd', HARD_DEFAULTS.tier2),

@@ -81,6 +81,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         const res = await client.query(
           `SELECT vr.id, vr.row_index, vr.raw_data,
                   vlf.lean, vlf.confidence, vlf.fusion_status, vlf.contributing_arms,
+                  vlf.review_status, vlf.research_status, vlf.settled_tier,
                   (SELECT COUNT(*)::int FROM evidence_events ee WHERE ee.voter_record_id = vr.id) AS event_count,
                   (SELECT BOOL_OR(ee.probable_same_person) FROM evidence_events ee
                    WHERE ee.voter_record_id = vr.id AND ee.arm = 'fec') AS fec_confirmed,

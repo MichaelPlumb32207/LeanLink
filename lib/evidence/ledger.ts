@@ -98,6 +98,15 @@ export async function persistFusionForVoter(
   userId: string,
   fusion: FusionResult,
 ): Promise<void> {
+  // Researcher acceptance freezes the deliverable values: evidence may still
+  // accumulate (manual tests, late arm results), but fusion stops rewriting
+  // lean/confidence and nothing new settles or bills.
+  const review = await client.query<{ review_status: string | null }>(
+    `SELECT review_status FROM voter_lean_fusion WHERE voter_record_id = $1`,
+    [voterRecordId],
+  );
+  if (review.rows[0]?.review_status === 'accepted') return;
+
   await client.query(
     `INSERT INTO voter_lean_fusion
        (voter_record_id, upload_id, user_id, lean, confidence, fusion_status,
@@ -252,6 +261,29 @@ export async function getUploadEvidenceSummary(
     [uploadId, userId],
   );
 
+  const reviewRes = await client.query<{ accepted: string; re_enrolled: string }>(
+    `SELECT COUNT(*) FILTER (WHERE review_status = 'accepted')::text AS accepted,
+            COUNT(*) FILTER (WHERE research_status = 're_enrolled')::text AS re_enrolled
+     FROM voter_lean_fusion
+     WHERE upload_id = $1 AND user_id = $2`,
+    [uploadId, userId],
+  );
+
+  // The pool the next arm would claim — mirrors the claim-query predicate.
+  const eligibleRes = await client.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+     FROM voter_records vr
+     WHERE vr.upload_id = $1 AND vr.user_id = $2
+       AND NOT EXISTS (
+         SELECT 1 FROM voter_lean_fusion vlf
+         WHERE vlf.voter_record_id = vr.id
+           AND (vlf.review_status = 'accepted'
+                OR (vlf.settled_tier IS NOT NULL
+                    AND vlf.research_status IS DISTINCT FROM 're_enrolled'))
+       )`,
+    [uploadId, userId],
+  );
+
   const accountRes = await client.query<{ account_id: string | null }>(
     `SELECT account_id FROM voter_uploads WHERE id = $1 AND user_id = $2`,
     [uploadId, userId],
@@ -338,12 +370,30 @@ export async function getUploadEvidenceSummary(
 
   const fecJob = fecJobRes.rows[0];
 
+  const eligible_remaining = Number(eligibleRes.rows[0]?.count ?? 0);
+  const money = (n: number) => Number(n.toFixed(2));
+  let projected: UploadEvidenceSummary['waterfall']['projected'] = null;
+  if (accountId) {
+    const rates = await resolveRates(client, accountId);
+    projected = {
+      tier1_usd: money(eligible_remaining * rates.tier1),
+      tier2_usd: money(eligible_remaining * rates.tier2),
+      tier3_usd: money(eligible_remaining * rates.tier3),
+      osint_attempts_usd: money(eligible_remaining * rates.osintAttempt),
+    };
+  }
+
   return {
     upload_id: uploadId,
     voter_count: Number(voterCountRes.rows[0]?.count ?? 0),
     arms,
     fusion,
     settled,
+    review: {
+      accepted_count: Number(reviewRes.rows[0]?.accepted ?? 0),
+      re_enrolled_count: Number(reviewRes.rows[0]?.re_enrolled ?? 0),
+    },
+    waterfall: { eligible_remaining, projected },
     billing,
     fec_sweep: fecJob
       ? {

@@ -31,6 +31,9 @@ type VoterListRow = {
   confidence: number | null;
   fusion_status: string | null;
   contributing_arms: string[] | null;
+  review_status: string | null;
+  research_status: string | null;
+  settled_tier: number | null;
   event_count: number;
   fec_confirmed: boolean | null;
   has_sunbiz: boolean | null;
@@ -68,6 +71,15 @@ type VoterDetail = {
     contributing_arms: string[];
     evidence_summary: string[];
   };
+  fusion_persisted: {
+    lean: string | null;
+    confidence: number | null;
+    fusion_status: string | null;
+    review_status: string | null;
+    research_status: string | null;
+    settled_arm: string | null;
+    settled_tier: number | null;
+  } | null;
 };
 
 type EvidenceUploadMeta = {
@@ -200,6 +212,47 @@ export function EvidenceWorkspace({
     );
   }, [detail]);
 
+  const reviewVoter = async (action: 'accept' | 'reopen' | 're_enroll') => {
+    if (!detail) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/voters/${detail.voter.id}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Review action failed');
+      await Promise.all([loadDetail(detail.voter.id), refreshVoters(), refreshSummary()]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Review action failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const reEnrollCohort = async (body: Record<string, unknown>, confirmText: string) => {
+    if (!window.confirm(confirmText)) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/uploads/${uploadId}/re-enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Re-enroll failed');
+      await refreshAll();
+      if (selectedId) await loadDetail(selectedId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Re-enroll failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const runEvidenceAction = async (action: Tier0Action) => {
     setSyncing(true);
     setSyncingAction(action);
@@ -239,6 +292,8 @@ export function EvidenceWorkspace({
               by_lean: {},
             },
             settled: { by_tier: {}, total: 0 },
+            review: { accepted_count: 0, re_enrolled_count: 0 },
+            waterfall: { eligible_remaining: upload?.row_count ?? 0, projected: null },
             billing: null,
             fec_sweep: null,
           }),
@@ -316,6 +371,74 @@ export function EvidenceWorkspace({
         </div>
         <PipelineFlowTrack steps={pipelineSteps} suggestedStep={suggestedStep} />
         {pipelineScoreboard && <PipelineScoreboardPanel score={pipelineScoreboard} />}
+        {summary && (
+          <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold uppercase tracking-wide opacity-60">
+                Waterfall gate
+              </span>
+              <span className="opacity-80">
+                {summary.waterfall.eligible_remaining} of {summary.voter_count} voters still in
+                research · {summary.review.accepted_count} accepted ·{' '}
+                {summary.review.re_enrolled_count} re-enrolled
+              </span>
+            </div>
+            {summary.waterfall.projected && (
+              <p className="opacity-75">
+                Max exposure if every remaining voter settles at the next arm: Tier 1 (FEC) $
+                {summary.waterfall.projected.tier1_usd.toFixed(2)} · Tier 2 (FL/Sunbiz) $
+                {summary.waterfall.projected.tier2_usd.toFixed(2)} · Tier 3 (OSINT) $
+                {summary.waterfall.projected.tier3_usd.toFixed(2)} + $
+                {summary.waterfall.projected.osint_attempts_usd.toFixed(2)} attempt fees
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() =>
+                  void reEnrollCohort(
+                    { maxConfidence: 70 },
+                    'Re-enroll settled voters with fused confidence ≤ 70 into later arms?\n\nBilling is unaffected (settlement fees are charged once, ever), but later paid arms will spend on these voters again.',
+                  )
+                }
+                className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 hover:opacity-90 disabled:opacity-50"
+                title="Settled voters whose fused confidence is ≤ 70 re-enter later arms"
+              >
+                Re-enroll low-confidence (≤70)
+              </button>
+              <button
+                type="button"
+                disabled={syncing}
+                onClick={() =>
+                  void reEnrollCohort(
+                    { tierLte: 1 },
+                    'Re-enroll every FEC-settled (tier 1) voter into later arms for corroboration?\n\nBilling is unaffected, but later paid arms will spend on these voters again.',
+                  )
+                }
+                className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 hover:opacity-90 disabled:opacity-50"
+                title="Voters settled at tier 1 (FEC) re-enter tier 2/3 arms for corroboration"
+              >
+                Re-enroll FEC-settled
+              </button>
+              {summary.review.re_enrolled_count > 0 && (
+                <button
+                  type="button"
+                  disabled={syncing}
+                  onClick={() =>
+                    void reEnrollCohort(
+                      { action: 'withdraw' },
+                      'Withdraw all re-enrollments? Settled voters go back to being excluded from later arms.',
+                    )
+                  }
+                  className="rounded-lg border border-white/15 px-3 py-1 opacity-70 hover:opacity-100 disabled:opacity-50"
+                >
+                  Withdraw re-enrollments
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="grid gap-3 text-sm">
           <PipelineStepRow step={1}>
             <p className="text-xs opacity-85">
@@ -564,6 +687,11 @@ export function EvidenceWorkspace({
                     <td className="py-1.5 pr-2 tabular-nums">{v.row_index}</td>
                     <td className="py-1.5 pr-2 max-w-[8rem] truncate">{v.raw_data.name.full}</td>
                     <td className="py-1.5 pr-2">
+                      {v.review_status === 'accepted' && (
+                        <span className="text-emerald-300" title="Accepted by researcher (frozen)">
+                          ✓{' '}
+                        </span>
+                      )}
                       {v.lean ?? '—'}
                       {v.confidence != null && v.lean && v.lean !== 'Undetermined'
                         ? ` ${v.confidence}%`
@@ -622,20 +750,94 @@ export function EvidenceWorkspace({
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/10 bg-black/25 p-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide opacity-60">Fused lean</h4>
-                  <p className="mt-2 text-lg font-semibold">
-                    {detail.fusion.lean}
-                    {detail.fusion.confidence > 0 && (
-                      <span className="ml-2 text-sm font-normal opacity-80">
-                        {detail.fusion.confidence}%
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs opacity-70">
-                    Status: {detail.fusion.fusion_status}
-                    {detail.fusion.contributing_arms.length > 0 &&
-                      ` · arms: ${detail.fusion.contributing_arms.join(', ')}`}
-                  </p>
+                  {(() => {
+                    const persisted = detail.fusion_persisted;
+                    const accepted = persisted?.review_status === 'accepted';
+                    const reEnrolled = persisted?.research_status === 're_enrolled';
+                    // Acceptance freezes the persisted values; live fusion may drift
+                    // if evidence keeps arriving, so show what the deliverable shows.
+                    const shownLean = accepted ? persisted?.lean ?? 'Undetermined' : detail.fusion.lean;
+                    const shownConfidence = accepted
+                      ? persisted?.confidence ?? 0
+                      : detail.fusion.confidence;
+                    return (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                            Fused lean
+                          </h4>
+                          <span className="flex flex-wrap gap-1.5">
+                            {accepted && (
+                              <span className="rounded-full border border-emerald-300/60 bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-200">
+                                Accepted ✓
+                              </span>
+                            )}
+                            {reEnrolled && !accepted && (
+                              <span className="rounded-full border border-sky-300/60 bg-sky-500/15 px-2 py-0.5 text-[10px] text-sky-200">
+                                Re-enrolled
+                              </span>
+                            )}
+                            {persisted?.settled_tier != null && (
+                              <span
+                                className="rounded-full border border-amber-300/50 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200"
+                                title="Billed once at this arm's tier; later research never re-bills"
+                              >
+                                Settled: {persisted.settled_arm} (T{persisted.settled_tier})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-lg font-semibold">
+                          {shownLean}
+                          {shownConfidence > 0 && (
+                            <span className="ml-2 text-sm font-normal opacity-80">
+                              {shownConfidence}%
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs opacity-70">
+                          Status: {accepted ? 'accepted (frozen)' : detail.fusion.fusion_status}
+                          {detail.fusion.contributing_arms.length > 0 &&
+                            ` · arms: ${detail.fusion.contributing_arms.join(', ')}`}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {!accepted && detail.fusion.lean !== 'Undetermined' && (
+                            <button
+                              type="button"
+                              disabled={syncing}
+                              onClick={() => void reviewVoter('accept')}
+                              title="Affirm this lean as final: freezes the deliverable values and closes research for this voter"
+                              className="rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                            >
+                              Accept lean
+                            </button>
+                          )}
+                          {accepted && (
+                            <button
+                              type="button"
+                              disabled={syncing}
+                              onClick={() => void reviewVoter('reopen')}
+                              title="Clear the acceptance: fusion resumes and the voter can re-enter arms"
+                              className="rounded-lg border border-white/20 px-3 py-1 text-xs hover:opacity-90 disabled:opacity-50"
+                            >
+                              Reopen
+                            </button>
+                          )}
+                          {!accepted && persisted?.settled_tier != null && !reEnrolled && (
+                            <button
+                              type="button"
+                              disabled={syncing}
+                              onClick={() => void reviewVoter('re_enroll')}
+                              title="Push this settled voter back into later arms (billing unaffected)"
+                              className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 text-xs hover:opacity-90 disabled:opacity-50"
+                            >
+                              Re-enroll
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

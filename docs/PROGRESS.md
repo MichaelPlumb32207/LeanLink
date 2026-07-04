@@ -6,6 +6,54 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-04
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-04, pricing + review controls)
+
+**⚠️ Deploy gate:** migration **011** must be applied to Neon **before** this session's code is
+pushed — the updated arm claim queries reference `voter_lean_fusion.review_status` /
+`research_status`, which don't exist until 011 runs
+(`node scripts/apply-migrations.mjs migrations/011_initiation_and_review.sql`). **Applied to
+Neon 2026-07-04.** Build is green locally; an Alachua FEC sweep was running in prod during this
+session (old code keeps working either way — 011 is additive).
+
+**Pricing decisions (owner-confirmed, see D-026):** the seeded rate card **is** the client
+pricing (baseline $0.03 / T1 $0.15 / T2 $0.25 / T3 $0.33 + $0.05 attempt) plus a **$2,500
+initiation fee**; stage-gate advancement (no per-arm file round-trips); settlement stops
+research by default with researcher re-enroll on top.
+
+**Shipped this session:**
+- **Initiation fee** (migration 011, `chargeInitiation` in `lib/billing/ledger.ts`): new
+  `initiation` ledger kind, once-per-account partial unique index, `rate_cards.initiation_usd`
+  (seeded $2,500). Billed at account creation (checkbox, default on) or via the "Charge
+  initiation fee" button on the Billing console account detail.
+- **Researcher review controls** (migration 011, `/api/voters/[id]/review`,
+  `/api/uploads/[id]/re-enroll`): **Accept lean** freezes a voter's deliverable values
+  (`persistFusionForVoter` early-returns on `review_status='accepted'`), excludes them from all
+  arm claim queries, and writes a `human_judgment` `lean_review` audit event; **Reopen** clears
+  it and re-fuses; **Re-enroll** (single voter or cohort: confidence ≤ 70 / FEC-settled tier 1 /
+  withdraw) lets settled voters re-enter later arms without re-billing. Claim predicate now:
+  locked → never; re-enrolled → claim even if settled; default → unsettled only
+  (`claimFecSweepRows`, `runFreePassForUpload`).
+- **Waterfall gate strip** (evidence workspace): eligible-remaining count, accepted/re-enrolled
+  counts, projected max next-arm spend per tier (`summary.waterfall` via
+  `getUploadEvidenceSummary` + `resolveRates`), cohort re-enroll buttons with confirms.
+- **Deliverable provenance** (`/api/export/[uploadId]/deliverable`): `LeanLink Source` now lists
+  **all** contributing arms (settled/billed arm first), new `LeanLink Status` column
+  (accepted/fused/provisional/conflicted/unresearched), evidence = top 3 headlines, and a new
+  **`?format=audit`** export — one row per evidence event (arm, source, identity band, lean
+  signal, headlines, URLs) for full provenance.
+
+**Market/pricing research (2026-07-04, summarized in D-026 + COST-ESTIMATES):** setup fees
+$1k–$5k standard; per-match $0.02–$0.03 (append) to $0.07–$0.20 (skip-trace per hit) to
+$0.50–$2.00 (investigative); modeled-partisanship pricing is quote-only market-wide; FEC
+itemized donors ≈1.4% of adults (2020 cycle) → per-lean revenue is small next to the baseline
+fee on NPA lists.
+
+**Validate in prod after deploy:** create a throwaway account with initiation checkbox on →
+ledger shows one `initiation` −$2,500 row (button disappears, second charge no-ops) → accept a
+fused voter → `✓` in the voter list, later arms skip them, deliverable Status = `accepted` →
+re-enroll FEC-settled cohort → waterfall-gate counts move, no new tier charges for re-settles →
+`?format=audit` download.
+
 ## Lint gate restored (2026-07-04)
 
 `npm run lint` had been failing on every tree state ("nextCoreWebVitals is not iterable" —
@@ -167,8 +215,11 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Generic client-list intake (CSV/paste/JSON, anchor gate, completeness) | ✅ | `lib/generic-voter-list.ts`, `lib/intake/completeness.ts`, `/dashboard/intake`. |
 | Waterfall settlement (skip settled voters in later arms) | ✅ | `lib/evidence/settlement.ts`, migration 008; threshold `LEANLINK_SETTLE_THRESHOLD`. |
 | Prepaid billing (accounts, ledger, rate cards, charge points) | ✅ | `lib/billing/*`, migration 009, `/dashboard/accounts`; verified `scripts/smoke-billing.ts`. |
+| Initiation (kickoff) fee — $2,500, once per account | ✅ | Migration 011, `chargeInitiation`; billed at account creation (checkbox) or console button. |
+| Researcher review: accept (freeze) / reopen / re-enroll | ✅ | Migration 011, `/api/voters/[id]/review`, `/api/uploads/[id]/re-enroll`; claim queries honor locked/re-enrolled. |
+| Waterfall gate (eligible remaining + projected next-arm spend) | ✅ | `summary.waterfall` in `getUploadEvidenceSummary`; strip + cohort re-enroll in evidence workspace. |
 | Background FEC retry cron (heals transient failures) | ✅ | `lib/fec/retry-failed.ts`, `/api/cron/fec-retry`, migration 010. |
-| Client deliverable export (input file + lean/confidence/source/evidence per row) | ✅ | `/api/export/[uploadId]/deliverable`; original columns echoed via `raw_data._source`; button in evidence workspace. |
+| Client deliverable export (input file + lean/confidence/source/status/evidence per row) | ✅ | `/api/export/[uploadId]/deliverable`; multi-arm Source, Status column, `?format=audit` per-event provenance export. |
 | Voting-history extract parsing + turnout scoring | ✅ | `lib/fl-voter-history.ts`. |
 | Upload → hash → batch ingest | ✅ | `app/api/uploads`, `lib/hash.ts`. No Grok on upload. |
 | Job runner: claim/process/heartbeat, self-chaining worker | ✅ | Gated by `lib/batch-inference.ts`. |

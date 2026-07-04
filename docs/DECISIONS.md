@@ -6,6 +6,36 @@ current as design shifts.
 
 ---
 
+## D-026 · Pricing confirmed + researcher review controls (accept / re-enroll)
+**Decision (pricing, owner-confirmed 2026-07-04):** Keep the migration-009 seeded rate card as
+the client pricing — $0.03 baseline/record, $0.15 tier-1 (FEC), $0.25 tier-2 (FL/Sunbiz),
+$0.33 + $0.05/attempt tier-3 (OSINT) — and add a **$2,500 initiation (kickoff) fee** as a
+first-class rate-card fee + ledger kind (`initiation`, once per account ever, migration 011).
+**Why:** Market comparables (researched 2026-07-04): setup fees of $1k–$5k are standard for
+SMB data-service implementations; charged-on-match is the dominant append convention
+($0.02–$0.03/match commodity append, $0.07–$0.20/hit batch skip-trace, $0.50–$2.00
+investigative); **no modeled-partisanship vendor publishes per-score pricing** (L2/TargetSmart/
+Catalist/i360 all quote-only), so there is no public like-for-like anchor. The ascending tier
+ladder was kept over a flatter $0.18/$0.20 alternative because "deeper research costs more" is
+the waterfall's sales story and tier 2 genuinely costs more to serve. At realistic FEC hit
+rates on NPA lists (low single digits), the **baseline fee is the volume revenue driver**, not
+the per-lean fees.
+
+**Decision (review controls):** Billing settlement and research continuation are now separate
+switches on `voter_lean_fusion` (migration 011). Default keeps the hard waterfall (settled ⇒
+excluded). New researcher actions: **Accept** (`review_status='accepted'`) affirms the fused
+lean — freezes the deliverable values (fusion stops rewriting them), excludes the voter from
+all arms, and logs a `human_judgment` audit event; **Reopen** clears it; **Re-enroll**
+(`research_status='re_enrolled'`, per voter or per cohort via `/api/uploads/[id]/re-enroll`)
+pushes settled voters back into later arms — billing unaffected (settlement fee is
+partial-unique-indexed, charged once ever). Advancement stays a **dashboard stage-gate**
+(waterfall-gate strip: eligible-remaining count + projected max next-arm spend + explicit arm
+buttons) — an exported file is never the control mechanism (no per-arm file round-trips;
+export works at any stage). **Why:** the researcher needs to accept a lean without losing the
+option to keep an NPA in research, and needs to see cost exposure before advancing a tier;
+file round-trips would drift from the evidence ledger and re-ingest at cost. **Overrides:**
+D-024's "later arms always skip settled voters" is now the *default*, not an invariant.
+
 ## D-025 · Lint gate: migrate `next lint` → ESLint CLI (flat config via FlatCompat)
 **Decision:** `npm run lint` now runs `eslint .` directly. `eslint.config.mjs` loads
 `next/core-web-vitals` + `next/typescript` through `@eslint/eslintrc`'s `FlatCompat`

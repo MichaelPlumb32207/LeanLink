@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
+import { chargeInitiation } from '@/lib/billing/ledger';
+import { resolveRates } from '@/lib/billing/rates';
 
 /** List client accounts with their prepaid balances. */
 export async function GET() {
@@ -43,6 +45,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'displayName is required' }, { status: 400 });
     }
 
+    const billInitiation = body.billInitiation !== false; // default: bill the kickoff
+
     const result = await withUserDb(userEmail, async (client) => {
       const res = await client.query(
         `INSERT INTO accounts (account_id, user_id, display_name, fec_committee_id, contact_email)
@@ -57,7 +61,15 @@ export async function POST(request: Request) {
           (String(body.contactEmail ?? '').trim() || null),
         ],
       );
-      return res.rows[0] ?? null;
+      const account = res.rows[0] ?? null;
+      if (account && billInitiation) {
+        const rates = await resolveRates(client, accountId);
+        if (rates.initiation > 0) {
+          await chargeInitiation(client, { userId: userEmail, accountId, amount: rates.initiation });
+          account.prepaid_balance_usd = String(Number(account.prepaid_balance_usd) - rates.initiation);
+        }
+      }
+      return account;
     });
 
     if (!result) {

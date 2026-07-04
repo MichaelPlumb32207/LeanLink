@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
-import { getBalance, recordDeposit } from '@/lib/billing/ledger';
+import { chargeInitiation, getBalance, recordDeposit } from '@/lib/billing/ledger';
+import { resolveRates } from '@/lib/billing/rates';
 
 /** Account detail: balance, recent ledger, and a per-batch invoice rollup. */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -53,15 +54,33 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
-/** Record a prepaid deposit against the account balance. */
+/**
+ * Record money against the account: a prepaid deposit (default), or — with
+ * kind='initiation' — the one-time kickoff fee at the rate-card price (deduped;
+ * charging twice is a no-op).
+ */
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser();
     const userEmail = session.user.email;
     const { id: accountId } = await context.params;
     const body = await request.json();
-    const amount = Number(body.amount);
 
+    if (body.kind === 'initiation') {
+      const result = await withUserDb(userEmail, async (client) => {
+        const existing = await getBalance(client, accountId);
+        if (!existing) return null;
+        const rates = await resolveRates(client, accountId);
+        const charged =
+          rates.initiation > 0 &&
+          (await chargeInitiation(client, { userId: userEmail, accountId, amount: rates.initiation }));
+        return { charged, balance: await getBalance(client, accountId) };
+      });
+      if (!result) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      return NextResponse.json(result);
+    }
+
+    const amount = Number(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 });
     }

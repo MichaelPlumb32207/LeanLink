@@ -65,6 +65,17 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
   `NULL` = internal/test (unbilled). APIs: `/api/accounts`, `/api/accounts/[id]`,
   `/api/rate-cards`; UI `/dashboard/accounts`.
 
+- **Initiation fee + researcher review (2026-07-04, migration 011, D-026):**
+  `billing_ledger` gains an `initiation` kind ($2,500 default via `rate_cards.initiation_usd`,
+  once per account ever — billed at account creation or from the Billing console).
+  `voter_lean_fusion` gains `review_status` / `research_status`: **Accept**
+  (`/api/voters/[id]/review`) freezes a voter's fused lean (fusion early-returns, deliverable
+  Status = `accepted`) and excludes them from every arm; **Re-enroll** (same route, or cohort
+  via `/api/uploads/[id]/re-enroll`) pushes settled voters back into later arms without
+  re-billing. Claim-query predicate everywhere: locked → never claim; re-enrolled → claim even
+  if settled; default → unsettled only. The deliverable export lists all contributing arms
+  (settled arm first) plus a `?format=audit` per-event provenance export.
+
 **Config knobs (money-sensitive, reversible):** `LEANLINK_SETTLE_THRESHOLD`; all fees via the
 `rate_cards` table. OSINT currently bills attempt **and** tier-3 on a hit — set
 `osint_attempt_usd=0` for tier-3-only. Provided-party is stored/scored but emits **no** lean

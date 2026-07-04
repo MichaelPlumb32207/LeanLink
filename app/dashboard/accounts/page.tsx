@@ -36,6 +36,7 @@ interface InvoiceRow {
 
 interface RateCard {
   scope: string;
+  initiation_usd: string | null;
   baseline_usd: string | null;
   tier1_usd: string | null;
   tier2_usd: string | null;
@@ -47,6 +48,7 @@ const usd = (v: string | number | null | undefined) =>
   `$${Number(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const FEE_FIELDS = [
+  { key: 'initiation_usd', label: 'Initiation (kickoff)' },
   { key: 'baseline_usd', label: 'Baseline / record' },
   { key: 'tier1_usd', label: 'Tier 1 (FEC)' },
   { key: 'tier2_usd', label: 'Tier 2 (FL/Sunbiz)' },
@@ -71,6 +73,7 @@ export default function AccountsPage() {
   const [newName, setNewName] = useState('');
   const [newFec, setNewFec] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newBillInitiation, setNewBillInitiation] = useState(true);
   // deposit form
   const [depositAmt, setDepositAmt] = useState('');
 
@@ -116,6 +119,7 @@ export default function AccountsPage() {
           displayName: newName,
           fecCommitteeId: newFec,
           contactEmail: newEmail,
+          billInitiation: newBillInitiation,
         }),
       });
       const data = await res.json();
@@ -124,6 +128,7 @@ export default function AccountsPage() {
       setNewName('');
       setNewFec('');
       setNewEmail('');
+      setNewBillInitiation(true);
       await refreshAccounts();
       setSelected(data.account.account_id);
     } catch (e) {
@@ -150,6 +155,28 @@ export default function AccountsPage() {
       await loadDetail(selected);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Deposit failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function chargeKickoff() {
+    if (!selected) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/accounts/${selected}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'initiation' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Initiation charge failed');
+      if (!data.charged) setError('Initiation fee was already charged (or is $0) — nothing billed.');
+      await refreshAccounts();
+      await loadDetail(selected);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Initiation charge failed');
     } finally {
       setBusy(false);
     }
@@ -253,6 +280,14 @@ export default function AccountsPage() {
                   placeholder="contact email (optional)"
                   className="w-full rounded-lg border bg-black/20 px-3 py-2 text-sm"
                 />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newBillInitiation}
+                    onChange={(e) => setNewBillInitiation(e.target.checked)}
+                  />
+                  <span>Bill initiation fee (rate card)</span>
+                </label>
                 <button
                   onClick={createAccount}
                   disabled={busy || !newId || !newName}
@@ -307,6 +342,15 @@ export default function AccountsPage() {
                     >
                       Record deposit
                     </button>
+                    {!detail.ledger.some((l) => l.kind === 'initiation') && (
+                      <button
+                        onClick={chargeKickoff}
+                        disabled={busy}
+                        className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-4 py-2 text-sm hover:opacity-90 disabled:opacity-50"
+                      >
+                        Charge initiation fee
+                      </button>
+                    )}
                   </div>
                 </section>
 
@@ -445,7 +489,7 @@ function RateCardEditor({
     <section className="panel rounded-2xl p-4">
       <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide opacity-70">{title}</h3>
       {hint && <p className="mb-2 text-xs opacity-60">{hint}</p>}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-6">
         {FEE_FIELDS.map((f) => (
           <label key={f.key} className="block">
             <span className="text-[10px] uppercase tracking-wide opacity-60">{f.label}</span>

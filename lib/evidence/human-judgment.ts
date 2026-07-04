@@ -63,6 +63,62 @@ export function buildHumanJudgmentEvent(input: HumanLeanGuessInput): EvidenceEve
   };
 }
 
+export const LEAN_REVIEW_DEDUPE_KEY = 'lean_review';
+
+export interface LeanReviewInput {
+  upload_id: string;
+  voter_record_id: string;
+  user_id: string;
+  action: 'accept' | 'reopen';
+  lean: LeanLabel;
+  confidence: number | null;
+  contributing_arms: string[];
+  note?: string;
+}
+
+/**
+ * Audit-trail event for the researcher's accept/reopen decision on a fused
+ * lean. Fusion ignores human_judgment events, so this never feeds the math —
+ * the operative state is `voter_lean_fusion.review_status`; this records who
+ * decided what, alongside the arm evidence it was based on.
+ */
+export function buildLeanReviewEvent(input: LeanReviewInput): EvidenceEventInput {
+  const accepted = input.action === 'accept';
+  const evidence = accepted
+    ? [
+        'Researcher accepted the fused lean as final (research closed for this voter).',
+        `Accepted: ${input.lean} (${input.confidence ?? 0}% fused confidence) — contributing arms: ${
+          input.contributing_arms.join(', ') || 'none'
+        }.`,
+      ]
+    : ['Researcher reopened research (acceptance cleared).'];
+  if (input.note?.trim()) evidence.push(`Note: ${input.note.trim()}`);
+
+  return {
+    upload_id: input.upload_id,
+    voter_record_id: input.voter_record_id,
+    user_id: input.user_id,
+    arm: 'human_judgment',
+    source: 'lean_review',
+    identity_band: null,
+    identity_score: null,
+    probable_same_person: true,
+    lean_signal: accepted ? input.lean : 'Undetermined',
+    lean_confidence: accepted ? input.confidence : null,
+    evidence,
+    urls: [],
+    payload: {
+      method: 'lean_review',
+      action: input.action,
+      judged_by: input.user_id,
+      note: input.note?.trim() || null,
+      contributing_arms: input.contributing_arms,
+    },
+    cost_usd: 0,
+    dedupe_key: LEAN_REVIEW_DEDUPE_KEY,
+  };
+}
+
 export function googleMapsSearchUrl(address: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }

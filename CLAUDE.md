@@ -22,14 +22,17 @@ npm run lint     # eslint CLI directly (`eslint .`) — migrated off the depreca
 There is **no test runner and no typecheck script** yet (`tsc --noEmit` works ad hoc via
 the tsconfig). ESLint uses flat config (`eslint.config.mjs`): `eslint-config-next` 15.x
 still ships eslintrc-format configs, so they load through `FlatCompat` — don't spread the
-`eslint-config-next/*` modules directly into the flat array (they aren't iterable). Apply migrations `001` → `010` to Neon in order — either by hand
+`eslint-config-next/*` modules directly into the flat array (they aren't iterable). Apply
+migrations `001` → `011` to Neon in order — either by hand
 (`psql "$DATABASE_URL" -f migrations/00X_*.sql`) or, without `psql`, via
 `node scripts/apply-migrations.mjs` (uses the project's `pg` driver + `.env.local`).
 Migrations are additive and idempotent (`IF NOT EXISTS`; policies `DROP … IF EXISTS` then
 `CREATE`) — except `007_committee_lean.sql`, whose `CREATE POLICY` predates that convention,
 so a "policy already exists" error just means 007 is applied; skip it. `008` adds generic
 intake + waterfall settlement columns; `009` adds prepaid billing; `010` adds FEC-retry
-tracking columns. See `docs/SETUP.md`.
+tracking columns; `011` adds the initiation-fee ledger kind + researcher review columns
+(`review_status`/`research_status` — **the arm claim queries reference these, so 011 must be
+applied before deploying code that includes them**). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -49,6 +52,15 @@ except in the cron sweeper (which runs as a system job, not a user).
 with `processing_jobs` tracking a run per upload. Dedup is enforced by
 `UNIQUE (upload_id, voter_hash)` and `UNIQUE (user_id, voter_hash)` — the same voter
 hashed twice (across uploads) will conflict on insert into `lean_results`.
+
+**Waterfall/review semantics** (`voter_lean_fusion`, migrations 008/011): settlement
+(`settled_tier`, billed once ever) and research continuation are separate switches. Arm claim
+queries (`claimFecSweepRows`, `runFreePassForUpload`) share one predicate: `review_status =
+'accepted'` → never claim; settled + `research_status = 're_enrolled'` → claim anyway;
+otherwise claim only unsettled. Researcher acceptance also freezes fusion —
+`persistFusionForVoter` early-returns for accepted voters so their deliverable values never
+drift. Keep that predicate in sync (both claim queries + `getUploadEvidenceSummary`'s
+eligible-remaining count) if you add an arm.
 
 **Two input files, both tab-delimited FL DOS extracts, both parsed by hand (no CSV lib):**
 - `lib/fl-voter-registration.ts` — the registration extract: **38 fields, no header**.

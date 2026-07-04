@@ -10,7 +10,7 @@ export async function GET() {
     const userEmail = session.user.email;
     const { rows } = await withUserDb(userEmail, (client) =>
       client.query(
-        `SELECT scope, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd, updated_at
+        `SELECT scope, initiation_usd, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd, updated_at
          FROM rate_cards
          ORDER BY (scope = 'default') DESC, scope`,
       ),
@@ -24,7 +24,7 @@ export async function GET() {
   }
 }
 
-const FEE_KEYS = ['baseline_usd', 'tier1_usd', 'tier2_usd', 'tier3_usd', 'osint_attempt_usd'] as const;
+const FEE_KEYS = ['initiation_usd', 'baseline_usd', 'tier1_usd', 'tier2_usd', 'tier3_usd', 'osint_attempt_usd'] as const;
 
 /**
  * Upsert a rate-card scope. scope='default' edits the base fees; scope=<account_id>
@@ -62,9 +62,10 @@ export async function PUT(request: Request) {
         if (acct.rowCount === 0) throw new Error(`Unknown account_id for override: ${scope}`);
       }
       await client.query(
-        `INSERT INTO rate_cards (scope, user_id, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        `INSERT INTO rate_cards (scope, user_id, initiation_usd, baseline_usd, tier1_usd, tier2_usd, tier3_usd, osint_attempt_usd, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
          ON CONFLICT (scope) DO UPDATE SET
+           initiation_usd = EXCLUDED.initiation_usd,
            baseline_usd = EXCLUDED.baseline_usd,
            tier1_usd = EXCLUDED.tier1_usd,
            tier2_usd = EXCLUDED.tier2_usd,
@@ -74,6 +75,7 @@ export async function PUT(request: Request) {
         [
           scope,
           userEmail,
+          fees.initiation_usd,
           fees.baseline_usd,
           fees.tier1_usd,
           fees.tier2_usd,

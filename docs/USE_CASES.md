@@ -151,6 +151,8 @@ without Grok spend.
 | T13.2 | Run FL/Sunbiz after a tier-1 settle | Settled voters excluded from the free-pass work-set (no new events). |
 | T13.3 | FEC hit but lean Undetermined or below threshold | Not settled; falls through to next arm. |
 | T13.4 | Multiple arms contribute a lean | Settles at the **cheapest** contributing tier. |
+| T13.5 | Re-enrolled settled voter (`research_status='re_enrolled'`) | Re-enters later arm work-sets; new evidence may revise lean/confidence. |
+| T13.6 | Settled + re-enrolled voter gains more evidence | **No second tier charge** (partial unique index holds). |
 
 ## UC-14 — Prepaid billing (accounts, waterfall pricing) ✅
 **As** the operator, **I can** prepay an account and have research deducted per tier.
@@ -165,6 +167,9 @@ without Grok spend.
 | T14.6 | Edit default fee / set per-account override | New batches bill at resolved rates; prior ledger rows unchanged (rate snapshot). |
 | T14.7 | Unbilled batch (`account_id` NULL) | No ledger rows; arms run free. |
 | T14.8 | `scripts/smoke-billing.ts` | All ✓; rolls back; "Billing engine verified". |
+| T14.9 | Create account with "Bill initiation fee" checked | One `initiation` ledger row −$2,500 (rate card); balance reflects it. |
+| T14.10 | Charge initiation again (button or re-create) | No-op — once per account, ever (partial unique index); UI reports "already charged". |
+| T14.11 | Create account with the checkbox off | No initiation row; "Charge initiation fee" button available on the account detail. |
 
 ## UC-15 — Client deliverable export ✅
 **As** the operator, **I can** hand the client back their own list with our lean, confidence,
@@ -172,8 +177,28 @@ source, and evidence appended to every row.
 
 | ID | Test | Expected |
 |---|---|---|
-| T15.1 | `GET /api/export/{id}/deliverable?format=csv` | CSV of all input rows in original order + `LeanLink Lean/Confidence/Source/Evidence` columns. |
+| T15.1 | `GET /api/export/{id}/deliverable?format=csv` | CSV of all input rows in original order + `LeanLink Lean/Confidence/Source/Status/Evidence` columns. |
 | T15.2 | Upload ingested with original headers (`raw_data._source`) | Deliverable echoes the client's exact columns/order. |
 | T15.3 | Upload predating `_source` | Falls back to normalized columns (name/county/address/city/state/zip/dob/email). |
 | T15.4 | Voter still Undetermined | Row present with `LeanLink Lean=Undetermined`, confidence 0 (not dropped). |
 | T15.5 | `format=json` | JSON array of row objects with appended keys. |
+| T15.6 | Voter fused from multiple arms | `LeanLink Source` lists **all** contributing arms, settled (billed) arm first (e.g. `FEC federal + Sunbiz → entity`). |
+| T15.7 | Status column values | `accepted` (researcher), `fused`/`provisional`/`conflicted` (fusion), `unresearched` (no fusion row). |
+| T15.8 | `format=audit` | One CSV row per evidence event: Row, Name, Arm, Source, Identity Band, Probable Match, Lean Signal, Signal Confidence, Evidence, URLs, Recorded At. |
+
+## UC-16 — Researcher review: accept / reopen / re-enroll ✅
+**As** the researcher, **I can** accept a fused lean as final (freezing it while research
+stops), reopen it, or push settled voters back into later arms — without ever re-billing a
+settlement.
+
+| ID | Test | Expected |
+|---|---|---|
+| T16.1 | Accept a voter with a determinate fused lean | `review_status='accepted'`; `human_judgment`/`lean_review` audit event; `✓` in voter list; deliverable Status `accepted`. |
+| T16.2 | Accept a voter whose fused lean is Undetermined | 400 "No fused lean to accept". |
+| T16.3 | Any arm runs after acceptance | Voter never claimed (FEC sweep, free pass); if evidence is added manually, fusion does **not** rewrite lean/confidence (freeze guard in `persistFusionForVoter`). |
+| T16.4 | Reopen an accepted voter | Lock cleared; fusion re-runs and catches up on evidence that arrived while frozen. |
+| T16.5 | Re-enroll a settled voter (button) | `research_status='re_enrolled'`; claimed by later arms despite settlement. |
+| T16.6 | Re-enroll an **accepted** voter | 400 — reopen first. |
+| T16.7 | Cohort re-enroll `maxConfidence=70` / `tierLte=1` | Only matching settled, unaccepted voters flagged; response reports count. |
+| T16.8 | Withdraw re-enrollments | `research_status` cleared for the upload; waterfall-gate counts update. |
+| T16.9 | Waterfall gate strip | Shows eligible-remaining, accepted, re-enrolled counts + projected max next-arm spend (billed uploads only). |

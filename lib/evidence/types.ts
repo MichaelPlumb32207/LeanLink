@@ -84,6 +84,21 @@ export interface UploadEvidenceSummary {
     by_tier: Record<string, number>; // "0".."3" → voters settled at that tier
     total: number;
   };
+  review: {
+    accepted_count: number; // researcher-accepted (frozen, out of all arms)
+    re_enrolled_count: number; // settled but pushed back into later arms
+  };
+  waterfall: {
+    /** Voters the next arm would actually claim (not settled/accepted, or re-enrolled). */
+    eligible_remaining: number;
+    /** Max spend if every eligible voter settles at that tier (null = unbilled upload). */
+    projected: {
+      tier1_usd: number;
+      tier2_usd: number;
+      tier3_usd: number;
+      osint_attempts_usd: number;
+    } | null;
+  };
   billing: {
     account_id: string;
     baseline_usd: number;

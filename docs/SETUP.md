@@ -51,8 +51,8 @@ for f in migrations/0*.sql; do psql "$DATABASE_URL" -f "$f"; done
 `DATABASE_URL` from the environment or `.env.local`):
 
 ```bash
-node scripts/apply-migrations.mjs                       # applies 007, 008, 009 by default
-node scripts/apply-migrations.mjs migrations/009_billing.sql   # or specific files
+node scripts/apply-migrations.mjs                       # applies 007–011 by default
+node scripts/apply-migrations.mjs migrations/011_initiation_and_review.sql   # or specific files
 ```
 
 Full order:
@@ -69,6 +69,7 @@ Full order:
 | `008_generic_intake_and_settlement.sql` | generic-intake source + completeness cols; waterfall `settled_*` cols |
 | `009_billing.sql` | `accounts`, `billing_ledger`, `rate_cards` (+ default seed), `voter_uploads.account_id` |
 | `010_fec_retry.sql` | `fec_lookup_results.retry_attempts` + `last_attempt_at` (background retry of failed FEC lookups) |
+| `011_initiation_and_review.sql` | `initiation` ledger kind + `rate_cards.initiation_usd` (seeded $2,500); `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
 EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.
@@ -128,7 +129,10 @@ Beyond the FL DOS extract, LeanLink accepts an **arbitrary client voter list** a
 research to a prepaid account. To try it in prod:
 
 1. **Billing console** (`/dashboard/accounts`) → create an account (a slug "campaign id",
-   e.g. `smith-for-senate`; optional FEC committee id) → **Record deposit**.
+   e.g. `smith-for-senate`; optional FEC committee id) → **Record deposit**. The **Bill
+   initiation fee** checkbox (default on) charges the one-time kickoff at the rate-card price
+   ($2,500 default); uncheck for internal/test accounts. Existing accounts get a "Charge
+   initiation fee" button (deduped — a second charge no-ops).
 2. **Client list intake** (`/dashboard/intake`) → paste/drop a CSV (header row; any of
    `name, county, address, city, state, zip, dob, email, phone, employer, party`) → pick
    the account → **Ingest list**. Rows need a name + at least one of county/ZIP/address
