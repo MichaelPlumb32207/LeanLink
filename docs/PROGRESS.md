@@ -187,6 +187,26 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Automated tests | ⬜ | None. See `docs/USE_CASES.md`. |
 
 ## Top of the backlog
+
+### Product layer — next up (2026-07-04)
+1. **Upload delete/archive UX** — a DELETE endpoint exists (`app/api/uploads/[id]`, wired in the
+   dashboard), but we want a real **manage-uploads** experience: discoverable delete, plus a
+   soft **archive** (hide without losing the ledger/billing history), ideally bulk. Consider an
+   `archived_at` column on `voter_uploads` and a filter on the uploads list.
+2. **Name a pasted list** — generic pastes are stored as `filename = 'pasted-list'`. Add a
+   "List name" input to `components/generic-intake.tsx` (the route already accepts `filename`),
+   so uploads are identifiable in the inventory + deliverable filename.
+3. **OSINT charge policy decision** — confirm whether an OSINT hit should bill attempt **+**
+   tier-3 (current) or tier-3 only (`osint_attempt_usd = 0`). Money-sensitive; owner call.
+4. **Party-prior decision** — provided party is currently inert (no lean emitted). Recommended:
+   emit a low-weight tier-0 prior the arms confirm/override, never billed for echoing. Owner call.
+5. **FL-scoped FEC bulk-load** — load FL federal individual contributions into Neon (like the
+   FL-contrib/Sunbiz indexes) to kill FEC API flakiness + rate limits. Costed as modest storage;
+   effort is the ETL. See the cost note in `docs/COST-ESTIMATES.md` discussion.
+6. **HTML artifact redraw** — `enrichment-pipeline.html` / `evidence-accumulator-pitch.html` have
+   2026-07-04 catch-up banners but still frame the research-POC; give them a billing/waterfall-aware pass.
+
+### Research POC
 1. **Professor demo** — Calhoun walkthrough via filter pills (FEC✓ 3 rows, Layer-2 26 rows).
 2. **Layer-2 lean yield** — review 26 Calhoun entity donations for partisan committee labeling.
 3. **Sunbiz index perf** — speed up `lookupSunbizOfficersForVoter` for county-scale free pass.

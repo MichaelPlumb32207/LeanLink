@@ -43,7 +43,27 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research &amp; education POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-06-30 (demo-ready)</p>
+    <p class="subtitle">Research &amp; education POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-07-04</p>
+
+    <div class="card" style="border-left:4px solid #059669;">
+      <strong>Recent additions (2026-07-04) — tiered/prepaid/waterfall product.</strong>
+      The enrichment arms below are unchanged, but they now sit inside a productized flow:
+      <ul style="margin:.4rem 0 0 1.1rem;">
+        <li><strong>Generic client intake</strong> — accept an arbitrary voter list (CSV/paste/JSON,
+          name + one of county/ZIP/address), normalized into the same record shape the arms consume.</li>
+        <li><strong>Waterfall settlement</strong> — a confident lean settles a voter at the cheapest
+          tier and excludes them from later, more expensive arms (real cost saving).</li>
+        <li><strong>Prepaid billing</strong> — accounts hold a balance; charge baseline/record,
+          per-tier on a settled lean, and per OSINT attempt (editable rate cards).</li>
+        <li><strong>Client deliverable</strong> — export the client's list back with lean, confidence,
+          source, and evidence appended to every row.</li>
+        <li><strong>Resilience</strong> — FEC lookups retry transient 5xx in-call, and a background
+          cron re-attempts anything that still failed.</li>
+      </ul>
+      Authoritative detail: <code>docs/PROGRESS.md</code>, <code>docs/CLAUDE.md</code> ("Tiered /
+      prepaid / waterfall product"), <code>docs/DECISIONS.md</code> D-024. This visual spec still
+      documents the arm mechanics; a fuller redraw with the billing/waterfall layer is backlogged.
+    </div>
 
     <div class="card">
       <strong>Research posture:</strong> Built for political-science research, validation, and education
