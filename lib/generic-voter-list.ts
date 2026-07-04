@@ -36,6 +36,9 @@ export interface GenericVoterInput {
 export interface GenericParseRow {
   rowIndex: number;
   input: GenericVoterInput;
+  /** Original columns as the client submitted them (header + value, in order),
+   *  so the deliverable can echo their file faithfully with our columns appended. */
+  sourceColumns: { h: string; v: string }[];
   record: ParsedFlVoterRecord | null;
   completeness: CompletenessResult | null;
   accepted: boolean;
@@ -250,15 +253,28 @@ function inputFromObject(obj: Record<string, unknown>): GenericVoterInput {
   return out;
 }
 
-function assemble(input: GenericVoterInput, rowIndex: number): GenericParseRow {
+function assemble(
+  input: GenericVoterInput,
+  rowIndex: number,
+  sourceColumns: { h: string; v: string }[],
+): GenericParseRow {
   const record = toRecord(input);
   const reason = anchorRejectReason(record);
   if (reason) {
-    return { rowIndex, input, record: null, completeness: null, accepted: false, rejectReason: reason };
+    return {
+      rowIndex,
+      input,
+      sourceColumns,
+      record: null,
+      completeness: null,
+      accepted: false,
+      rejectReason: reason,
+    };
   }
   return {
     rowIndex,
     input,
+    sourceColumns,
     record,
     completeness: scoreCompleteness(record),
     accepted: true,
@@ -269,9 +285,14 @@ function assemble(input: GenericVoterInput, rowIndex: number): GenericParseRow {
 /** Parse a JSON array of row objects. */
 export function parseGenericJson(data: unknown): GenericParseResult {
   const arr = Array.isArray(data) ? data : [];
-  const rows = arr.map((obj, i) =>
-    assemble(inputFromObject(obj as Record<string, unknown>), i),
-  );
+  const rows = arr.map((obj, i) => {
+    const record = obj as Record<string, unknown>;
+    const sourceColumns = Object.entries(record).map(([h, v]) => ({
+      h,
+      v: v == null ? '' : String(v),
+    }));
+    return assemble(inputFromObject(record), i, sourceColumns);
+  });
   return partition(rows);
 }
 
@@ -295,7 +316,9 @@ export function parseGenericDelimited(text: string): GenericParseResult {
       const raw = (cells[col] ?? '').trim();
       if (raw && input[field] === undefined) input[field] = raw;
     });
-    rows.push(assemble(input, rows.length));
+    // Preserve every original column (mapped or not) for the deliverable echo.
+    const sourceColumns = headers.map((h, i) => ({ h, v: (cells[i] ?? '').trim() }));
+    rows.push(assemble(input, rows.length, sourceColumns));
   }
   return partition(rows);
 }

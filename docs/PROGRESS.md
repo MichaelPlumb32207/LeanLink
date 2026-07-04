@@ -157,6 +157,8 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Generic client-list intake (CSV/paste/JSON, anchor gate, completeness) | ✅ | `lib/generic-voter-list.ts`, `lib/intake/completeness.ts`, `/dashboard/intake`. |
 | Waterfall settlement (skip settled voters in later arms) | ✅ | `lib/evidence/settlement.ts`, migration 008; threshold `LEANLINK_SETTLE_THRESHOLD`. |
 | Prepaid billing (accounts, ledger, rate cards, charge points) | ✅ | `lib/billing/*`, migration 009, `/dashboard/accounts`; verified `scripts/smoke-billing.ts`. |
+| Background FEC retry cron (heals transient failures) | ✅ | `lib/fec/retry-failed.ts`, `/api/cron/fec-retry`, migration 010. |
+| Client deliverable export (input file + lean/confidence/source/evidence per row) | ✅ | `/api/export/[uploadId]/deliverable`; original columns echoed via `raw_data._source`; button in evidence workspace. |
 | Voting-history extract parsing + turnout scoring | ✅ | `lib/fl-voter-history.ts`. |
 | Upload → hash → batch ingest | ✅ | `app/api/uploads`, `lib/hash.ts`. No Grok on upload. |
 | Job runner: claim/process/heartbeat, self-chaining worker | ✅ | Gated by `lib/batch-inference.ts`. |

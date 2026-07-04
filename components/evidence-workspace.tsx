@@ -286,14 +286,23 @@ export function EvidenceWorkspace({
             Run each enrichment step, then review fused lean and evidence per voter below.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshAll()}
-          disabled={loading}
-          className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
-        >
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/api/export/${uploadId}/deliverable?format=csv`}
+            className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-3 py-1.5 text-sm hover:opacity-80"
+            title="Download the client's list with lean, confidence, source, and evidence appended to every row"
+          >
+            Download deliverable (CSV)
+          </a>
+          <button
+            type="button"
+            onClick={() => void refreshAll()}
+            disabled={loading}
+            className="rounded-lg border px-3 py-1.5 text-sm hover:opacity-80 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-4">

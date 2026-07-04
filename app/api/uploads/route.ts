@@ -98,7 +98,9 @@ async function handleGenericUpload(
           uploadId,
           userEmail,
           start + offset,
-          JSON.stringify(record),
+          // Persist the client's original columns alongside the normalized record
+          // so the deliverable can echo their exact file with our columns appended.
+          JSON.stringify({ ...record, _source: row.sourceColumns }),
           voterHash,
           completeness.score,
           completeness.band,

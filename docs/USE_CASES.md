@@ -165,3 +165,15 @@ without Grok spend.
 | T14.6 | Edit default fee / set per-account override | New batches bill at resolved rates; prior ledger rows unchanged (rate snapshot). |
 | T14.7 | Unbilled batch (`account_id` NULL) | No ledger rows; arms run free. |
 | T14.8 | `scripts/smoke-billing.ts` | All ✓; rolls back; "Billing engine verified". |
+
+## UC-15 — Client deliverable export ✅
+**As** the operator, **I can** hand the client back their own list with our lean, confidence,
+source, and evidence appended to every row.
+
+| ID | Test | Expected |
+|---|---|---|
+| T15.1 | `GET /api/export/{id}/deliverable?format=csv` | CSV of all input rows in original order + `LeanLink Lean/Confidence/Source/Evidence` columns. |
+| T15.2 | Upload ingested with original headers (`raw_data._source`) | Deliverable echoes the client's exact columns/order. |
+| T15.3 | Upload predating `_source` | Falls back to normalized columns (name/county/address/city/state/zip/dob/email). |
+| T15.4 | Voter still Undetermined | Row present with `LeanLink Lean=Undetermined`, confidence 0 (not dropped). |
+| T15.5 | `format=json` | JSON array of row objects with appended keys. |
