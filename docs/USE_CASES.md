@@ -170,6 +170,7 @@ without Grok spend.
 | T14.9 | Create account with "Bill initiation fee" checked | One `initiation` ledger row −$2,500 (rate card); balance reflects it. |
 | T14.10 | Charge initiation again (button or re-create) | No-op — once per account, ever (partial unique index); UI reports "already charged". |
 | T14.11 | Create account with the checkbox off | No initiation row; "Charge initiation fee" button available on the account detail. |
+| T14.12 | Attach an `account_id` to an `fl_extract` upload (direct SQL) | Rejected by `voter_uploads_fl_extract_unbilled` CHECK — FL registration data is research-track only (D-027). |
 
 ## UC-15 — Client deliverable export ✅
 **As** the operator, **I can** hand the client back their own list with our lean, confidence,

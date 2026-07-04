@@ -22,6 +22,7 @@ const DEFAULT_FILES = [
   'migrations/009_billing.sql',
   'migrations/010_fec_retry.sql',
   'migrations/011_initiation_and_review.sql',
+  'migrations/012_fl_extract_unbilled.sql',
 ];
 
 function loadDatabaseUrl() {

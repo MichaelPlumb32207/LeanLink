@@ -70,6 +70,7 @@ Full order:
 | `009_billing.sql` | `accounts`, `billing_ledger`, `rate_cards` (+ default seed), `voter_uploads.account_id` |
 | `010_fec_retry.sql` | `fec_lookup_results.retry_attempts` + `last_attempt_at` (background retry of failed FEC lookups) |
 | `011_initiation_and_review.sql` | `initiation` ledger kind + `rate_cards.initiation_usd` (seeded $2,500); `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
+| `012_fl_extract_unbilled.sql` | posture guardrail: `CHECK` that an `fl_extract` upload never carries a billing `account_id` (D-027) |
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
 EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.
@@ -122,6 +123,12 @@ full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when bat
   and primary-engagement scoring. Drop it on the dashboard; `_H_` files auto-route.
 
 These contain PII and are **gitignored** — keep them local; never commit.
+
+**FL extracts are research-track only (D-027):** FL DOS registration data carries use
+restrictions that exclude commercial use, so uploads from this path can never bill to a
+client account — the route never attaches one, and migration 012's CHECK constraint refuses
+it at the database. Paid client work uses the generic intake path in §7 (client-supplied
+lists, per-client accounts).
 
 ## 7. Client-list intake + prepaid billing (generic path)
 

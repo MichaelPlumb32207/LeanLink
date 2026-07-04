@@ -6,6 +6,27 @@ current as design shifts.
 
 ---
 
+## D-027 · Two-track use posture: research-only is scoped to FL-extract data
+**Decision (owner, 2026-07-04):** The "research/validation only" posture (D-005) was always a
+guardrail on the *data source* — the FL DOS voter-registration extracts used during
+exploration, which carry use restrictions excluding commercial/marketing use — not on the
+enrichment activity itself. Exploration is complete; commercial engagements now proceed on
+**client-supplied lists**. The posture becomes two-track: **Track A** — anything derived from
+FL registration extracts (Calhoun/Alachua test uploads, professor work) stays research-only,
+is never billed, and never enters a client deliverable; **Track B** — client-supplied lists on
+per-client accounts, enriched from public records only, are commercial. **Guardrails made
+structural:** migration 012 adds `voter_uploads_fl_extract_unbilled` (`CHECK (source_type <>
+'fl_extract' OR account_id IS NULL)`) so an FL-extract upload can never carry a billing
+account; the upload route never sets one on that path (now documented in-code); isolation is
+already inherent — evidence/fusion/household are upload-scoped and the two intake paths use
+disjoint identity hashes (`hashVoterPii` voterId-keyed vs `hashGenericVoter`
+name/address/dob-keyed). **Retained on both tracks:** OSINT-only (no data brokers — now a
+client-facing product promise), no race/gender inputs, withheld labels on conflict, no
+resale/pooling. **Client responsibility:** the lawful basis for a list a client supplies is
+the client's — capture in engagement terms. **Overrides:** D-005's blanket research-only
+posture and its counsel-review tripwire framing (the tripwire attached to the FL-extract
+data, which remains protected).
+
 ## D-026 · Pricing confirmed + researcher review controls (accept / re-enroll)
 **Decision (pricing, owner-confirmed 2026-07-04):** Keep the migration-009 seeded rate card as
 the client pricing — $0.03 baseline/record, $0.15 tier-1 (FEC), $0.25 tier-2 (FL/Sunbiz),
@@ -196,6 +217,8 @@ targeting* individuals — the research-only posture is what keeps the POC clear
 vendors named in the original plan (Clearbit/FullContact) are moving targets. **Overrides:**
 the original plan's commercialization framing and Clearbit/FullContact enrichment.
 **Tripwire:** any shift toward outreach/marketing/resale → counsel review first.
+**Scope narrowed by D-027 (2026-07-04):** this posture now applies to FL-DOS-extract-derived
+data only; client-supplied lists proceed commercially on per-client accounts.
 
 ## D-004 · History-aware mock before Grok
 **Decision:** Fallback mock in `lib/inference.ts` when `XAI_API_KEY` is missing or Grok

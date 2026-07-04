@@ -190,6 +190,10 @@ export async function POST(request: Request) {
     }
 
     const result = await withUserDb(userEmail, async (client) => {
+      // Deliberately NO account_id on this path: FL DOS registration extracts are
+      // research-track only (use-restricted data — see D-027) and must never bill
+      // to a client account. Enforced by the voter_uploads_fl_extract_unbilled
+      // CHECK (migration 012); client work goes through generic intake above.
       const uploadRes = await client.query<{ id: string }>(
         `INSERT INTO voter_uploads (user_id, filename, row_count, status, history_filename, ballot_favors)
          VALUES ($1, $2, $3, 'ready', $4, $5)

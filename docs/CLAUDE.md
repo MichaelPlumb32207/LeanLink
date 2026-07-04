@@ -2,22 +2,36 @@
 
 ## What this is
 
-Proof-of-concept built for a **University of Florida political-science professor**.
-The research question: as voters get harder to reach over US Mail, landline, and
-email, can a public FL voter record be linked to the corresponding **online persona**
-using only public data + OSINT?
+Began as a proof-of-concept for a **University of Florida political-science professor**
+(research question: can a public FL voter record be linked to its **online persona**
+using only public data + OSINT?). As of **2026-07-04 (D-027)** it is also a **billed
+commercial service** — client-supplied voter lists researched for political lean.
 
-**Use context matters and constrains the design:**
-- Output goes to the professor for **research, validation, and teaching** — the
-  *learnings* feed his courses and publications.
-- It is **not** used to contact, market to, target, or otherwise act on the
-  individuals. No outbound. No resale of person-level data.
-- Input is FL public voter record (NPA, active). Enrichment is **OSINT only** for the
-  POC — no commercial data-broker vendors (see below).
+**Two-track use posture (D-027)** — the constraint lives with the *data source*, not
+the activity:
 
-This framing is what keeps the work inside an educational-research use posture. If the
-use ever shifts toward contacting or targeting individuals, the legal/compliance
-picture changes materially and must be revisited with counsel first.
+- **Track A — FL DOS registration extracts (research only).** The exploration-phase
+  test data (Calhoun, Alachua) and any professor work use the FL voter-registration
+  extract, which carries use restrictions that exclude commercial/marketing use.
+  Everything derived from those uploads stays research/validation-only: **never
+  attached to a billing account** (structural — `voter_uploads_fl_extract_unbilled`
+  CHECK, migration 012; the upload route never sets `account_id` on that path) and
+  **never included in a client deliverable**. PII/gitignore rules for these files
+  stand (`CAL_*.txt`, `*_H_*.txt`, `samples/*.txt` never enter git).
+- **Track B — client engagements (commercial).** Clients supply **their own lists**
+  through generic intake, billed to **their own account**. Enrichment draws only on
+  public records (FEC, FL campaign-finance, Sunbiz, open web). Output derives solely
+  from the client's rows + public reference data. Isolation from Track A is
+  structural, not procedural: per-upload processing (evidence, fusion, household
+  index are all upload-scoped), per-client accounts, disjoint identity-hash schemes
+  (`hashVoterPii` is voterId-keyed; `hashGenericVoter` is name/address/dob-keyed —
+  they can never collide), plus the migration-012 constraint. The client's lawful
+  basis for the list they hand us is **the client's responsibility** — capture that
+  in engagement terms.
+
+Both tracks share the standing integrity rules (also client-facing promises in
+`leanlink-pitch.html`): public data only, no data brokers, race/gender never used as
+inputs, conflicting evidence → withheld label, no resale or pooling of results.
 
 ## Stack (as built — supersedes the original plan HTML)
 
@@ -81,18 +95,17 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
 `osint_attempt_usd=0` for tier-3-only. Provided-party is stored/scored but emits **no** lean
 yet (treat as a weak prior the arms confirm/override; never bill for echoing a registration).
 
-**Posture note:** billing + generic client lists move the tool toward a sellable service for
-campaigns, distinct from the OSINT-only professor-research posture below. Keep the research
-posture for the UF use case; a campaign/commercial deployment is a deliberate, separately
-reviewed decision.
+**Posture note:** commercial deployment on client-supplied lists is now the operating model
+(D-027, 2026-07-04) — see the two-track posture at the top of this doc. FL-extract uploads
+remain research-track and structurally unbillable.
 
-## Enrichment policy (POC)
+## Enrichment policy (both tracks)
 
-**OSINT only.** No Clearbit / FullContact / commercial data-broker enrichment in the
-POC. (Those vendors are also moving targets — Clearbit was absorbed into HubSpot,
-FullContact has changed access — so they are not worth wiring up now.) If a paid
-enrichment source is ever reconsidered, it is a deliberate, counsel-reviewed decision,
-not a default.
+**OSINT only.** No Clearbit / FullContact / commercial data-broker enrichment — on the
+research track *or* for clients. What started as POC prudence is now a **product
+promise**: the pitch's integrity box commits to "public records and open sources only —
+no data brokers, ever." If a paid enrichment source is ever reconsidered, it is a
+deliberate, counsel-reviewed decision *and* a client-communication event, not a default.
 
 ## AI vendor verification (xAI / Grok)
 

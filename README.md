@@ -4,11 +4,13 @@ A research proof-of-concept that links Florida public voter records to inferred 
 **lean** and **turnout / opposition-mobilization** scores, with a single-user dashboard and
 CSV/JSON export.
 
-Built for a University of Florida political-science professor: the goal is to study whether
-a public voter record can be linked to its online persona using public data + OSINT, so the
-**learnings** inform research, courses, and publications. Output is for research and
-validation — **not** for contacting, marketing to, or targeting individuals. See
-[`docs/CLAUDE.md`](docs/CLAUDE.md) for the full use posture.
+Began as research for a University of Florida political-science professor (can a public
+voter record be linked to its online persona using public data + OSINT?) and now also runs
+as a **billed client service** on client-supplied lists. The use posture is two-track: data
+derived from FL DOS voter-registration extracts (the exploration test data and professor
+work) stays **research-only** and is structurally unbillable (DB constraint); commercial
+engagements run on **client-supplied lists** enriched exclusively from public records. See
+[`docs/CLAUDE.md`](docs/CLAUDE.md) for the full posture (D-027).
 
 > **Status:** working POC pipeline. Upload + turnout/mobilization scoring are production-ready.
 > Grok OSINT enrichment runs per-voter via dashboard tests; **full-file batch jobs are disabled**

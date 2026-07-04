@@ -54,6 +54,16 @@ fused voter → `✓` in the voter list, later arms skip them, deliverable Statu
 re-enroll FEC-settled cohort → waterfall-gate counts move, no new tier charges for re-settles →
 `?format=audit` download.
 
+**Posture evolution (same day, D-027):** "research only" is now scoped to what it always
+protected — the FL DOS registration extracts (use-restricted data). Client-supplied lists on
+per-client accounts proceed commercially. Migration **012** makes the guardrail structural:
+`fl_extract` uploads can never carry a billing `account_id` (CHECK constraint; the upload
+route also never sets one — verified live: both FL test uploads are unbilled, only the
+`test001` generic import carries an account). Isolation Track A ↔ Track B is inherent:
+upload-scoped evidence/fusion/household + disjoint hash schemes. Apply 012 with
+`node scripts/apply-migrations.mjs migrations/012_fl_extract_unbilled.sql` (code does not
+depend on it — deploy-order safe).
+
 **Client pitch (same day):** new `leanlink-pitch.html` — 3-page print-ready client pitch (what it
 is / deliverable + audit + stage gates / confirmed pricing with a 25k worked example ≈ $4.5k,
 ~$1.45 per lean all-in). Framing: **fully managed service** (Michael operates the system on the
