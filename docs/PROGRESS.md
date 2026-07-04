@@ -60,9 +60,10 @@ per-client accounts proceed commercially. Migration **012** makes the guardrail 
 `fl_extract` uploads can never carry a billing `account_id` (CHECK constraint; the upload
 route also never sets one — verified live: both FL test uploads are unbilled, only the
 `test001` generic import carries an account). Isolation Track A ↔ Track B is inherent:
-upload-scoped evidence/fusion/household + disjoint hash schemes. Apply 012 with
-`node scripts/apply-migrations.mjs migrations/012_fl_extract_unbilled.sql` (code does not
-depend on it — deploy-order safe).
+upload-scoped evidence/fusion/household + disjoint hash schemes. **Migration 012 applied to
+Neon 2026-07-04 and verified in the catalog** (`voter_uploads_fl_extract_unbilled` present
+with `CHECK (source_type <> 'fl_extract' OR account_id IS NULL)`). Schema is current through
+**012**.
 
 **Client pitch (same day):** new `leanlink-pitch.html` — 3-page print-ready client pitch (what it
 is / deliverable + audit + stage gates / confirmed pricing with a 25k worked example ≈ $4.5k,
