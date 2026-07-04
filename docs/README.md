@@ -14,6 +14,7 @@ Read in this order when joining the project cold.
 | [`evidence-accumulator-pitch.html`](evidence-accumulator-pitch.html) | Pitch deck — multi-arm evidence, identity gates, fusion | Architecture or stakeholder demos |
 | [`USE_CASES.md`](USE_CASES.md) | Use cases + manual QA checklist (future automated tests) | New user-facing behavior |
 | [`COST-ESTIMATES.md`](COST-ESTIMATES.md) | Grok/Apify $/voter bands from live samples | After scorecard or test enrichment runs |
+| [`../leanlink-pitch.html`](../leanlink-pitch.html) | **Client-facing 3-page pitch** — what it is, deliverables, confirmed pricing (print-ready) | Pricing or deliverable changes |
 
 **Also useful:** root [`CLAUDE.md`](../CLAUDE.md) (architecture for coding agents), [`stack-spec.md`](../stack-spec.md) (early stack notes — may lag `DECISIONS.md`).
 

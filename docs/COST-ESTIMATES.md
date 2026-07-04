@@ -46,8 +46,9 @@ records that fall through to OSINT.
 
 The baseline + OSINT-attempt fees exist specifically so a thin-data list (which cascades to
 the expensive OSINT arm and rarely settles cheaply) doesn't consume paid attempts for free.
-**These defaults were confirmed as the client pricing on 2026-07-04 (D-026)** — the one-pager
-should be reconciled to them. Adjust per account in the Billing console.
+**These defaults were confirmed as the client pricing on 2026-07-04 (D-026).** Both client-facing
+HTML docs (`leanlink-pitch.html`, the flagship 3-pager, and `leanlink-one-pager.html`) now quote
+these numbers. Adjust per account in the Billing console.
 
 ### Market anchors (researched 2026-07-04 — refresh before quoting competitively)
 

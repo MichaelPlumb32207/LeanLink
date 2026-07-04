@@ -54,6 +54,13 @@ fused voter → `✓` in the voter list, later arms skip them, deliverable Statu
 re-enroll FEC-settled cohort → waterfall-gate counts move, no new tier charges for re-settles →
 `?format=audit` download.
 
+**Client pitch (same day):** new `leanlink-pitch.html` — 3-page print-ready client pitch (what it
+is / deliverable + audit + stage gates / confirmed pricing with a 25k worked example ≈ $4.5k,
+~$1.45 per lean all-in). Framing: **fully managed service** (Michael operates the system on the
+client's behalf; spend gated at every stage — clients never risk an accidental 40k run).
+`leanlink-one-pager.html` pricing reconciled to D-026 ($2,500 / $0.03 / $0.15 / $0.25 /
+$0.33 + $0.05; monthly platform fee removed). Sample-output names are fictitious.
+
 ## Lint gate restored (2026-07-04)
 
 `npm run lint` had been failing on every tree state ("nextCoreWebVitals is not iterable" —
@@ -266,6 +273,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
    effort is the ETL. See the cost note in `docs/COST-ESTIMATES.md` discussion.
 6. **HTML artifact redraw** — `enrichment-pipeline.html` / `evidence-accumulator-pitch.html` have
    2026-07-04 catch-up banners but still frame the research-POC; give them a billing/waterfall-aware pass.
+   *(Partially addressed 2026-07-04: new client-facing `leanlink-pitch.html` (3-page, print-ready,
+   confirmed pricing, managed-service framing) is now the flagship; `leanlink-one-pager.html`
+   pricing reconciled to D-026 — the two internal spec HTMLs still need their pass.)*
 
 ### Research POC
 1. **Professor demo** — Calhoun walkthrough via filter pills (FEC✓ 3 rows, Layer-2 26 rows).

@@ -51,6 +51,7 @@ instance from scratch.
 
 ## Documentation
 
+- [`leanlink-pitch.html`](leanlink-pitch.html) — **client-facing pitch** (3 pages, print-ready, confirmed pricing)
 - [`docs/README.md`](docs/README.md) — **doc index & reading order** (start here for onboarding)
 - [`CLAUDE.md`](CLAUDE.md) — architecture & conventions (for Claude Code / new devs)
 - [`docs/SETUP.md`](docs/SETUP.md) — provisioning runbook
