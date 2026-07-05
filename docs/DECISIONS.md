@@ -220,8 +220,11 @@ modular fetch added (D-017) for auditable retrieval; Grok remains synthesizer. *
 
 ## D-007 · Living-docs artifact set
 **Decision:** Standard complement = `README.md`, `CLAUDE.md`, `docs/README.md` (index),
-`docs/SETUP.md`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/USE_CASES.md`,
-`docs/COST-ESTIMATES.md`, `docs/enrichment-pipeline.html`, `docs/CLAUDE.md`, `LICENSE`. **Why:** Survive context drift
+`docs/SETUP.md`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/ROADMAP.md`, `docs/USE_CASES.md`,
+`docs/COST-ESTIMATES.md`, `docs/enrichment-pipeline.html`, `docs/CLAUDE.md`, `LICENSE`.
+`docs/USE_CASES.md` embeds its test cases (no separate `TEST_PLAN.md`); `docs/ROADMAP.md` added
+2026-07-05 as the forward-looking counterpart to `PROGRESS.md`. `USER_GUIDE.md` (from the global
+8-doc standard) is still deferred — single-operator, and `SETUP.md` covers the workflow. **Why:** Survive context drift
 between sessions and across teammates (Michael, Claude, Grok Build); make the project
 handover-ready. **Deferred:** CONTRIBUTING/SECURITY/CHANGELOG — overkill for a single-user POC.
 

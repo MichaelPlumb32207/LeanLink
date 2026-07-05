@@ -60,6 +60,7 @@ instance from scratch.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the stack/design choices were made
 - [`docs/USE_CASES.md`](docs/USE_CASES.md) — use cases + test cases
 - [`docs/PROGRESS.md`](docs/PROGRESS.md) — build status + continuity / pick-up notes
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — where the product is going (Now/Next/Later + open decisions)
 - [`docs/COST-ESTIMATES.md`](docs/COST-ESTIMATES.md) — Grok $/voter bands
 - [`docs/enrichment-pipeline.html`](docs/enrichment-pipeline.html) — enrichment spec (visual)
 - [`docs/CLAUDE.md`](docs/CLAUDE.md) — use posture + AI-vendor verification

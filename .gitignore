@@ -62,6 +62,10 @@ samples/*.csv
 samples/leanlink-*.csv
 !samples/.gitkeep
 
+# Sample client-intake files — contain real personal data; keep local only
+Import Example.csv
+Import Example.xlsx
+
 # Reference bulk downloads (large; local / Neon only)
 data/reference/
 
@@ -69,3 +73,5 @@ data/reference/
 *.pem
 *.key
 fec-data/
+scripts/debug-fec.ts
+LeanLink - Political lean - on the record.pdf
