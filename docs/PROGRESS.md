@@ -26,6 +26,17 @@ Alachua's remainder locally — the crawling API sweep can be cancelled once the
 lands. Verified: FEC file format against fec.gov docs (21 pipe-delimited cols, SUB_ID unique,
 MMDDYYYY dates); `fecNameNorm` unit cases; `tsc` clean.
 
+**RESULTS (same evening):** 2024-cycle load: **3,981,111 FL rows** in ~12 min (58.2M lines
+scanned, 7 malformed; snapshot `2024-fl` READY). Alachua index match: **40,546 voters in
+3h12m** (~3.5/s, network-bound from the operator Mac) → 4,186 with name-matching rows (10.3%)
+→ **247 identity-confirmed donors** → **178 settled at Tier 1** (132 Left / 46 Right ·
+includes 6 from the cancelled API sweep, which was stopped at 802 voters processed).
+Tier 1 lean yield on a real NPA county: **0.44%** — recalibrate the pitch's illustrative
+example (which assumed ~2% at Tier 1) once Tier 2/3 actuals exist. Old API sweep: cancelled
+2026-07-04 22:28Z. Next: Tier 2 free pass on the ~40k remainder (mind Sunbiz perf, backlog),
+and/or backfill `indiv22`/`indiv20` cycles to raise Tier 1 yield (re-run the match after —
+settled voters are skipped automatically).
+
 ## Where to pick up (continuity note — 2026-07-04, pricing + review controls)
 
 **⚠️ Deploy gate:** migration **011** must be applied to Neon **before** this session's code is

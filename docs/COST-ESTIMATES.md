@@ -108,9 +108,10 @@ only. Set `FEC_API_KEY` in production — `DEMO_KEY` is heavily rate-limited.
 
 Record after validation runs:
 
-| County subset | Rows | Rows with hits | Notes |
-|---------------|------|----------------|-------|
-| (pending) | 7 | — | Run via Analyze → FEC lookup |
+| County | Rows | With FEC rows | Identity-confirmed | Tier 1 leans | Notes |
+|--------|------|---------------|--------------------|--------------|-------|
+| Alachua (bulk index, 2024 cycle) | 40,546 | 4,186 (10.3%) | 247 (0.61%) | **178 (0.44%)** — 132 L / 46 R | 3h12m local match, 2026-07-04; single cycle — older-cycle backfill should raise yield |
+| Calhoun (API sweep) | 736 | 27 raw | 3 | 3 | Historic baseline, multi-cycle via API |
 
 ## Recommended testing budget
 
