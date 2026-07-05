@@ -22,7 +22,7 @@ Status: 🔴 open · 🟡 in progress · ✅ fixed/shipped · ⬜ won't fix (say
 
 | ID | Status | Pri | Title | Notes |
 |---|---|---|---|---|
-| ENH-003 | 🔴 | P1 | Box score Phase B — `arm_runs` live progress (migration 014) | Per-arm run rows written by every runner incl. CLI; current-inning rate/ETA/stalled; free-pass chunking + >5k guard. Specced in D-029; ROADMAP "Next". |
+| ENH-003 | 🟡 | P1 | Box score Phase B — `arm_runs` live progress (migration 014) | **Shipped 2026-07-05:** migration 014 (applied), `lib/evidence/arm-runs.ts` (start/heartbeat/finish, 10-min stale reap, one active run per upload+arm), FEC index CLI instrumented (+`--start-after`), `summary.runs` (arm_runs ∪ fec_sweep_jobs at read), current-inning strip (progress/rate/ETA/heartbeat/CLI chip/stalled), uploads-list live dot. **Remaining:** instrument `match-fec-index` API action + free-pass paths (incl. chunking refactor + >5k guard). |
 | ENH-002 | 🔴 | P2 | Re-run Alachua FEC match post-D-030 | Enriches thin events in place (upsert), re-measures Tier-1 yield with party codes wired (recorded 0.44% predates the fix). Skips its 178 settled. |
 | ENH-001 | 🔴 | P2 | Sunbiz index performance | Prefix/trigram index on `officer_name_norm`; free pass slow at county scale. ROADMAP "Later". |
 

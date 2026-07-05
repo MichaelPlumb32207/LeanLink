@@ -117,6 +117,7 @@ type Upload = {
   settled_count?: number | null;
   accepted_count?: number | null;
   conflicted_count?: number | null;
+  run_active?: boolean | null;
 };
 
 type BallotFavors = 'south' | 'north';
@@ -1055,7 +1056,15 @@ export default function DashboardPage() {
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-medium">{upload.filename}</div>
+                  <div className="flex items-center gap-2 font-medium">
+                    {upload.run_active && (
+                      <span
+                        className="h-2 w-2 animate-pulse rounded-full bg-sky-300"
+                        title="An arm is running on this upload right now"
+                      />
+                    )}
+                    {upload.filename}
+                  </div>
                   {upload.job_status && (
                     <span className="rounded-full bg-black/30 px-2 py-0.5 text-xs uppercase tracking-wide">
                       {upload.job_status}

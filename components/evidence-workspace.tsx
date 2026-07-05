@@ -285,6 +285,7 @@ export function EvidenceWorkspace({
             },
             billing: null,
             fec_sweep: null,
+            runs: { active: [], recent: [] },
           }),
     [summary, syncing, uploadId, upload?.row_count],
   );

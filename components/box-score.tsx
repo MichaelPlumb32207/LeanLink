@@ -7,9 +7,19 @@
  * the pipeline controls in the evidence workspace.
  */
 import { buildBoxScore, type BoxScoreInning } from '@/lib/box-score';
-import type { UploadEvidenceSummary } from '@/lib/evidence/types';
+import type { ArmRunSummary, UploadEvidenceSummary } from '@/lib/evidence/types';
 
 const nf = new Intl.NumberFormat('en-US');
+
+const RUN_ARM_LABELS: Record<string, string> = {
+  fec: 'FEC',
+  fl_contrib: 'FL contrib',
+  sunbiz: 'Sunbiz',
+  osint: 'OSINT',
+};
+
+const CLI_RUNNERS = new Set(['fec_index_cli', 'free_pass_cli']);
+const STALLED_MS = 5 * 60 * 1000;
 
 const INNING_STATE_STYLES: Record<BoxScoreInning['state'], string> = {
   live: 'border-sky-400/50 bg-sky-500/15 text-sky-100',
@@ -52,8 +62,7 @@ export function BoxScoreBar({
   lastUpdated: Date | null;
 }) {
   const { scoreboard } = buildBoxScore(summary);
-  const sweep = summary.fec_sweep;
-  const sweepLive = sweep?.status === 'running' || sweep?.status === 'queued';
+  const activeRuns = summary.runs?.active ?? [];
 
   const byLean = Object.entries(scoreboard.by_lean)
     .map(([k, v]) => `${k} ${nf.format(v)}`)
@@ -78,11 +87,18 @@ export function BoxScoreBar({
           value={nf.format(scoreboard.eligible_remaining)}
           label="Still in research"
         />
-        {sweepLive && sweep && (
-          <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-sky-400/50 bg-sky-500/15 px-3 py-1 text-xs text-sky-100">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-sky-300" />
-            FEC {nf.format(sweep.processed_count)}/
-            {nf.format(sweep.total_count || summary.voter_count)}
+        {activeRuns.length > 0 && (
+          <span className="ml-auto flex flex-wrap gap-1.5">
+            {activeRuns.map((run) => (
+              <span
+                key={run.id}
+                className="inline-flex items-center gap-2 rounded-full border border-sky-400/50 bg-sky-500/15 px-3 py-1 text-xs text-sky-100"
+              >
+                <span className="h-2 w-2 animate-pulse rounded-full bg-sky-300" />
+                {RUN_ARM_LABELS[run.arm] ?? run.arm} {nf.format(run.processed_count)}/
+                {nf.format(run.total_count)}
+              </span>
+            ))}
           </span>
         )}
       </div>
@@ -100,30 +116,73 @@ export function BoxScoreBar({
           <span className="opacity-60"> · updated {lastUpdated.toLocaleTimeString()}</span>
         )}
       </p>
-      {sweepLive && sweep && <CurrentInning summary={summary} />}
+      {activeRuns.length > 0 && <CurrentInning runs={activeRuns} />}
     </div>
   );
 }
 
-/** Live detail for the running arm — Phase A covers the FEC API sweep;
- *  arm_runs (migration 014) generalizes this to every runner. */
-export function CurrentInning({ summary }: { summary: UploadEvidenceSummary }) {
-  const sweep = summary.fec_sweep;
-  if (!sweep || (sweep.status !== 'running' && sweep.status !== 'queued')) return null;
-  const total = sweep.total_count || summary.voter_count;
-  const pct = total > 0 ? Math.max(2, Math.round((sweep.processed_count / total) * 100)) : 2;
+/** Live detail for every running arm — fed by arm_runs (∪ fec_sweep_jobs),
+ *  so CLI-started county runs show up here too. */
+export function CurrentInning({ runs }: { runs: ArmRunSummary[] }) {
   return (
-    <div className="mt-2">
+    <div className="mt-2 space-y-2">
+      {runs.map((run) => (
+        <RunStrip key={run.id} run={run} />
+      ))}
+    </div>
+  );
+}
+
+function RunStrip({ run }: { run: ArmRunSummary }) {
+  const total = run.total_count;
+  const pct = total > 0 ? Math.max(2, Math.round((run.processed_count / total) * 100)) : 2;
+
+  const startedMs = run.started_at ? Date.parse(run.started_at) : NaN;
+  const elapsedS = Number.isFinite(startedMs) ? Math.max(1, (Date.now() - startedMs) / 1000) : null;
+  const rate = elapsedS ? run.processed_count / elapsedS : null;
+  const etaMin =
+    rate && rate > 0 && total > run.processed_count
+      ? (total - run.processed_count) / rate / 60
+      : null;
+
+  const heartbeatMs = run.last_heartbeat_at ? Date.parse(run.last_heartbeat_at) : NaN;
+  const heartbeatAgeS = Number.isFinite(heartbeatMs)
+    ? Math.max(0, Math.round((Date.now() - heartbeatMs) / 1000))
+    : null;
+  const stalled = heartbeatAgeS != null && heartbeatAgeS * 1000 > STALLED_MS;
+
+  const etaLabel =
+    etaMin == null ? null : etaMin >= 90 ? `ETA ${(etaMin / 60).toFixed(1)} h` : `ETA ${Math.max(1, Math.round(etaMin))} min`;
+
+  return (
+    <div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-black/30">
         <div
-          className="h-full rounded-full bg-sky-400/70 transition-all duration-500"
+          className={`h-full rounded-full transition-all duration-500 ${stalled ? 'bg-amber-400/70' : 'bg-sky-400/70'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="mt-1 text-[11px] opacity-70">
-        FEC federal sweep · {sweep.status} · {nf.format(sweep.processed_count)}/
-        {nf.format(total)} checked · {nf.format(sweep.raw_hits)} raw ·{' '}
-        {nf.format(sweep.confirmed_hits)} confirmed
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] opacity-80">
+        <span className="font-medium">{RUN_ARM_LABELS[run.arm] ?? run.arm}</span>
+        {CLI_RUNNERS.has(run.runner) && (
+          <span className="rounded border border-white/25 px-1 text-[9px] uppercase tracking-wide opacity-80">
+            CLI
+          </span>
+        )}
+        <span>
+          {nf.format(run.processed_count)}/{nf.format(total)} ({pct}%)
+        </span>
+        {rate != null && <span>· {rate >= 10 ? Math.round(rate) : rate.toFixed(1)}/s</span>}
+        {etaLabel && <span>· {etaLabel}</span>}
+        <span>
+          · {nf.format(run.hits_count)} hits · {nf.format(run.confirmed_count)} confirmed ·{' '}
+          {nf.format(run.lean_signal_count)} leans
+        </span>
+        {heartbeatAgeS != null && (
+          <span className={stalled ? 'font-medium text-amber-300' : 'opacity-60'}>
+            · {stalled ? `no heartbeat for ${Math.round(heartbeatAgeS / 60)} min — stalled?` : `heartbeat ${heartbeatAgeS}s ago`}
+          </span>
+        )}
       </p>
     </div>
   );

@@ -228,3 +228,6 @@ progress incl. CLI runs, migration 014.)
 | T17.5 | Start an FEC API sweep | Live chip + progress strip appear within 5s; polling tightens to 5s, returns to 30s when done; hidden tab pauses polling. |
 | T17.6 | Numbers appear exactly once | Old stats grid / scoreboard panel / arm badges are gone; re-enroll buttons remain under "Waterfall controls". |
 | T17.7 | Uploads list mini-score | Rows with settlements show "N settled · N accepted · N conflicted". |
+| T17.8 | Start a county run from the CLI (`run-fec-index.ts`) | Current-inning strip appears in the pinned box score within ≤30 s (idle poll) — progress bar, rate, ETA, heartbeat age, `CLI` chip; uploads list shows the pulsing live dot. |
+| T17.9 | Kill the CLI mid-run | Heartbeat age climbs; strip flags "stalled?" past 5 min; next `startArmRun` reaps the dead run as failed after 10 min and claims the slot. |
+| T17.10 | Start a second run for the same arm while one is live | Rejected ("active run already exists") — `uniq_arm_runs_active` holds. |

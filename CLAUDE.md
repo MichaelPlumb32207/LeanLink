@@ -35,7 +35,9 @@ tracking columns; `011` adds the initiation-fee ledger kind + researcher review 
 applied before deploying code that includes them**); `012` adds the fl_extract-unbillable
 posture CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
 `reference_snapshots.completed_at` — Tier 1 as a local lookup; loader/runbook in
-`docs/SETUP.md` §8). See `docs/SETUP.md`.
+`docs/SETUP.md` §8); `014` adds `arm_runs` (per-arm run progress incl. CLI runs — the
+summary's `runs` feed degrades gracefully pre-migration, but apply it anyway). See
+`docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -110,8 +112,9 @@ per-arm line score + live strip) renders `UploadEvidenceSummary` via the pure bu
 (5s while a run is active, 30s idle, paused on hidden tab) at page level and passes
 `summary`/`refreshSummary` down into the evidence workspace. Don't add per-panel polling
 loops or render summary numbers a second time — extend the summary/builder instead.
-Phase B (migration 014 `arm_runs`) adds live progress for the index/free-pass runners
-incl. CLI runs.
+`summary.runs` (migration 014 `arm_runs` ∪ `fec_sweep_jobs`, adapt-at-read) feeds the
+current-inning strip; every runner writes start/heartbeat/finish via
+`lib/evidence/arm-runs.ts` (one ACTIVE run per upload+arm; stale runs reaped at 10 min).
 
 ## Conventions & gotchas
 

@@ -13,6 +13,8 @@ const ACTIVE_POLL_MS = 5_000;
 const IDLE_POLL_MS = 30_000;
 
 export function summaryHasActiveRun(summary: UploadEvidenceSummary | null): boolean {
+  if ((summary?.runs?.active.length ?? 0) > 0) return true;
+  // Pre-migration-014 fallback: the API sweep's own status field.
   const status = summary?.fec_sweep?.status;
   return status === 'queued' || status === 'running';
 }

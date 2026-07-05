@@ -61,6 +61,24 @@ export interface FusionResult {
   event_count: number;
 }
 
+/** One runner execution, normalized across arm_runs and fec_sweep_jobs. */
+export interface ArmRunSummary {
+  id: string;
+  arm: string;
+  runner: string; // 'fec_index_cli' | 'fec_index_api' | 'free_pass_api' | 'free_pass_cli' | 'fec_api_sweep'
+  status: string;
+  processed_count: number;
+  total_count: number;
+  failed_count: number;
+  hits_count: number;
+  confirmed_count: number;
+  lean_signal_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  last_heartbeat_at: string | null;
+  completed_at: string | null;
+}
+
 export interface UploadEvidenceSummary {
   upload_id: string;
   voter_count: number;
@@ -128,4 +146,10 @@ export interface UploadEvidenceSummary {
     raw_hits: number;
     confirmed_hits: number;
   } | null;
+  /** Runner executions (arm_runs ∪ fec_sweep_jobs) — the current-inning feed. */
+  runs: {
+    active: ArmRunSummary[];
+    /** Latest terminal run per arm. */
+    recent: ArmRunSummary[];
+  };
 }

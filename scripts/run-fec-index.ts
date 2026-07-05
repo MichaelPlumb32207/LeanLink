@@ -6,15 +6,26 @@
  * Usage:
  *   npx tsx scripts/run-fec-index.ts --upload-id UUID
  *   npx tsx scripts/run-fec-index.ts --county ALA
+ *   npx tsx scripts/run-fec-index.ts --upload-id UUID --start-after 15000
  *
  * Commits every chunk (500 voters), prints progress as it goes, and is safe to
  * re-run: settled/accepted voters are skipped by the claim predicate, and
- * evidence events upsert idempotently.
+ * evidence events upsert idempotently. --start-after skips rows with
+ * row_index ≤ N (continue a partial pass without re-touching its rows).
+ *
+ * Progress is also written to arm_runs (migration 014) every chunk, so the
+ * dashboard's current-inning panel shows this run live.
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Pool } from 'pg';
 import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
+import {
+  countEligibleVoters,
+  finishArmRun,
+  heartbeatArmRun,
+  startArmRun,
+} from '@/lib/evidence/arm-runs';
 import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
@@ -98,35 +109,91 @@ async function main() {
     }
     console.log(`FEC index snapshot: ${snapshot.label}`);
 
-    const totals = { processed: 0, with_hits: 0, confirmed_identity: 0, leans: 0 };
-    let afterRowIndex = -1;
+    const startAfter = Number(arg('--start-after') ?? -1);
 
-    // One transaction per chunk — a crash loses at most one chunk; re-run resumes.
-    for (;;) {
+    // Register the run so the dashboard's current-inning panel can watch it.
+    await client.query('BEGIN');
+    await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+    const totalCount = await countEligibleVoters(client, resolvedUploadId!, userEmail);
+    const runId = await startArmRun(client, {
+      uploadId: resolvedUploadId!,
+      userId: userEmail,
+      arm: 'fec',
+      runner: 'fec_index_cli',
+      totalCount,
+      meta: { snapshot: snapshot.label, chunk_size: 500, start_after: startAfter },
+    });
+    await client.query('COMMIT');
+    if (!runId) {
+      console.error(
+        'An active fec run already exists for this upload (arm_runs). ' +
+          'If it is dead, it will be reaped after 10 minutes without a heartbeat — retry then.',
+      );
+      process.exit(1);
+    }
+
+    const totals = { processed: 0, with_hits: 0, confirmed_identity: 0, leans: 0 };
+    let afterRowIndex = startAfter;
+
+    try {
+      // One transaction per chunk — a crash loses at most one chunk; re-run resumes.
+      for (;;) {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+        const chunk = await runFecIndexChunk(client, {
+          uploadId: resolvedUploadId!,
+          userId: userEmail,
+          snapshot,
+          afterRowIndex,
+          limit: 500,
+        });
+        if (chunk.processed > 0) {
+          totals.processed += chunk.processed;
+          totals.with_hits += chunk.with_hits;
+          totals.confirmed_identity += chunk.confirmed_identity;
+          totals.leans += chunk.leans;
+          await heartbeatArmRun(client, runId, {
+            processed: totals.processed,
+            hits: totals.with_hits,
+            confirmed: totals.confirmed_identity,
+            leanSignals: totals.leans,
+          });
+        }
+        await client.query('COMMIT');
+
+        if (chunk.processed === 0) break;
+        afterRowIndex = chunk.last_row_index ?? afterRowIndex;
+
+        const elapsed = (Date.now() - startedAt) / 1000;
+        const rate = Math.round(totals.processed / Math.max(1, elapsed));
+        console.log(
+          `${totals.processed.toLocaleString()} voters · ${totals.with_hits} with rows · ` +
+            `${totals.confirmed_identity} identity-confirmed · ${totals.leans} leans · ${rate}/s`,
+        );
+      }
+
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
-      const chunk = await runFecIndexChunk(client, {
-        uploadId: resolvedUploadId!,
-        userId: userEmail,
-        snapshot,
-        afterRowIndex,
-        limit: 500,
-      });
+      await finishArmRun(client, runId, 'completed');
       await client.query('COMMIT');
-
-      if (chunk.processed === 0) break;
-      totals.processed += chunk.processed;
-      totals.with_hits += chunk.with_hits;
-      totals.confirmed_identity += chunk.confirmed_identity;
-      totals.leans += chunk.leans;
-      afterRowIndex = chunk.last_row_index ?? afterRowIndex;
-
-      const elapsed = (Date.now() - startedAt) / 1000;
-      const rate = Math.round(totals.processed / Math.max(1, elapsed));
-      console.log(
-        `${totals.processed.toLocaleString()} voters · ${totals.with_hits} with rows · ` +
-          `${totals.confirmed_identity} identity-confirmed · ${totals.leans} leans · ${rate}/s`,
-      );
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      // Best-effort terminal status in a fresh transaction so the UI shows
+      // failed instead of a silent stall.
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+        await finishArmRun(
+          client,
+          runId,
+          'failed',
+          error instanceof Error ? error.message : String(error),
+        );
+        await client.query('COMMIT');
+      } catch {
+        /* the reaper covers us if even this fails */
+      }
+      throw error;
     }
 
     console.log(

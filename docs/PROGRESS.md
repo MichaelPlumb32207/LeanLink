@@ -6,6 +6,23 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-05 latest+1, live run visibility)
+
+**Box score Phase B core shipped mid-Duval (ENH-003, migration 014 applied to Neon):**
+`arm_runs` + `lib/evidence/arm-runs.ts` (startArmRun claims the one-active-run slot per
+(upload, arm) via partial unique index, reaps stale runs at 10-min heartbeat age;
+heartbeat = absolute cumulative counts ≥1×/chunk), `summary.runs` = arm_runs ∪
+fec_sweep_jobs normalized at read (adapt-not-dual-write; degrades gracefully pre-014),
+current-inning strips in the pinned box score (progress bar, rate, ETA, heartbeat age,
+`CLI` chip, stalled at >5 min), uploads-list pulsing live dot, and the FEC index CLI
+instrumented (+ `--start-after N` to continue a partial pass without re-touching rows).
+The idle 30s poll discovers CLI runs with no UI action. **Duval run restarted instrumented**
+with `--start-after` at its prior position — watch it live on the dashboard. **Early D-030
+yield signal:** at 10k voters, 38 identity-confirmed → 18 leans (pre-fix trajectory was
+7 → 1 at 2k; confirmed→lean conversion ~14% → ~47%). **Remaining for full Phase B:**
+instrument `match-fec-index` API action + free-pass (API + CLI, incl. the chunking refactor
+with hoisted `loadFreePassContext` + a >5,000-row UI guard) — ENH-003 in BACKLOG.
+
 ## Where to pick up (continuity note — 2026-07-05 latest, FEC party fix mid-Duval)
 
 **D-030 landed mid-run:** the owner spotted a confirmed Duval donor (row 113) whose timeline

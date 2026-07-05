@@ -55,8 +55,10 @@ const OPTIONAL_INNINGS = ['local_media', 'civic'];
 
 export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
   const labeled_count = summary.fusion.fused_count + summary.fusion.provisional_count;
-  const fecLive =
-    summary.fec_sweep?.status === 'running' || summary.fec_sweep?.status === 'queued';
+  const liveArms = new Set((summary.runs?.active ?? []).map((r) => r.arm));
+  if (summary.fec_sweep?.status === 'running' || summary.fec_sweep?.status === 'queued') {
+    liveArms.add('fec');
+  }
 
   const inningFor = (arm: string): BoxScoreInning => {
     const tier = ARM_TIER[arm] ?? 3;
@@ -65,7 +67,7 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     const attempted = stats?.voters_touched ?? 0;
     const settled_here = summary.settled.by_arm[arm] ?? 0;
     let state: InningState = 'not_run';
-    if (arm === 'fec' && fecLive) state = 'live';
+    if (liveArms.has(arm)) state = 'live';
     else if (attempted >= eligible_in && (attempted > 0 || settled_here > 0)) state = 'run';
     else if (attempted > 0 || settled_here > 0) state = 'partial';
     return {

@@ -1,8 +1,10 @@
+import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { computeSettlement } from '@/lib/evidence/settlement';
 import { getUploadAccountId, chargeSettlement } from '@/lib/billing/ledger';
 import { resolveRates, tierRate } from '@/lib/billing/rates';
 import type {
+  ArmRunSummary,
   EvidenceEventInput,
   EvidenceEventRow,
   FusionResult,
@@ -300,18 +302,13 @@ export async function getUploadEvidenceSummary(
     [uploadId, userId],
   );
 
-  // The pool the next arm would claim — mirrors the claim-query predicate.
+  // The pool the next arm would claim — mirrors the claim-query predicate
+  // (shared constant so this and countEligibleVoters can't drift).
   const eligibleRes = await client.query<{ count: string }>(
     `SELECT COUNT(*)::text AS count
      FROM voter_records vr
      WHERE vr.upload_id = $1 AND vr.user_id = $2
-       AND NOT EXISTS (
-         SELECT 1 FROM voter_lean_fusion vlf
-         WHERE vlf.voter_record_id = vr.id
-           AND (vlf.review_status = 'accepted'
-                OR (vlf.settled_tier IS NOT NULL
-                    AND vlf.research_status IS DISTINCT FROM 're_enrolled'))
-       )`,
+       AND ${CLAIM_ELIGIBLE_PREDICATE}`,
     [uploadId, userId],
   );
 
@@ -345,6 +342,56 @@ export async function getUploadEvidenceSummary(
      LIMIT 1`,
     [uploadId, userId],
   );
+
+  // Runner executions — arm_runs plus the API sweep normalized into the same
+  // shape (adapt-at-read, never dual-write; D-029/D-030 rationale in DECISIONS).
+  type RunRow = {
+    id: string;
+    arm: string;
+    runner: string;
+    status: string;
+    processed_count: number;
+    total_count: number;
+    failed_count: number;
+    hits_count: number;
+    confirmed_count: number;
+    lean_signal_count: number;
+    error_message: string | null;
+    started_at: string | null;
+    last_heartbeat_at: string | null;
+    completed_at: string | null;
+  };
+  let runRows: RunRow[] = [];
+  try {
+    const runsRes = await client.query<RunRow>(
+      `SELECT * FROM (
+         SELECT id::text, arm, runner, status, processed_count, total_count, failed_count,
+                hits_count, confirmed_count, lean_signal_count, error_message,
+                started_at::text, last_heartbeat_at::text, completed_at::text, created_at
+         FROM arm_runs WHERE upload_id = $1 AND user_id = $2
+         UNION ALL
+         SELECT id::text, 'fec', 'fec_api_sweep', status, processed_count, total_count, failed_count,
+                hits_count, COALESCE(confirmed_hits_count, 0), 0, error_message,
+                started_at::text, last_heartbeat_at::text, completed_at::text, created_at
+         FROM fec_sweep_jobs WHERE upload_id = $1 AND user_id = $2
+       ) r
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [uploadId, userId],
+    );
+    runRows = runsRes.rows;
+  } catch (e) {
+    // Pre-migration-014 degradation: no arm_runs table yet → no run feed.
+    if (!(e instanceof Error && 'code' in e && (e as { code?: string }).code === '42P01')) {
+      throw e;
+    }
+  }
+  const active = runRows.filter((r) => r.status === 'queued' || r.status === 'running');
+  const recentByArm = new Map<string, RunRow>();
+  for (const r of runRows) {
+    if (r.status === 'queued' || r.status === 'running') continue;
+    if (!recentByArm.has(r.arm)) recentByArm.set(r.arm, r); // rows are newest-first
+  }
 
   const arms: UploadEvidenceSummary['arms'] = {};
   for (const row of armRes.rows) {
@@ -467,5 +514,46 @@ export async function getUploadEvidenceSummary(
           confirmed_hits: fecJob.confirmed_hits_count,
         }
       : null,
+    runs: {
+      active: active.map(toArmRunSummary),
+      recent: [...recentByArm.values()].map(toArmRunSummary),
+    },
+  };
+}
+
+function toArmRunSummary(r: {
+  id: string;
+  arm: string;
+  runner: string;
+  status: string;
+  processed_count: number;
+  total_count: number;
+  failed_count: number;
+  hits_count: number;
+  confirmed_count: number;
+  lean_signal_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  last_heartbeat_at: string | null;
+  completed_at: string | null;
+}): ArmRunSummary {
+  // Postgres ::text timestamps ("2026-07-05 21:59:00+00") are not ISO — Safari
+  // rejects them in new Date(). Normalize server-side where Node parses fine.
+  const iso = (v: string | null) => (v ? new Date(v).toISOString() : null);
+  return {
+    id: r.id,
+    arm: r.arm,
+    runner: r.runner,
+    status: r.status,
+    processed_count: r.processed_count,
+    total_count: r.total_count,
+    failed_count: r.failed_count,
+    hits_count: r.hits_count,
+    confirmed_count: r.confirmed_count,
+    lean_signal_count: r.lean_signal_count,
+    error_message: r.error_message,
+    started_at: iso(r.started_at),
+    last_heartbeat_at: iso(r.last_heartbeat_at),
+    completed_at: iso(r.completed_at),
   };
 }

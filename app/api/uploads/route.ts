@@ -251,7 +251,8 @@ export async function GET() {
                 j.total_count AS job_total_count,
                 s.settled_count,
                 s.accepted_count,
-                s.conflicted_count
+                s.conflicted_count,
+                ra.run_active
          FROM voter_uploads u
          LEFT JOIN LATERAL (
            SELECT id, status, processed_count, failed_count, total_count
@@ -267,6 +268,17 @@ export async function GET() {
            FROM voter_lean_fusion f
            WHERE f.upload_id = u.id AND f.user_id = $1
          ) s ON true
+         LEFT JOIN LATERAL (
+           SELECT (EXISTS (
+                     SELECT 1 FROM arm_runs r
+                     WHERE r.upload_id = u.id AND r.user_id = $1
+                       AND r.status IN ('queued','running')
+                   ) OR EXISTS (
+                     SELECT 1 FROM fec_sweep_jobs fj
+                     WHERE fj.upload_id = u.id AND fj.user_id = $1
+                       AND fj.status IN ('queued','running')
+                   )) AS run_active
+         ) ra ON true
          WHERE u.user_id = $1
          ORDER BY u.created_at DESC
          LIMIT 50`,
