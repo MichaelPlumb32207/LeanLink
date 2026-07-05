@@ -10,6 +10,7 @@ Read in this order when joining the project cold.
 | [`SETUP.md`](SETUP.md) | Provisioning runbook (Neon, OAuth, Vercel, env) | New secrets, deploy steps, migrations |
 | [`PROGRESS.md`](PROGRESS.md) | **Start here for continuity** — what's built, scorecard findings, open questions | Any shipped feature or eval result |
 | [`ROADMAP.md`](ROADMAP.md) | Forward-looking — Now/Next/Later horizons, open owner decisions, non-goals | Priorities shift or an item ships |
+| [`BACKLOG.md`](BACKLOG.md) | Work-item ledger — `DEF-`/`ENH-`/`FEAT-` with root causes, so lessons aren't re-learned | A defect is found **and** when it's fixed |
 | [`DECISIONS.md`](DECISIONS.md) | ADR-lite — why the stack and rules look this way | Non-obvious design choices |
 | [`enrichment-pipeline.html`](enrichment-pipeline.html) | Visual enrichment/inference spec (modes, guardrails, code map) | Pipeline or mode changes |
 | [`evidence-accumulator-pitch.html`](evidence-accumulator-pitch.html) | Pitch deck — multi-arm evidence, identity gates, fusion | Architecture or stakeholder demos |

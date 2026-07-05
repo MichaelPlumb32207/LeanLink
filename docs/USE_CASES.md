@@ -135,6 +135,8 @@ without Grok spend.
 | T11.6 | `match-fec-index` on an upload ≤5,000 voters (dashboard button) | Evidence events `arm=fec, source=fec_indiv_index`; identity scoring + donation lean identical to API path; settled voters skipped. |
 | T11.7 | `scripts/run-fec-index.ts --upload-id …` on a county | Chunked progress lines; per-chunk commits; re-run after interruption resumes; no snapshot → clear error pointing at the import script. |
 | T11.8 | Lookup during an in-progress load | In-progress snapshot (`completed_at IS NULL`) is never matched; latest READY snapshot used instead. |
+| T11.9 | Confirmed donor whose committee has a party code in the committee master (name itself pattern-free) | Lean derived from the party code (committee shown as "NAME (REP/DEM)"); evidence line cites "recipient party code" (D-030 regression). |
+| T11.10 | Confirmed donor with **no** derivable lean | Evidence still itemizes receipts — `$amt → COMMITTEE (PARTY) · date`, top 5 + "+N more"; `payload.receipts` populated; researcher can judge from the timeline (D-030 regression — the "row 113" case). |
 
 ## UC-12 — Generic client-list intake ✅
 **As** the operator, **I can** ingest an arbitrary client voter list (no FL voter file) via

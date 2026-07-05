@@ -1,0 +1,34 @@
+# LeanLink — Backlog (defects · enhancements · features)
+
+The work-item ledger: every defect gets a `DEF-` entry **when it's found**, updated when
+it's fixed — root cause included, so lessons aren't re-learned. Discrete enhancements and
+features get `ENH-`/`FEAT-` entries. Horizons and priorities live in
+[`ROADMAP.md`](ROADMAP.md) (this file is the ledger, not the plan); design rationale lives
+in [`DECISIONS.md`](DECISIONS.md); every fixed defect should also add a regression test
+row in [`USE_CASES.md`](USE_CASES.md) — the "Regression" column links it.
+
+Status: 🔴 open · 🟡 in progress · ✅ fixed/shipped · ⬜ won't fix (say why)
+
+## Defects
+
+| ID | Status | Pri | Title | Root cause → fix | Regression |
+|---|---|---|---|---|---|
+| DEF-004 | ✅ 2026-07-05 | P1 | Confirmed FEC donor shows no recipients; lean "party unclear" despite known committee party | Two-fold (D-030): `lookupFecIndexForVoter` dropped the committee master's party code before lean scoring (regex-only lean); confirmed-no-lean events wrote zero recipient lines. Fix `4215c27`: party folded into committee display name so `\(rep\)`/`\(dem\)` patterns fire on authoritative data; both FEC builders itemize receipts + `payload.receipts`. Found by owner on Duval row 113. | T11.9–T11.10 |
+| DEF-003 | ✅ 2026-07-05 | P1 | County-scale upload silently fails — no error trail, nothing in DB | Vercel caps request bodies at ~4.5 MB; the dashboard sends the whole file in one request, and the single-transaction ingest rolls back completely on any failure (Duval, 115 MB, never reached our code). Fix `ccb1cdb`: `scripts/ingest-extract.ts` (chunk-committed, resumable, shared insert helper); SETUP §9. | T2.4–T2.6 |
+| DEF-002 | ✅ 2026-07-05 | P2 | Mac sleep pauses county-scale CLI runs mid-flight | Long runs (hours) outlive the display-sleep timer; nothing held a power assertion. Fix `e9b9a15`: `lib/cli/keep-awake.ts` (`caffeinate -i -w <pid>`) wired into all four long CLIs. Limit: lid-close still sleeps — chunked commits + resume are the backstop. | SETUP §9 note |
+| DEF-001 | ✅ 2026-07-04 | P2 | Lint gate was dead — `next lint` deprecated, findings accumulated unseen | `next lint` removal in Next 15 left the script a no-op. Fix `344982b`: ESLint CLI + flat config via `FlatCompat` (the `eslint-config-next` modules aren't iterable — don't spread them directly; see root CLAUDE.md). | `npm run lint` in pre-push gate |
+
+## Enhancements
+
+| ID | Status | Pri | Title | Notes |
+|---|---|---|---|---|
+| ENH-003 | 🔴 | P1 | Box score Phase B — `arm_runs` live progress (migration 014) | Per-arm run rows written by every runner incl. CLI; current-inning rate/ETA/stalled; free-pass chunking + >5k guard. Specced in D-029; ROADMAP "Next". |
+| ENH-002 | 🔴 | P2 | Re-run Alachua FEC match post-D-030 | Enriches thin events in place (upsert), re-measures Tier-1 yield with party codes wired (recorded 0.44% predates the fix). Skips its 178 settled. |
+| ENH-001 | 🔴 | P2 | Sunbiz index performance | Prefix/trigram index on `officer_name_norm`; free pass slow at county scale. ROADMAP "Later". |
+
+## Features
+
+| ID | Status | Pri | Title | Notes |
+|---|---|---|---|---|
+| FEAT-002 | ✅ 2026-07-05 | — | County-scale extract ingest CLI | `scripts/ingest-extract.ts`; born from DEF-003. |
+| FEAT-001 | ✅ 2026-07-05 | — | Box-score dashboard Phase A | Pinned scoreboard + line score + one polling loop (D-029). |
