@@ -6,6 +6,27 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-05 later, Duval + county-scale ingest)
+
+**County-scale ingest CLI shipped (`scripts/ingest-extract.ts`):** the Duval file (115 MB,
+710,795 rows) can't go through the dashboard — Vercel caps request bodies at ~4.5 MB (the
+31 MB Alachua file only ever worked via local dev, same Neon). The failed browser attempt
+left **nothing** in the DB (single-transaction rollback). The CLI reuses the route's exact
+parse/filter/hash/insert (extracted to `lib/ingest/insert-voter-records.ts`, now shared by
+both paths), commits every 2,000 rows with progress/rate/ETA, holds the upload at `pending`
+until complete, and supports `--resume <upload-id>` (continues from last committed
+row_index; parse order is deterministic). **Duval ingested:** upload
+`2036da1e-6e15-49d4-93a4-718a5e744aae`, 146,599 NPA+Active rows in ~102 s (~1,430/s),
+102,860 with history (DUV_H matched 648,506 summaries). Integrity verified: actual = 
+row_count, distinct row_index = 146,599. **FEC index match started same session**
+(`run-fec-index.ts`, snapshot `2024-fl`): early rate ~3/s (network-bound from operator Mac,
+same as Alachua) → projected ~13–14 h for the county; at 2,000 voters: 177 with rows
+(8.9%) · 7 identity-confirmed · 1 settled. Old API sweep at ~94/hr would have needed
+**~65 days** — this run is the county-scale validation of D-028. Chunk-committed and
+resumable; record final funnel numbers + wall-clock here when it completes. Watch it live
+via the Duval line-score row (processed/hits tick on each poll); rate/ETA in-UI arrives
+with Phase B (`arm_runs`).
+
 ## Where to pick up (continuity note — 2026-07-05, box-score dashboard Phase A)
 
 **Box-score dashboard shipped (D-029, Phase A — no migration):** progress visibility
@@ -306,6 +327,7 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Client deliverable export (input file + lean/confidence/source/status/evidence per row) | ✅ | `/api/export/[uploadId]/deliverable`; multi-arm Source, Status column, `?format=audit` per-event provenance export. |
 | Voting-history extract parsing + turnout scoring | ✅ | `lib/fl-voter-history.ts`. |
 | Upload → hash → batch ingest | ✅ | `app/api/uploads`, `lib/hash.ts`. No Grok on upload. |
+| County-scale ingest CLI (chunked, resumable) | ✅ | `scripts/ingest-extract.ts` + shared `lib/ingest/insert-voter-records.ts`; Duval 146,599 rows ≈ 102 s. Dashboard path caps at Vercel ~4.5 MB body limit. |
 | Job runner: claim/process/heartbeat, self-chaining worker | ✅ | Gated by `lib/batch-inference.ts`. |
 | Cron sweeper (stall recovery) | ✅ | Skips re-trigger when batch inference disabled. |
 | Job cancel / upload delete | ✅ | `app/api/jobs/[id]/cancel`, `app/api/uploads/[id]`. |

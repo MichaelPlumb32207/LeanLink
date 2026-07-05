@@ -75,6 +75,9 @@ eligible-remaining count) if you add an arm.
 **Processing pipeline** (all serverless, no n8n/queue):
 1. `POST /api/uploads` — parse + filter, `hashVoterPii` each row, batch-insert (100/stmt)
    into `voter_records` with any matched history summary; upload status → `ready`. **No Grok.**
+   County-scale files exceed Vercel's ~4.5 MB body limit — use `scripts/ingest-extract.ts`
+   (same parse/hash/insert via `lib/ingest/insert-voter-records.ts`; per-chunk commits;
+   `--resume` on interruption; SETUP §9).
 2. **POC enrichment** (intended path): dashboard **Analyze** → `POST /api/enrichment/test`,
    `/api/enrichment/scorecard`, `/api/enrichment/street-view`, `/api/enrichment/fec` (subset), or
    `POST /api/uploads/[id]/fec-sweep` (whole-file FEC batch, free API) — modes in

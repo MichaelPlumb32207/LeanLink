@@ -26,6 +26,9 @@ voters ingested.
 | T2.1 | Upload a valid 38-field extract | Rows inserted; only NPA + Active kept; count shown. |
 | T2.2 | Upload a file with no eligible voters | 400 "No eligible NPA active voters found". |
 | T2.3 | Upload a malformed/wrong-width file | 400 with "Expected 38 tab fields, got N". |
+| T2.4 | County-scale file via `scripts/ingest-extract.ts` (dashboard path caps at Vercel's ~4.5 MB body limit) | Same parser/filter/hash as the route (shared `insertVoterRecords`); per-chunk commits with progress; upload `pending` → `ready` only when complete. Verified on Duval: 146,599 rows in ~102 s (~1,430/s). |
+| T2.5 | Kill the CLI mid-ingest, re-run | Errors with "unfinished ingest exists … --resume <id>"; `--resume` continues from the last committed row_index (deterministic parse order). |
+| T2.6 | `--resume` against a `ready` upload or wrong filename | Clear error; nothing written. |
 | T2.4 | Row with trailing empty columns (no email) | Parses; no field misalignment (no `trim()` damage). |
 | T2.5 | Each ingested row has a `voter_hash` | Hash present; PII is hashed, not stored raw beyond `raw_data`. |
 

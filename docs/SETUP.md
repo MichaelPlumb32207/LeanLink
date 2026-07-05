@@ -183,6 +183,26 @@ Lookups always use the newest **READY** snapshot (`completed_at` set) — a load
 is never matched against. The API sweep (dashboard FEC panel) remains as a fallback for
 freshness/spot checks.
 
+## 9. County-scale extract ingest (CLI)
+
+The dashboard upload takes the whole file in one request, so it's capped by Vercel's
+~4.5 MB body limit in production (and is one long all-or-nothing transaction even on local
+dev). County files go through the CLI — same parser, filter, hash, and insert as the route
+(shared `lib/ingest/insert-voter-records.ts`), committed in 2,000-row chunks with progress:
+
+```bash
+npx tsx scripts/ingest-extract.ts \
+  --file "/path/to/DUV_20250812.txt" \
+  --history "/path/to/DUV_H_20250812.txt"     # optional voting-history extract
+
+# Killed mid-run? The upload stays 'pending'; continue where it stopped:
+npx tsx scripts/ingest-extract.ts --file "/path/…" --resume <upload-id>
+```
+
+The upload flips to `ready` only when every row is in. Reference run: Duval —
+146,599 NPA+Active rows (of 710k total) in ~102 s. FL-extract ingests never carry an
+`account_id` (research track, D-027). Keep the source files outside the repo.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
