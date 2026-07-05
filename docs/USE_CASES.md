@@ -128,6 +128,10 @@ without Grok spend.
 | T11.2 | No FEC API key | Falls back to `DEMO_KEY` or returns API error if rate-limited. |
 | T11.3 | Voter not found at row index | Row entry with `error: Voter record not found`. |
 | T11.4 | Dashboard FEC test | JSON shows `rows_with_hits` / `row_count`; no `usage.cost_usd`. |
+| T11.5 | Load FEC bulk cycle (`scripts/import-fec-indiv.ts`) | Snapshot row visible immediately (`LOADING` in `fec-indiv-status.mjs`); `READY` with row_count on completion; interruption + re-run resumes (no duplicate sub_ids). |
+| T11.6 | `match-fec-index` on an upload ≤5,000 voters (dashboard button) | Evidence events `arm=fec, source=fec_indiv_index`; identity scoring + donation lean identical to API path; settled voters skipped. |
+| T11.7 | `scripts/run-fec-index.ts --upload-id …` on a county | Chunked progress lines; per-chunk commits; re-run after interruption resumes; no snapshot → clear error pointing at the import script. |
+| T11.8 | Lookup during an in-progress load | In-progress snapshot (`completed_at IS NULL`) is never matched; latest READY snapshot used instead. |
 
 ## UC-12 — Generic client-list intake ✅
 **As** the operator, **I can** ingest an arbitrary client voter list (no FL voter file) via

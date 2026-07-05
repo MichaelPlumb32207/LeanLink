@@ -43,45 +43,59 @@
 <body>
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
-    <p class="subtitle">Research &amp; education POC · Florida NPAs · Tier 0 validated on Calhoun · Last updated 2026-07-04</p>
+    <p class="subtitle">Voter lean intelligence · Florida NPAs · Validated on Calhoun (736) + Alachua (40,546) · Last updated 2026-07-05</p>
 
     <div class="card" style="border-left:4px solid #059669;">
-      <strong>Recent additions (2026-07-04) — tiered/prepaid/waterfall product.</strong>
-      The enrichment arms below are unchanged, but they now sit inside a productized flow:
+      <strong>Product layer — tiered / prepaid / waterfall (D-024 · D-026).</strong>
+      The enrichment arms below sit inside a productized flow:
       <ul style="margin:.4rem 0 0 1.1rem;">
         <li><strong>Generic client intake</strong> — accept an arbitrary voter list (CSV/paste/JSON,
-          name + one of county/ZIP/address), normalized into the same record shape the arms consume.</li>
-        <li><strong>Waterfall settlement</strong> — a confident lean settles a voter at the cheapest
-          tier and excludes them from later, more expensive arms (real cost saving).</li>
-        <li><strong>Prepaid billing</strong> — accounts hold a balance; charge baseline/record,
-          per-tier on a settled lean, and per OSINT attempt (editable rate cards).</li>
-        <li><strong>Client deliverable</strong> — export the client's list back with lean, confidence,
-          source, and evidence appended to every row.</li>
+          name + one of county/ZIP/address), normalized into the same record shape the arms consume,
+          billed to the client's prepaid account.</li>
+        <li><strong>Waterfall settlement</strong> — a voter settles once fusion yields a
+          non-Undetermined lean at confidence ≥ 60, at the cheapest contributing tier; the settle
+          fee is billed once ever, and later, pricier arms skip settled voters by default.</li>
+        <li><strong>Confirmed pricing (D-026)</strong> — $2,500 initiation (once per account, ever) ·
+          $0.03/record baseline · per settled lean $0.15 (Tier 1 FEC) / $0.25 (Tier 2 FL contrib +
+          Sunbiz) / $0.33 + $0.05 per attempt (Tier 3 OSINT).</li>
+        <li><strong>Researcher review</strong> — settlement (billing) and research continuation are
+          separate switches: <strong>Accept</strong> freezes a voter's fused lean and excludes them
+          from all arms; <strong>Reopen</strong> clears it; <strong>Re-enroll</strong> (per voter or
+          cohort) pushes settled voters back into later arms without re-billing. The dashboard
+          waterfall-gate strip shows eligible-remaining, accepted/re-enrolled counts, and projected
+          max next-arm spend before advancing a tier.</li>
+        <li><strong>Client deliverable</strong> — the client's original file back with Lean /
+          Confidence / Source (all contributing arms, settled arm first) / Status (accepted · fused ·
+          provisional · conflicted · unresearched) / Evidence columns, plus a <code>?format=audit</code>
+          export (one row per evidence event with arm, source, identity band, lean signal, citation URLs).</li>
         <li><strong>Resilience</strong> — FEC lookups retry transient 5xx in-call, and a background
           cron re-attempts anything that still failed.</li>
       </ul>
-      Authoritative detail: <code>docs/PROGRESS.md</code>, <code>docs/CLAUDE.md</code> ("Tiered /
-      prepaid / waterfall product"), <code>docs/DECISIONS.md</code> D-024. This visual spec still
-      documents the arm mechanics; a fuller redraw with the billing/waterfall layer is backlogged.
+      Authoritative detail: <code>docs/PROGRESS.md</code>, <code>docs/CLAUDE.md</code>,
+      <code>docs/DECISIONS.md</code> D-024 → D-028.
     </div>
 
     <div class="card">
-      <strong>Research posture:</strong> Built for political-science research, validation, and education
-      at the University of Florida — structured evidence and lean labels for methodology review,
-      not operational outreach.
+      <strong>Use posture — two-track (D-027):</strong> The research-only constraint lives with the
+      <em>data source</em>, not the activity. <strong>Track A</strong> — anything derived from FL DOS
+      registration extracts (Calhoun/Alachua test uploads, UF professor work) stays research-only,
+      is structurally unbillable (migration 012 <code>CHECK</code>: an <code>fl_extract</code> upload
+      can never carry a billing account), and never enters a client deliverable. <strong>Track B</strong> —
+      client-supplied lists on per-client accounts are commercial. Both tracks: OSINT-only, no data
+      brokers, no race/gender inputs, not outreach or targeting.
     </div>
 
     <div class="card accent">
-      <strong>Continuity (2026-06-30):</strong>
-      <p style="margin:0.5rem 0;font-size:0.88rem;"><strong>Before validation stop:</strong> run <code>npm run build</code>, then <code>git commit</code> + <code>git push origin HEAD:main</code> — local committee-lean / layer-2 / tiebreaker code is not on Vercel until deploy. Migration <code>007</code> is on Neon already.</p>
+      <strong>Continuity (2026-07-05):</strong>
+      <p style="margin:0.5rem 0;font-size:0.88rem;"><strong>State:</strong> migrations <code>001</code>→<code>013</code> applied to Neon; FEC 2024-cycle index loaded (snapshot <code>2024-fl</code>, READY); Alachua Tier 1 index pass complete (178 settled leans); the old Alachua API sweep was cancelled 2026-07-04.</p>
       <ol style="margin:0.5rem 0 0;">
-        <li><strong>Calhoun demo</strong> — FEC✓ rows 273/402/569 (lean) → Layer-2 row 224 or 280 (identity bridge).</li>
-        <li><strong>Layer-2 lean audit</strong> — review 26 entity donations for partisan committee names.</li>
-        <li><strong>Sunbiz lookup perf</strong> — prefix/trigram index before county-scale free pass (~84 min / 736 today).</li>
+        <li><strong>Tier 2 free pass on the Alachua remainder</strong> (~40k unsettled) — mind Sunbiz lookup perf first (~84 min / 736 voters on Calhoun).</li>
+        <li><strong>Backfill older FEC cycles</strong> (<code>indiv22</code>/<code>indiv20</code>) to raise Tier 1 yield, then re-run the match (settled voters are skipped automatically).</li>
+        <li><strong>Layer-2 lean audit</strong> — review 26 Calhoun entity donations for partisan committee names.</li>
         <li><strong>Optional paid depth</strong> — Apify-modular or scorecard on promising rows after free-pass review.</li>
       </ol>
       <p style="margin:0.75rem 0 0;font-size:0.88rem;color:var(--muted);">
-        Filters live in prod (<code>main</code> · <code>components/evidence-workspace.tsx</code>).
+        Calhoun demo path unchanged: FEC✓ rows 273/402/569 (lean) → Layer-2 row 224 or 280 (identity bridge).
         Pitch deck: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a>.
       </p>
     </div>
@@ -95,44 +109,51 @@
         <strong>ACT</strong> only, plus excludes suppressed / public-records-exempt rows
         (<code>DEFAULT_LEANLINK_FILTER</code> in <code>lib/fl-voter-registration.ts</code>).
       </p>
-      <p style="margin:0;">That filtered set is the working upload — typically hundreds to tens of thousands per county, not the full raw extract.</p>
+      <p>That filtered set is the working upload — typically hundreds to tens of thousands per county, not the full raw extract.</p>
+      <p style="margin:0;">This filter applies to FL-extract uploads (research track). Client-supplied lists enter through generic intake instead — anchor gate is name + one of county/ZIP/address; no NPA/ACT filter.</p>
     </div>
 
     <h2 id="tiers">2. Product tiers</h2>
     <p style="font-size:0.88rem;color:var(--muted);">
-      <strong>Incremental API usage only:</strong> figures in the last column are rough per-voter
-      third-party compute (Apify, xAI, etc.) <em>if</em> you opt into paid enrichment tiers.
-      Tier 0 has no per-voter API fees. These are not LeanLink build or delivery costs.
+      <strong>Confirmed client pricing (D-026):</strong> $2,500 initiation (once per account, ever) +
+      $0.03/record baseline at intake + a per-lean settle fee at the tier that settled the voter.
+      A voter settles once fusion yields a non-Undetermined lean at confidence ≥ 60, at the cheapest
+      contributing tier — billed once ever. FL-extract (research-track) uploads are never billed.
     </p>
     <table>
-      <thead><tr><th>Tier</th><th>Arms</th><th>Incremental API usage (if enabled)</th><th>Scope</th></tr></thead>
+      <thead><tr><th>Tier</th><th>Arms</th><th>Client fee</th><th>Scope</th></tr></thead>
       <tbody>
         <tr>
-          <td><strong>Tier 0 — Free Pass</strong></td>
-          <td>FEC · FL contrib index · Sunbiz index · anchor/household · fusion</td>
-          <td><span class="tag tag-free">No per-voter API fees</span></td>
-          <td>Whole NPA upload (local SQL joins)</td>
+          <td><strong>Baseline</strong></td>
+          <td>Intake · anchor/household · fusion · deliverable</td>
+          <td><span class="tag tag-paid">$0.03 / record</span></td>
+          <td>Every accepted record</td>
         </tr>
         <tr>
-          <td>Tier 1 — Tier-A fetch</td>
-          <td>Regional media / civic crawl (Apify)</td>
-          <td><span class="tag tag-paid">~$0.01–0.05 / voter</span> (Apify)</td>
-          <td>Subset or FEC-hit rows</td>
+          <td><strong>Tier 1 — FEC</strong></td>
+          <td>Local FEC bulk index (primary, D-028) · throttled Open API (fallback)</td>
+          <td><span class="tag tag-paid">$0.15 / settled lean</span></td>
+          <td>Whole upload (local SQL match)</td>
         </tr>
         <tr>
-          <td>Tier 2 — Synthesize</td>
-          <td>Grok on fetched text only</td>
-          <td><span class="tag tag-paid">Low</span> (xAI, subset only)</td>
-          <td>Rows with crawl text</td>
+          <td><strong>Tier 2 — FL contrib + Sunbiz</strong></td>
+          <td>FL contrib index (layer 1 person + layer 2 entity) · Sunbiz officer bridge</td>
+          <td><span class="tag tag-paid">$0.25 / settled lean</span></td>
+          <td>Unsettled remainder (free pass)</td>
         </tr>
         <tr>
-          <td>Tier 3 — Social OSINT</td>
-          <td><code>grok-full</code> / scorecard</td>
-          <td><span class="tag tag-paid">~$0.03 / voter</span> (xAI)</td>
-          <td>Opt-in subset only (D-020)</td>
+          <td><strong>Tier 3 — OSINT</strong></td>
+          <td><code>grok-full</code> / <code>apify-modular</code> / scorecard</td>
+          <td><span class="tag tag-paid">$0.33 / settled lean + $0.05 / attempt</span></td>
+          <td>Opt-in unsettled remainder (D-020)</td>
         </tr>
       </tbody>
     </table>
+    <p style="font-size:0.85rem;color:var(--muted);">
+      Tiers 1–2 match against local bulk indexes — <span class="tag tag-free">No per-voter API fees</span>
+      (the fee prices the research, not third-party compute). Tier 3 carries real per-attempt API cost
+      (~$0.03/voter Grok), which is why attempts are billed.
+    </p>
 
     <h3>Reference data refresh (client quarterly snapshot)</h3>
     <table>
@@ -140,7 +161,7 @@
       <tbody>
         <tr><td>Sunbiz officers</td><td>SFTP <code>sftp.floridados.gov</code> → <code>doc/quarterly/cor/cordata.zip</code> (extract <code>cordata0.txt</code>–<code>cordata9.txt</code>)</td><td>Jan / Apr / Jul / Oct</td><td><strong>20.6M</strong> officers · snapshot <code>2026q2-cor0…cor9</code></td></tr>
         <tr><td>FL state contributions</td><td>DOS monthly TSV via <code>scripts/download-fl-contrib.ts</code></td><td>Monthly in-cycle; quarterly off-cycle</td><td><strong>14.2M</strong> rows · snapshot <code>2008-2026</code></td></tr>
-        <tr><td>FEC</td><td>Live Schedule A API</td><td>Per upload sweep</td><td>Per-voter events in ledger (no bulk index yet)</td></tr>
+        <tr><td>FEC federal contributions</td><td>Bulk <code>indiv{yy}.zip</code> (+ <code>cm{yy}.zip</code> committee master) via <code>scripts/import-fec-indiv.ts</code>, FL-filtered, most-recent-cycle-first</td><td>Per cycle; backfill <code>indiv22</code>/<code>indiv20</code> next</td><td><strong>3,981,111</strong> FL rows · snapshot <code>2024-fl</code> (loaded 2026-07-04 in ~12 min)</td></tr>
       </tbody>
     </table>
 
@@ -148,29 +169,33 @@
     <div class="pipeline">
       <div class="pipe-label">Ingest</div>
       <div class="pipe-row">
-        <div class="pipe-box"><strong>FL registration</strong><span>38-field extract</span></div>
+        <div class="pipe-box"><strong>FL registration</strong><span>38-field extract (research)</span></div>
+        <div class="pipe-box"><strong>Client list</strong><span>generic intake (commercial)</span></div>
         <span class="pipe-arr">→</span>
-        <div class="pipe-box t0"><strong>NPA + ACT</strong><span>registration status</span></div>
+        <div class="pipe-box t0"><strong>NPA + ACT</strong><span>FL extracts only</span></div>
         <span class="pipe-arr">→</span>
         <div class="pipe-box"><strong>Anchor profile</strong><span>variants + household</span></div>
       </div>
-      <div class="pipe-label">Tier 0 — Free Pass (bulk indexes)</div>
+      <div class="pipe-label">Waterfall arms — local bulk indexes, cheapest first</div>
       <div class="pipe-row">
-        <div class="pipe-box t0"><strong>FEC</strong><span>federal donations</span></div>
-        <div class="pipe-box t0"><strong>FL contrib</strong><span>layer 1 person</span></div>
-        <div class="pipe-box t0"><strong>Sunbiz</strong><span>officer match</span></div>
+        <div class="pipe-box t0"><strong>FEC index</strong><span>Tier 1 · local (API fallback)</span></div>
+        <span class="pipe-arr">→</span>
+        <div class="pipe-box t0"><strong>FL contrib</strong><span>Tier 2 · layer 1 person</span></div>
+        <div class="pipe-box t0"><strong>Sunbiz</strong><span>Tier 2 · officer match</span></div>
         <span class="pipe-arr">→</span>
         <div class="pipe-box t0"><strong>Layer 2</strong><span>LLC → FL contrib</span></div>
       </div>
-      <div class="pipe-label">Per-arm identity gate → ledger → fusion</div>
+      <div class="pipe-label">Per-arm identity gate → ledger → fusion → settlement</div>
       <div class="pipe-row">
         <div class="pipe-box"><strong>evidence_events</strong></div>
         <span class="pipe-arr">→</span>
         <div class="pipe-box t0"><strong>fuseEvidenceEvents</strong></div>
         <span class="pipe-arr">→</span>
-        <div class="pipe-box"><strong>lean_results + export</strong></div>
+        <div class="pipe-box t1"><strong>Settle + bill</strong><span>≥60 conf · cheapest tier · once ever</span></div>
+        <span class="pipe-arr">→</span>
+        <div class="pipe-box"><strong>Deliverable + audit export</strong></div>
       </div>
-      <div class="pipe-label">Paid depth (optional)</div>
+      <div class="pipe-label">Tier 3 — paid OSINT depth (opt-in, attempt-billed)</div>
       <div class="pipe-row">
         <div class="pipe-box t1"><strong>Media crawl</strong></div>
         <div class="pipe-box t1"><strong>Grok synthesize</strong></div>
@@ -179,8 +204,12 @@
     </div>
     <p>Pitch deck: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a></p>
 
-    <h2 id="free-pass">4. Tier 0 implementation</h2>
+    <h2 id="free-pass">4. Local index implementation (Tier 1 FEC + Tier 2 free pass)</h2>
     <ul>
+      <li><code>migrations/013_fec_indiv_index.sql</code> — <code>fec_contributions</code> + <code>reference_snapshots.completed_at</code> gate (a mid-load index is never matched against)</li>
+      <li><code>scripts/import-fec-indiv.ts</code> — resumable FL-filtered bulk loader (autocommit batches, unique <code>(snapshot_id, sub_id)</code>; re-run to continue, <code>--fresh</code> to reload); live progress via <code>scripts/fec-indiv-status.mjs</code></li>
+      <li><code>lib/fec/local-lookup.ts</code> — FEC "last first" name keys (<code>fecNameNorm</code>, generational suffixes stripped); committee name/party denormalized at load time</li>
+      <li><code>lib/fec/run-index-upload.ts</code> + <code>scripts/run-fec-index.ts</code> — chunked index match; dashboard <strong>Match FEC (local index)</strong> button ≤5,000 voters, CLI at county scale</li>
       <li><code>migrations/006_reference_data.sql</code> — <code>reference_snapshots</code>, <code>fl_contributions</code>, <code>sunbiz_officers</code></li>
       <li><code>scripts/download-fl-contrib.ts</code> + <code>scripts/import-fl-contrib-dir.ts</code> — bulk FL contrib import</li>
       <li><code>scripts/import-sunbiz-cor.ts</code> — quarterly cor fixed-width import (one snapshot label per shard, e.g. <code>2026q2-cor3</code>)</li>
@@ -205,8 +234,9 @@
       </table>
     </div>
 
-    <h2 id="calhoun">5. Calhoun validation (736 NPA + ACT)</h2>
-    <p><span class="tag tag-real">Validated</span> Whole-file FEC sweep + Tier 0 free pass on <code>CAL_20250812.txt</code>. Deployed to Vercel prod; data in shared Neon.</p>
+    <h2 id="calhoun">5. Validation runs — Calhoun (736) + Alachua (40,546)</h2>
+    <h3>Calhoun (736 NPA + ACT) — historic baseline, FEC API sweep + free pass</h3>
+    <p><span class="tag tag-real">Validated</span> Whole-file FEC sweep + free pass on <code>CAL_20250812.txt</code>. Deployed to Vercel prod; data in shared Neon.</p>
     <table>
       <thead><tr><th>Arm</th><th>Yield</th><th>Lean labels?</th></tr></thead>
       <tbody>
@@ -226,9 +256,28 @@
     <p><strong>733 / 736</strong> remain <code>Undetermined</code> fused lean — expected when arms supply identity without ideological signals. Evidence timeline still holds full audit.</p>
     <p style="font-size:0.88rem;color:var(--muted);">Free pass runtime ~84 min for 736 voters (Sunbiz <code>LIKE</code> across ~21M rows) — optimize with better indexes if scaling counties.</p>
 
-    <h2 id="fec">6. FEC arm (D-021)</h2>
-    <p><span class="tag tag-real">Live</span> Direct FEC Open API Schedule A + deterministic identity
-    (<code>lib/fec/identity-match.ts</code>, <code>donation-lean.ts</code>). Calhoun: 27 raw → 3 confirmed → 3 labeled.</p>
+    <h3>Alachua (40,546 NPA + ACT) — Tier 1 via local FEC bulk index (2026-07-04)</h3>
+    <p><span class="tag tag-real">Validated</span> First county-scale run of the D-028 index. 2024-cycle load: <strong>3,981,111</strong> FL rows in ~12 min (snapshot <code>2024-fl</code>). Index match: <strong>40,546 voters in 3h12m</strong> (network-bound from the operator Mac; the cancelled API sweep was projected at 4–18 days).</p>
+    <table>
+      <thead><tr><th>Funnel step</th><th>Count</th><th>Rate</th></tr></thead>
+      <tbody>
+        <tr><td>Voters with name-matching FEC rows</td><td><strong>4,186</strong></td><td>10.3%</td></tr>
+        <tr><td>Identity-confirmed donors</td><td><strong>247</strong></td><td>0.61%</td></tr>
+        <tr><td>Settled Tier 1 leans</td><td><strong>178</strong> (132 Left / 46 Right)</td><td><strong>0.44%</strong></td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.88rem;color:var(--muted);">Includes 6 leans from the cancelled API sweep (stopped at 802 voters processed). 0.44% is the real Tier 1 lean yield on an NPA county — recalibrate any illustrative example that assumed ~2% at Tier 1 once Tier 2/3 actuals exist.</p>
+
+    <h2 id="fec">6. FEC arm (D-028 primary · D-021 fallback)</h2>
+    <p><span class="tag tag-real">Live</span> <strong>Primary:</strong> local FEC bulk index
+    (<code>fec_contributions</code>, migration 013) — FL-filtered federal individual contributions,
+    staged most-recent-cycle-first, matched with the same deterministic identity gates
+    (<code>lib/fec/identity-match.ts</code>, <code>donation-lean.ts</code>). Evidence lands on the same
+    arm (<code>fec</code>, tier 1, source <code>fec_indiv_index</code>), so fusion, settlement, and
+    billing are unchanged. <strong>Fallback:</strong> the throttled Open-API Schedule A sweep (D-021)
+    stays for freshness and spot checks — the 4 s/request throttle put a 40k county at 4–18 days;
+    the local index does it in hours. Alachua: 4,186 → 247 → 178 settled. Calhoun (API-sweep
+    baseline): 27 raw → 3 confirmed → 3 labeled.</p>
 
     <h2 id="osint">7. Paid OSINT modes (Tier 3)</h2>
     <table>
@@ -239,13 +288,15 @@
         <tr><td><code>modular-targeted</code></td><td>Capped searches</td><td>≤4 calls</td><td>Mode comparison (subset)</td></tr>
       </tbody>
     </table>
-    <p>Scorecard and enrichment test append <code>osint</code> events to the ledger. Full-file batch remains gated (D-020).</p>
+    <p>Scorecard and enrichment test append <code>osint</code> events to the ledger. Billing: $0.05 per attempt + $0.33 on a Tier 3 settle (attempt fee reversible to $0 via rate card). Full-file batch remains gated (D-020).</p>
 
     <h2 id="guardrails">8. Guardrails</h2>
     <ul>
       <li>D-013: Identity separate from lean</li>
       <li>D-016: Lean requires ideological <code>signals[]</code> in matches</li>
       <li>D-010: No race/gender in prompts or logic</li>
+      <li>D-026: Researcher <strong>Accept</strong> freezes a voter's fused lean — deliverable values never drift after acceptance</li>
+      <li>D-027: FL-extract data research-only + structurally unbillable (migration 012 CHECK); OSINT-only / no data brokers on both tracks</li>
       <li>Layer 2 entity donations: lower fusion weight than direct person FEC/FL hits</li>
     </ul>
 
@@ -259,6 +310,11 @@
         <tr><td>Anchor / household</td><td><code>lib/anchor/*</code></td></tr>
         <tr><td>Evidence ledger + fusion</td><td><code>lib/evidence/*</code></td></tr>
         <tr><td>FEC</td><td><code>lib/fec/*</code></td></tr>
+        <tr><td>FEC bulk index (Tier 1)</td><td><code>lib/fec/local-lookup.ts</code>, <code>lib/fec/run-index-upload.ts</code>, <code>lib/reference-data/import-fec-indiv.ts</code>, <code>scripts/run-fec-index.ts</code></td></tr>
+        <tr><td>Generic intake</td><td><code>lib/generic-voter-list.ts</code>, <code>lib/intake/completeness.ts</code>, <code>/dashboard/intake</code></td></tr>
+        <tr><td>Settlement + billing</td><td><code>lib/evidence/settlement.ts</code>, <code>lib/billing/*</code>, <code>/dashboard/accounts</code></td></tr>
+        <tr><td>Review / re-enroll</td><td><code>app/api/voters/[id]/review</code>, <code>app/api/uploads/[id]/re-enroll</code></td></tr>
+        <tr><td>Deliverable + audit export</td><td><code>app/api/export/[uploadId]/deliverable</code> (<code>?format=audit</code>)</td></tr>
         <tr><td>Grok OSINT</td><td><code>lib/enrichment/grok-pipeline.ts</code></td></tr>
         <tr><td>Dashboard</td><td><code>components/evidence-workspace.tsx</code></td></tr>
         <tr><td>Evidence list API + filters</td><td><code>app/api/uploads/[id]/evidence/route.ts</code></td></tr>
@@ -267,25 +323,26 @@
 
     <h2 id="eval">10. How to evaluate</h2>
     <ol>
-      <li>Apply migrations <code>005</code> + <code>006</code> on Neon (<code>scripts/check-migrations.ts</code>).</li>
+      <li>Apply migrations <code>001</code>→<code>013</code> on Neon (<code>node scripts/apply-migrations.mjs</code>).</li>
       <li>Import FL contrib: <code>download-fl-contrib.ts</code> → <code>import-fl-contrib-dir.ts</code>.</li>
       <li>Import Sunbiz: SFTP <code>cordata.zip</code> → import each <code>cordata0.txt</code>–<code>cordata9.txt</code> via <code>import-sunbiz-cor.ts</code>.</li>
+      <li>Import FEC: <code>scripts/import-fec-indiv.ts</code> (2024 cycle first; runbook <code>docs/SETUP.md</code> §8) — lookups only use snapshots marked READY.</li>
       <li>Upload county file → confirm NPA+ACT count.</li>
-      <li>FEC sweep (no API fees) → <strong>Run free pass</strong> (dashboard or <code>run-free-pass.ts</code>).</li>
+      <li><strong>Match FEC (local index)</strong> (Tier 1; dashboard ≤5,000 voters, <code>run-fec-index.ts</code> at county scale; API sweep is fallback) → <strong>Run free pass</strong> (Tier 2; dashboard or <code>run-free-pass.ts</code>).</li>
       <li>In Evidence accumulator: toggle <strong>FEC✓</strong> (expect <strong>3</strong>), <strong>Layer-2</strong> (<strong>26</strong>), or <strong>Sunbiz</strong> (<strong>429</strong>) — combine with name search; click a row for timeline + fused lean.</li>
       <li>Demo path: FEC rows 273/402/569 (labeled lean) → Layer-2 row 224 or 280 (identity bridge, Undetermined lean).</li>
       <li>Paid OSINT only on curated subset after Free Pass review (e.g. Sunbiz + layer-2 promising rows).</li>
     </ol>
 
-    <h2 id="next">11. Roadmap (post–filters)</h2>
+    <h2 id="next">11. Roadmap (post–FEC index)</h2>
     <table>
       <thead><tr><th>Priority</th><th>Item</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td>Calhoun demo walkthrough</td><td>Human validation of identity-vs-lean story on Calhoun</td></tr>
-        <tr><td>2</td><td>Layer-2 lean audit</td><td>Confirm 26 entity hits lack partisan committee text (or fix fusion)</td></tr>
-        <tr><td>3</td><td>Sunbiz index perf</td><td>County-scale free pass blocked at ~84 min / 736 voters</td></tr>
-        <tr><td>4</td><td>Apify-modular eval</td><td>Paid depth on promising rows only</td></tr>
-        <tr><td>5</td><td>Scorecard Tier-A metrics</td><td>donation / media / civic % separate from social %</td></tr>
+        <tr><td>1</td><td>Tier 2 free pass on Alachua remainder</td><td>~40k unsettled voters; Sunbiz index perf (prefix/trigram) first — ~84 min / 736 on Calhoun</td></tr>
+        <tr><td>2</td><td>Backfill older FEC cycles (<code>indiv22</code>/<code>indiv20</code>)</td><td>Raise Tier 1 yield; re-run the match — settled voters skipped automatically</td></tr>
+        <tr><td>3</td><td>Layer-2 lean audit</td><td>Confirm 26 Calhoun entity hits lack partisan committee text (or fix fusion)</td></tr>
+        <tr><td>4</td><td>Professor Calhoun walkthrough</td><td>Human validation of the identity-vs-lean story</td></tr>
+        <tr><td>5</td><td>Apify-modular eval + scorecard Tier-A metrics</td><td>Paid depth on promising rows only; donation/media/civic % separate from social %</td></tr>
       </tbody>
     </table>
 
