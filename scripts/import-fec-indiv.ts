@@ -18,6 +18,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { importFecIndiv } from '@/lib/reference-data/import-fec-indiv';
+import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
   try {
@@ -49,6 +50,7 @@ function arg(name: string): string | undefined {
 
 async function main() {
   loadEnvLocal();
+  keepAwakeWhileRunning('the FEC bulk load');
   const filePath = arg('--file');
   const committeesPath = arg('--committees');
   const label = arg('--label');

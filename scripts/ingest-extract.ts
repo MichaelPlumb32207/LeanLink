@@ -30,6 +30,7 @@ import {
   type VoterHistorySummary,
 } from '@/lib/fl-voter-history';
 import { insertVoterRecords } from '@/lib/ingest/insert-voter-records';
+import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
   try {
@@ -83,6 +84,7 @@ async function inUserTxn<T>(
 
 async function main() {
   loadEnvLocal();
+  keepAwakeWhileRunning('the extract ingest');
   const filePath = arg('file');
   const historyPath = arg('history');
   const resumeId = arg('resume');

@@ -15,6 +15,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Pool } from 'pg';
 import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
+import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
   try {
@@ -46,6 +47,7 @@ function arg(name: string): string | undefined {
 
 async function main() {
   loadEnvLocal();
+  keepAwakeWhileRunning('the FEC index match');
   const uploadId = arg('--upload-id');
   const county = arg('--county');
   const userEmail = process.env.ALLOWED_USER_EMAIL;

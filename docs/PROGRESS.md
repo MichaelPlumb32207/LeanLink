@@ -23,7 +23,10 @@ row_count, distinct row_index = 146,599. **FEC index match started same session*
 same as Alachua) → projected ~13–14 h for the county; at 2,000 voters: 177 with rows
 (8.9%) · 7 identity-confirmed · 1 settled. Old API sweep at ~94/hr would have needed
 **~65 days** — this run is the county-scale validation of D-028. Chunk-committed and
-resumable; record final funnel numbers + wall-clock here when it completes. Watch it live
+resumable; record final funnel numbers + wall-clock here when it completes. **Keep-awake
+added same session** (`lib/cli/keep-awake.ts`, wired into all four long CLIs): idle sleep
+held off automatically via `caffeinate -i -w <pid>`; lid-close still sleeps (resume covers
+it). The in-flight Duval run was protected retroactively with a manual `caffeinate -i -w`. Watch it live
 via the Duval line-score row (processed/hits tick on each poll); rate/ETA in-UI arrives
 with Phase B (`arm_runs`).
 

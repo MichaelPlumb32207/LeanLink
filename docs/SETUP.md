@@ -203,6 +203,12 @@ The upload flips to `ready` only when every row is in. Reference run: Duval —
 146,599 NPA+Active rows (of 710k total) in ~102 s. FL-extract ingests never carry an
 `account_id` (research track, D-027). Keep the source files outside the repo.
 
+**Keep-awake:** every long-running CLI (`ingest-extract`, `run-fec-index`, `run-free-pass`,
+`import-fec-indiv`) automatically holds off macOS **idle** sleep for its own lifetime
+(`lib/cli/keep-awake.ts` spawns `caffeinate -i -w <pid>`). Closing the lid still sleeps the
+machine — leave it open for overnight runs; if a run dies anyway, all of these are
+chunk-committed and resume on re-run.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |

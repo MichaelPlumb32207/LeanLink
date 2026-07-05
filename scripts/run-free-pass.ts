@@ -6,6 +6,7 @@
  *   npx tsx scripts/run-free-pass.ts --county CAL
  */
 import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
+import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Pool } from 'pg';
@@ -40,6 +41,7 @@ function arg(name: string): string | undefined {
 
 async function main() {
   loadEnvLocal();
+  keepAwakeWhileRunning('the free pass');
   const uploadId = arg('--upload-id');
   const county = arg('--county');
   const userEmail = process.env.ALLOWED_USER_EMAIL;
