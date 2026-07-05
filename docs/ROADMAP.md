@@ -28,7 +28,11 @@ started · **Someday** = conditional / only if a trigger fires.
 1. **Measure real Tier 2 / Tier 3 yield.** Run FL/Sunbiz then OSINT on the Alachua remainder to
    replace the pitch's *assumed* Tier 2/3 numbers with measured ones (Tier 1 is now measured at
    0.44%). This is the single biggest input to honest client pricing examples.
-2. **Backfill older FEC cycles** (`indiv22`, `indiv20`) into the bulk index to raise Tier 1 hit
+2. **Box score Phase B — `arm_runs` live progress (D-029, migration 014).** Per-arm run rows
+   (status/processed/heartbeat/rate) written by every runner **including the CLI scripts**, a
+   generalized current-inning panel with rate/ETA/stalled detection, free-pass chunking + a
+   >5,000-row UI guard, and a live-run dot on the uploads list. Apply 014 before pushing.
+3. **Backfill older FEC cycles** (`indiv22`, `indiv20`) into the bulk index to raise Tier 1 hit
    rate — settled voters are skipped automatically on re-match, so it's a safe additive pass.
 3. **Manage-uploads UX** — a real delete/**archive** experience (soft `archived_at` on
    `voter_uploads`, hide-without-losing-ledger, ideally bulk), beyond the bare DELETE endpoint.
@@ -81,6 +85,7 @@ These are reversible-config forks currently parked; each one nudges the roadmap 
 
 ## Recently shipped (see PROGRESS.md for detail)
 
+Box-score dashboard Phase A: pinned scoreboard + per-arm line score + unified polling (D-029) ·
 FEC federal bulk index (D-028) · two-track use posture + `fl_extract` unbillable constraint (D-027) ·
 confirmed pricing + $2,500 initiation fee + researcher review controls (D-026) · client deliverable
 export with provenance/audit · tiered/prepaid/waterfall billing + generic client intake (D-024).

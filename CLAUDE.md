@@ -101,6 +101,15 @@ small uploads sort/filter entirely in the browser; above the thresholds
 SQL built by `buildResultsSql`. When editing sort/filter behavior, both paths must stay in
 sync — the column set (`SortColumn`) is the contract.
 
+**Progress UI is the box score** (D-029): `components/box-score.tsx` (pinned scoreboard +
+per-arm line score + live strip) renders `UploadEvidenceSummary` via the pure builder
+`lib/box-score.ts`; `components/use-evidence-summary.ts` owns the **single** polling loop
+(5s while a run is active, 30s idle, paused on hidden tab) at page level and passes
+`summary`/`refreshSummary` down into the evidence workspace. Don't add per-panel polling
+loops or render summary numbers a second time — extend the summary/builder instead.
+Phase B (migration 014 `arm_runs`) adds live progress for the index/free-pass runners
+incl. CLI runs.
+
 ## Conventions & gotchas
 
 - **Never `trim()` a full voter line.** `normalizeLine` only strips `\r`/`\n` — `trim()`

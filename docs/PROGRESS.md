@@ -1,10 +1,35 @@
 # LeanLink — Build Progress
 
 Running status of what's actually built vs. stubbed vs. not started. The honest source of
-truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-04.
+truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05.
 
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
+
+## Where to pick up (continuity note — 2026-07-05, box-score dashboard Phase A)
+
+**Box-score dashboard shipped (D-029, Phase A — no migration):** progress visibility
+restructured around the owner's baseball metaphor. New: `components/box-score.tsx`
+(**BoxScoreBar** — sticky pinned scoreboard: records in / leans settled / conflicted /
+accepted / still in research, live chip + progress strip when a run is active; **LineScore**
+— tier-ordered per-arm table: eligible-in (est.) → processed → identity hits → lean signals →
+settled here), `components/use-evidence-summary.ts` (the **single** polling loop: 5s active /
+30s idle / paused on hidden tab — the 30s idle poll is what will make CLI runs discoverable
+in Phase B), `lib/box-score.ts` (pure builder). `UploadEvidenceSummary` extended: per-arm
+`voters_touched/voters_confirmed/voters_with_lean/last_event_at`, `settled.by_arm`,
+`waterfall.eligible_by_tier`, `fec_sweep.total_count` (`lib/evidence/ledger.ts` — same
+indexed scans, no new tables). Deleted (anti-duplication): `buildPipelineScoreboard`,
+`PipelineScoreboardPanel`, the workspace command-bar stats grid + arm badges, the waterfall
+gate counts line (re-enroll buttons live on under "Waterfall controls"), and all three old
+polling loops (page fec-sweep 5s, workspace summary 5s, FecSweepPanel 5s). Upload list rows
+gained a mini-score line (settled · accepted · conflicted) via one LATERAL join in
+`GET /api/uploads`. **Verified:** `tsc`/lint/build green; summary run read-only against Neon —
+Alachua reconciles exactly (178 settled T1, arm fec; touched 40,552; confirmed 253 = 247
+index + 6 sweep; eligible_remaining 40,374; `eligible_by_tier` {0:40552, 1:40552, 2:40374,
+3:40374}) in ~573 ms for the 40k upload (operator Mac; faster from Vercel). **Next (Phase B,
+migration 014):** `arm_runs` table + instrument all runners (API + CLI) per D-029 — apply 014
+to Neon *before* pushing Phase B code; free-pass runner also gets chunking + a >5,000-row UI
+guard in that phase. Owner smoke test of the new layout is the gate between phases.
 
 ## Where to pick up (continuity note — 2026-07-04 later, FEC bulk index)
 
@@ -286,6 +311,7 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 | Job cancel / upload delete | ✅ | `app/api/jobs/[id]/cancel`, `app/api/uploads/[id]`. |
 | **Full-file batch inference** | 🟡 | Code exists; **disabled by default** (D-020). |
 | Results dashboard: sort, filters, row index, hash+reveal | ✅ | `row_index` from `voter_records` in preview. |
+| Box-score progress UI (pinned scoreboard, line score, unified poll) | 🟡 | Phase A shipped (D-029): `components/box-score.tsx`, `use-evidence-summary.ts`, `lib/box-score.ts`. Phase B (arm_runs live progress incl. CLI, migration 014) pending. |
 | CSV / JSON export | ✅ | `app/api/export/[uploadId]`. |
 | Turnout & opposition-mobilization scoring | ✅ | Real math in `lib/inference.ts`. |
 | Grok live-search OSINT + lean inference | ✅ | `lib/enrichment/grok-pipeline.ts` + `inferLean` when `XAI_API_KEY` set. |

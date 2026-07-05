@@ -6,6 +6,29 @@ current as design shifts.
 
 ---
 
+## D-029 · Box-score dashboard: one pinned scoreboard, one polling loop
+**Decision (owner UX notes, 2026-07-05):** Restructure progress visibility around a baseball
+box-score metaphor — a **pinned scoreboard** (records in · leans settled · conflicted ·
+accepted · still in research) always visible at the top of the page, a per-arm **line score**
+(tier-ordered "innings": eligible-in → processed → identity hits → lean signals → settled
+here), and a **current-inning** live strip for the running arm. All numbers derive from one
+extended `UploadEvidenceSummary` (per-arm distinct-voter counts, `settled.by_arm`,
+`waterfall.eligible_by_tier`) fetched by **one polling loop** (`useEvidenceSummary`: 5s while
+a run is active, 30s idle, paused when the tab is hidden), replacing three competing
+per-runner intervals. The old mid-page stats grid, cumulative scoreboard panel, and arm
+badges were deleted rather than kept alongside — every number renders exactly once.
+**Why:** operating on behalf of clients requires answering "where are we?" at a glance and
+pasting accurate status into an update email; previously totals sat mid-page, per-arm counts
+were badge pills, and live progress lived in three panels depending on which runner was
+active. **Phase B (planned, migration 014):** an `arm_runs` table generalizing the
+`fec_sweep_jobs` progress pattern (status/processed/heartbeat, one *active* run per
+(upload, arm), history retained) written by every runner **including the CLI scripts**, so
+county-scale index runs become visible to the dashboard; the FEC API sweep is adapted at
+read time (UNION into the run shape), not dual-written. `eligible_by_tier` is a waterfall
+before-state estimate after re-enroll cycles — arm_runs records exact per-run pools.
+**Overrides:** `buildPipelineScoreboard`/`PipelineScoreboardPanel` and the evidence
+workspace's self-owned summary polling (summary state now lives at page level).
+
 ## D-028 · FEC bulk index replaces the API sweep as primary Tier 1
 **Decision:** Bulk-load FEC federal individual contributions (Florida-filtered, staged
 most-recent-cycle-first) into Neon as the third reference index (`fec_contributions`,

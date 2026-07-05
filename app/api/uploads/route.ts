@@ -275,7 +275,10 @@ export async function GET() {
                 j.status AS job_status,
                 j.processed_count,
                 j.failed_count,
-                j.total_count AS job_total_count
+                j.total_count AS job_total_count,
+                s.settled_count,
+                s.accepted_count,
+                s.conflicted_count
          FROM voter_uploads u
          LEFT JOIN LATERAL (
            SELECT id, status, processed_count, failed_count, total_count
@@ -284,6 +287,13 @@ export async function GET() {
            ORDER BY created_at DESC
            LIMIT 1
          ) j ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*) FILTER (WHERE settled_tier IS NOT NULL)::int AS settled_count,
+                  COUNT(*) FILTER (WHERE review_status = 'accepted')::int AS accepted_count,
+                  COUNT(*) FILTER (WHERE fusion_status = 'conflicted')::int AS conflicted_count
+           FROM voter_lean_fusion f
+           WHERE f.upload_id = u.id AND f.user_id = $1
+         ) s ON true
          WHERE u.user_id = $1
          ORDER BY u.created_at DESC
          LIMIT 50`,

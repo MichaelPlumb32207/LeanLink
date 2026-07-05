@@ -50,13 +50,9 @@ export function FecSweepPanel({
     void refresh().catch(() => {});
   }, [refresh]);
 
-  useEffect(() => {
-    if (!job || (job.status !== 'running' && job.status !== 'queued')) return;
-    const id = window.setInterval(() => {
-      void refresh().catch(() => {});
-    }, 5000);
-    return () => window.clearInterval(id);
-  }, [job, refresh]);
+  // No polling loop here: live progress renders in the pinned box score, fed by
+  // the page-level useEvidenceSummary hook. This panel refreshes on mount and
+  // after its own start/import actions (it carries job details the summary doesn't).
 
   const running = job?.status === 'running' || job?.status === 'queued';
   const completed = job?.status === 'completed';

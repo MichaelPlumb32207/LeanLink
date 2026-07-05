@@ -11,69 +11,8 @@ export interface PipelineStepStatus {
   detail: string;
 }
 
-export interface PipelineScoreboard {
-  npas_in_file: number;
-  labeled_count: number;
-  undetermined_count: number;
-  labeled_pct: number;
-  by_lean: Record<string, number>;
-  arm_lean_yield: { arm: string; label: string; events: number; lean_signals: number }[];
-  settled_by_tier: Record<string, number>;
-  settled_total: number;
-  billing: {
-    total_usd: number;
-    baseline_usd: number;
-    tier_usd: number;
-    attempt_usd: number;
-  } | null;
-}
-
-export function buildPipelineScoreboard(summary: UploadEvidenceSummary): PipelineScoreboard {
-  const labeled_count = summary.fusion.fused_count + summary.fusion.provisional_count;
-  const npas = summary.voter_count;
-  const undetermined = Math.max(
-    0,
-    summary.fusion.undetermined_count + summary.fusion.conflicted_count,
-  );
-
-  const armLabels: Record<string, string> = {
-    fec: 'FEC federal',
-    fl_contrib: 'FL contributors',
-    sunbiz: 'Sunbiz officers',
-    household: 'Household',
-    human_judgment: 'Researcher',
-    osint: 'OSINT',
-  };
-
-  const arm_lean_yield = Object.entries(summary.arms)
-    .map(([arm, stats]) => ({
-      arm,
-      label: armLabels[arm] ?? arm,
-      events: stats.event_count,
-      lean_signals: stats.lean_signal_count,
-    }))
-    .filter((a) => a.events > 0)
-    .sort((a, b) => b.lean_signals - a.lean_signals || b.events - a.events);
-
-  return {
-    npas_in_file: npas,
-    labeled_count,
-    undetermined_count: undetermined > 0 ? undetermined : Math.max(0, npas - labeled_count),
-    labeled_pct: npas > 0 ? Math.round((labeled_count / npas) * 1000) / 10 : 0,
-    by_lean: summary.fusion.by_lean,
-    arm_lean_yield,
-    settled_by_tier: summary.settled.by_tier,
-    settled_total: summary.settled.total,
-    billing: summary.billing
-      ? {
-          total_usd: summary.billing.total_usd,
-          baseline_usd: summary.billing.baseline_usd,
-          tier_usd: summary.billing.tier_usd,
-          attempt_usd: summary.billing.attempt_usd,
-        }
-      : null,
-  };
-}
+// The cumulative scoreboard moved to lib/box-score.ts (buildBoxScore) — the
+// pinned box score + line score are the single rendering of those numbers.
 
 export function buildPipelineSteps(
   summary: UploadEvidenceSummary,

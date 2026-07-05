@@ -21,7 +21,9 @@ import { ENRICHMENT_MODES, type EnrichmentMode } from '@/lib/enrichment/modes';
 import type { EnrichmentScorecard } from '@/lib/enrichment/scorecard';
 import { suggestedTestRowsForFilename } from '@/lib/enrichment/suggested-test-rows';
 import { formatRowIndices, parseRowIndicesInput } from '@/lib/test-row-indices';
+import { BoxScoreBar } from '@/components/box-score';
 import { EvidenceWorkspace } from '@/components/evidence-workspace';
+import { useEvidenceSummary } from '@/components/use-evidence-summary';
 import { BALLOT_FAVORS_OPTIONS, ballotFavorsLabel } from '@/lib/ballot-favors';
 
 type AnalyzeTest =
@@ -112,6 +114,9 @@ type Upload = {
   processed_count?: number | null;
   failed_count?: number | null;
   job_total_count?: number | null;
+  settled_count?: number | null;
+  accepted_count?: number | null;
+  conflicted_count?: number | null;
 };
 
 type BallotFavors = 'south' | 'north';
@@ -155,6 +160,11 @@ export default function DashboardPage() {
   const [previewRowLimit, setPreviewRowLimit] = useState<number | 'all'>(100);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [selectedUploadId, setSelectedUploadId] = useState<string | null>(null);
+  const {
+    summary: evidenceSummary,
+    lastUpdated: evidenceSummaryUpdated,
+    refresh: refreshEvidenceSummary,
+  } = useEvidenceSummary(selectedUploadId);
   const [job, setJob] = useState<Job | null>(null);
   const [results, setResults] = useState<LeanResult[]>([]);
   const [resultsTotal, setResultsTotal] = useState(0);
@@ -381,31 +391,8 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [selectedUploadId, selectedUpload, job, refreshJob, refreshResults, refreshUploads]);
 
-  const fecSweepIsActive = useMemo(
-    () => fecSweepJob?.status === 'queued' || fecSweepJob?.status === 'running',
-    [fecSweepJob?.status],
-  );
-
-  useEffect(() => {
-    if (!selectedUploadId || !fecSweepIsActive) return;
-
-    const poll = () => {
-      void refreshFecSweep(selectedUploadId);
-    };
-    poll();
-
-    const timer = setInterval(poll, 5000);
-
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') poll();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [selectedUploadId, fecSweepIsActive, refreshFecSweep]);
+  // Live progress polling is owned by useEvidenceSummary (the box score's loop).
+  // fecSweepJob refreshes one-shot on selection and after lab actions only.
 
   const fecSweepProgressPct = useMemo(() => {
     if (!fecSweepJob?.total_count) return 0;
@@ -1083,6 +1070,17 @@ export default function DashboardPage() {
                     : ''}
                 </div>
                 <div className="mt-1 text-xs opacity-70">{jobSummary(upload)}</div>
+                {(upload.settled_count ?? 0) > 0 && (
+                  <div className="text-xs opacity-70 tabular-nums">
+                    <span className="text-emerald-300">
+                      {(upload.settled_count ?? 0).toLocaleString()} settled
+                    </span>
+                    {` · ${(upload.accepted_count ?? 0).toLocaleString()} accepted`}
+                    {(upload.conflicted_count ?? 0) > 0
+                      ? ` · ${(upload.conflicted_count ?? 0).toLocaleString()} conflicted`
+                      : ''}
+                  </div>
+                )}
                 <div className="text-xs opacity-60">
                   {new Date(upload.created_at).toLocaleString()}
                 </div>
@@ -1092,8 +1090,17 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {selectedUploadId && selectedUpload && evidenceSummary && (
+          <BoxScoreBar summary={evidenceSummary} lastUpdated={evidenceSummaryUpdated} />
+        )}
+
         {selectedUploadId && selectedUpload && (
-          <EvidenceWorkspace uploadId={selectedUploadId} upload={selectedUpload} />
+          <EvidenceWorkspace
+            uploadId={selectedUploadId}
+            upload={selectedUpload}
+            summary={evidenceSummary}
+            refreshSummary={refreshEvidenceSummary}
+          />
         )}
 
         {selectedUploadId && selectedUpload && (

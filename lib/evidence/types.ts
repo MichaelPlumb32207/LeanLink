@@ -71,6 +71,13 @@ export interface UploadEvidenceSummary {
       probable_match_count: number;
       lean_signal_count: number;
       total_cost_usd: number;
+      /** Distinct voters with ≥1 event from this arm — the "attempted" column. */
+      voters_touched: number;
+      /** Distinct voters this arm identity-confirmed (probable_same_person). */
+      voters_confirmed: number;
+      /** Distinct voters with a non-Undetermined lean signal from this arm. */
+      voters_with_lean: number;
+      last_event_at: string | null;
     }
   >;
   fusion: {
@@ -82,6 +89,7 @@ export interface UploadEvidenceSummary {
   };
   settled: {
     by_tier: Record<string, number>; // "0".."3" → voters settled at that tier
+    by_arm: Record<string, number>; // settled_arm ('party_prior','fec',…) → voters
     total: number;
   };
   review: {
@@ -91,6 +99,13 @@ export interface UploadEvidenceSummary {
   waterfall: {
     /** Voters the next arm would actually claim (not settled/accepted, or re-enrolled). */
     eligible_remaining: number;
+    /**
+     * Waterfall before-state estimate: voters that flow INTO each tier — not accepted,
+     * not settled at a cheaper tier (re-enrolled voters keep flowing). Slightly
+     * approximate after re-enroll/re-run cycles; arm_runs (migration 014, Phase B)
+     * records exact per-run pools.
+     */
+    eligible_by_tier: Record<string, number>; // "0".."3"
     /** Max spend if every eligible voter settles at that tier (null = unbilled upload). */
     projected: {
       tier1_usd: number;
@@ -109,6 +124,7 @@ export interface UploadEvidenceSummary {
   fec_sweep: {
     status: string | null;
     processed_count: number;
+    total_count: number;
     raw_hits: number;
     confirmed_hits: number;
   } | null;

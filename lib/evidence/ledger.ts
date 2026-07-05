@@ -229,12 +229,20 @@ export async function getUploadEvidenceSummary(
     probable_match_count: string;
     lean_signal_count: string;
     total_cost: string | null;
+    voters_touched: string;
+    voters_confirmed: string;
+    voters_with_lean: string;
+    last_event_at: string | null;
   }>(
     `SELECT arm,
             COUNT(*)::text AS event_count,
             COUNT(*) FILTER (WHERE probable_same_person)::text AS probable_match_count,
             COUNT(*) FILTER (WHERE lean_signal IS NOT NULL AND lean_signal != 'Undetermined')::text AS lean_signal_count,
-            SUM(cost_usd)::text AS total_cost
+            SUM(cost_usd)::text AS total_cost,
+            COUNT(DISTINCT voter_record_id)::text AS voters_touched,
+            COUNT(DISTINCT voter_record_id) FILTER (WHERE probable_same_person)::text AS voters_confirmed,
+            COUNT(DISTINCT voter_record_id) FILTER (WHERE lean_signal IS NOT NULL AND lean_signal != 'Undetermined')::text AS voters_with_lean,
+            MAX(created_at)::text AS last_event_at
      FROM evidence_events
      WHERE upload_id = $1 AND user_id = $2
      GROUP BY arm`,
@@ -253,11 +261,34 @@ export async function getUploadEvidenceSummary(
     [uploadId, userId],
   );
 
-  const settledRes = await client.query<{ settled_tier: number; count: string }>(
-    `SELECT settled_tier, COUNT(*)::text AS count
+  const settledRes = await client.query<{
+    settled_tier: number;
+    settled_arm: string | null;
+    count: string;
+  }>(
+    `SELECT settled_tier, settled_arm, COUNT(*)::text AS count
      FROM voter_lean_fusion
      WHERE upload_id = $1 AND user_id = $2 AND settled_tier IS NOT NULL
-     GROUP BY settled_tier`,
+     GROUP BY settled_tier, settled_arm`,
+    [uploadId, userId],
+  );
+
+  // Waterfall before-state: how many voters flow INTO each tier. A voter blocks
+  // later tiers when accepted, or settled cheaper and not re-enrolled. This is an
+  // estimate after re-enroll/re-run cycles (arm_runs will record exact pools).
+  const flowRes = await client.query<{
+    settled_tier: number | null;
+    accepted: boolean;
+    re_enrolled: boolean;
+    count: string;
+  }>(
+    `SELECT settled_tier,
+            (review_status = 'accepted') AS accepted,
+            (research_status = 're_enrolled') AS re_enrolled,
+            COUNT(*)::text AS count
+     FROM voter_lean_fusion
+     WHERE upload_id = $1 AND user_id = $2
+     GROUP BY 1, 2, 3`,
     [uploadId, userId],
   );
 
@@ -303,10 +334,11 @@ export async function getUploadEvidenceSummary(
   const fecJobRes = await client.query<{
     status: string;
     processed_count: number;
+    total_count: number;
     hits_count: number;
     confirmed_hits_count: number;
   }>(
-    `SELECT status, processed_count, hits_count, COALESCE(confirmed_hits_count, 0) AS confirmed_hits_count
+    `SELECT status, processed_count, total_count, hits_count, COALESCE(confirmed_hits_count, 0) AS confirmed_hits_count
      FROM fec_sweep_jobs
      WHERE upload_id = $1 AND user_id = $2
      ORDER BY created_at DESC
@@ -321,6 +353,10 @@ export async function getUploadEvidenceSummary(
       probable_match_count: Number(row.probable_match_count),
       lean_signal_count: Number(row.lean_signal_count),
       total_cost_usd: Number(row.total_cost ?? 0),
+      voters_touched: Number(row.voters_touched),
+      voters_confirmed: Number(row.voters_confirmed),
+      voters_with_lean: Number(row.voters_with_lean),
+      last_event_at: row.last_event_at,
     };
   }
 
@@ -343,10 +379,18 @@ export async function getUploadEvidenceSummary(
     }
   }
 
-  const settled = { by_tier: {} as Record<string, number>, total: 0 };
+  const settled = {
+    by_tier: {} as Record<string, number>,
+    by_arm: {} as Record<string, number>,
+    total: 0,
+  };
   for (const row of settledRes.rows) {
     const n = Number(row.count);
-    settled.by_tier[String(row.settled_tier)] = n;
+    const tier = String(row.settled_tier);
+    settled.by_tier[tier] = (settled.by_tier[tier] ?? 0) + n;
+    if (row.settled_arm) {
+      settled.by_arm[row.settled_arm] = (settled.by_arm[row.settled_arm] ?? 0) + n;
+    }
     settled.total += n;
   }
 
@@ -371,6 +415,25 @@ export async function getUploadEvidenceSummary(
   const fecJob = fecJobRes.rows[0];
 
   const eligible_remaining = Number(eligibleRes.rows[0]?.count ?? 0);
+  const voter_count = Number(voterCountRes.rows[0]?.count ?? 0);
+
+  // eligible_by_tier[N] = voters flowing into tier N: everyone minus accepted
+  // voters, minus voters settled at a cheaper tier who were not re-enrolled.
+  // Groups from flowRes are disjoint, so summing blocked groups is exact.
+  const eligible_by_tier: Record<string, number> = {};
+  for (const tier of [0, 1, 2, 3]) {
+    let blocked = 0;
+    for (const row of flowRes.rows) {
+      const accepted = row.accepted === true;
+      const reEnrolled = row.re_enrolled === true;
+      const settledTier = row.settled_tier;
+      if (accepted || (settledTier !== null && settledTier < tier && !reEnrolled)) {
+        blocked += Number(row.count);
+      }
+    }
+    eligible_by_tier[String(tier)] = Math.max(0, voter_count - blocked);
+  }
+
   const money = (n: number) => Number(n.toFixed(2));
   let projected: UploadEvidenceSummary['waterfall']['projected'] = null;
   if (accountId) {
@@ -385,7 +448,7 @@ export async function getUploadEvidenceSummary(
 
   return {
     upload_id: uploadId,
-    voter_count: Number(voterCountRes.rows[0]?.count ?? 0),
+    voter_count,
     arms,
     fusion,
     settled,
@@ -393,12 +456,13 @@ export async function getUploadEvidenceSummary(
       accepted_count: Number(reviewRes.rows[0]?.accepted ?? 0),
       re_enrolled_count: Number(reviewRes.rows[0]?.re_enrolled ?? 0),
     },
-    waterfall: { eligible_remaining, projected },
+    waterfall: { eligible_remaining, eligible_by_tier, projected },
     billing,
     fec_sweep: fecJob
       ? {
           status: fecJob.status,
           processed_count: fecJob.processed_count,
+          total_count: fecJob.total_count,
           raw_hits: fecJob.hits_count,
           confirmed_hits: fecJob.confirmed_hits_count,
         }

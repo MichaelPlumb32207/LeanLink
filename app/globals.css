@@ -39,3 +39,23 @@ body {
   background: rgba(30, 58, 138, 0.35);
   border: 1px solid rgba(96, 165, 250, 0.35);
 }
+
+/* Sticky box-score bar: .panel is translucent, so the pinned scoreboard needs a
+   near-opaque backdrop or scrolled content ghosts through it. */
+.theme-matrix .scorebar {
+  background: rgba(4, 22, 8, 0.92);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+.theme-red .scorebar {
+  background: rgba(26, 5, 5, 0.92);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.theme-blue .scorebar {
+  background: rgba(5, 10, 26, 0.92);
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  backdrop-filter: blur(6px);
+}

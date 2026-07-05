@@ -23,17 +23,20 @@ Read in this order when joining the project cold.
 ## POC workflow (dashboard)
 
 1. **Upload** registration extract (+ optional `*_H_*` history) — no AI cost.
-2. **Select upload** from inventory.
-3. **Evidence accumulator** — upload command bar, voter list + evidence timeline (FEC sweep, fused lean).
-4. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate).
-5. **Export** CSV/JSON when fused lean exists in `lean_results`.
+2. **Select upload** from inventory (rows show a mini-score: settled · accepted · conflicted).
+3. **Box score** (D-029) — pinned scoreboard (records in / leans settled / conflicted /
+   accepted / still in research) + live progress while an arm runs; per-arm **line score**
+   inside the pipeline box. One polling loop (5s active / 30s idle).
+4. **Evidence accumulator** — pipeline steps, voter list + evidence timeline (FEC sweep, fused lean).
+5. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate).
+6. **Export** CSV/JSON when fused lean exists in `lean_results`.
 
 ## Tiered / prepaid product (2026-07-03)
 
 - **`/dashboard/intake`** — ingest an arbitrary client voter list (no FL voter file); anchor-gated, completeness-scored.
 - **`/dashboard/accounts`** — prepaid billing console: accounts, deposits, per-batch invoices, ledger, editable rate cards, one-time **initiation fee** ($2,500 default, billed at account creation).
 - Waterfall settlement skips already-found voters in later arms; billing charges initiation + baseline + per-tier + OSINT-attempt.
-- **Researcher review (2026-07-04):** per-voter **Accept** (freeze lean, close research) / **Reopen** / **Re-enroll** (settled voter re-enters later arms, no re-billing); cohort re-enroll + projected next-arm spend in the evidence workspace **Waterfall gate** strip.
+- **Researcher review (2026-07-04):** per-voter **Accept** (freeze lean, close research) / **Reopen** / **Re-enroll** (settled voter re-enters later arms, no re-billing); cohort re-enroll + projected next-arm spend in the evidence workspace **Waterfall controls** strip (counts live in the pinned box score, D-029).
 - Client deliverable (`/api/export/[id]/deliverable`): original columns + Lean/Confidence/Source (all arms)/Status/Evidence; `?format=audit` = one row per evidence event.
 - Dev scripts: `node scripts/apply-migrations.mjs` (migrations), `npx tsx scripts/smoke-billing.ts` (billing verifier). See `DECISIONS.md` D-024/D-026 and `CLAUDE.md` → "Tiered / prepaid / waterfall product".
 
@@ -49,6 +52,8 @@ Read in this order when joining the project cold.
 | `lib/evidence/ledger.ts` | Evidence events + fusion → `lean_results` |
 | `lib/evidence/arms.ts` | Pluggable arm registry |
 | `components/evidence-workspace.tsx` | Dashboard split-pane evidence UI |
+| `components/box-score.tsx` + `lib/box-score.ts` | Pinned scoreboard, per-arm line score, live strip (D-029) |
+| `components/use-evidence-summary.ts` | The one summary polling loop (5s active / 30s idle) |
 | `lib/enrichment/suggested-test-rows.ts` | Curated row indices per county |
 | `lib/test-row-indices.ts` | Parse/format dashboard subset input |
 

@@ -206,4 +206,20 @@ settlement.
 | T16.6 | Re-enroll an **accepted** voter | 400 — reopen first. |
 | T16.7 | Cohort re-enroll `maxConfidence=70` / `tierLte=1` | Only matching settled, unaccepted voters flagged; response reports count. |
 | T16.8 | Withdraw re-enrollments | `research_status` cleared for the upload; waterfall-gate counts update. |
-| T16.9 | Waterfall gate strip | Shows eligible-remaining, accepted, re-enrolled counts + projected max next-arm spend (billed uploads only). |
+| T16.9 | Waterfall controls strip | Re-enroll/withdraw buttons + projected max next-arm spend (billed uploads only); the eligible/accepted counts render in the pinned box score (UC-17, D-029). |
+
+## UC-17 — Box-score progress visibility 🟡
+**As** the operator, **I can** answer "where are we?" for any upload at a glance — totals
+pinned at the top, per-arm contribution below, live progress while an arm runs — accurately
+enough to paste into a client status update. (Phase A shipped; Phase B = `arm_runs` live
+progress incl. CLI runs, migration 014.)
+
+| ID | Test | Expected |
+|---|---|---|
+| T17.1 | Select an upload with evidence | Pinned scoreboard shows records in / leans settled / conflicted / accepted / still in research; values match `evidence-summary`. |
+| T17.2 | Scroll through workspace, research lab, results | Scoreboard stays pinned (`sticky`); no content ghosts through it in any of the three themes. |
+| T17.3 | Line score | Arms in tier order (T0 party → T1 FEC → T2 FL/Sunbiz → T3 OSINT); a never-run arm shows only eligible-in (est.) with an em-dash elsewhere. |
+| T17.4 | Alachua sanity | fec row: processed 40,552 · identity hits 253 · lean signals 178 · settled-here 178; eligible T2/T3 = 40,374 (records − T1 settles). |
+| T17.5 | Start an FEC API sweep | Live chip + progress strip appear within 5s; polling tightens to 5s, returns to 30s when done; hidden tab pauses polling. |
+| T17.6 | Numbers appear exactly once | Old stats grid / scoreboard panel / arm badges are gone; re-enroll buttons remain under "Waterfall controls". |
+| T17.7 | Uploads list mini-score | Rows with settlements show "N settled · N accepted · N conflicted". |

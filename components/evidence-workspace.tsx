@@ -5,13 +5,12 @@ import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
 import { FecSweepPanel } from '@/components/fec-sweep-panel';
 import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
-import { PipelineFlowTrack, PipelineScoreboardPanel } from '@/components/pipeline-scoreboard';
+import { LineScore } from '@/components/box-score';
+import { PipelineFlowTrack } from '@/components/pipeline-scoreboard';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { ballotFavorsLabel } from '@/lib/ballot-favors';
-import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
 import {
-  buildPipelineScoreboard,
   buildPipelineSteps,
   confirmLongRerun,
   suggestNextStep,
@@ -93,11 +92,15 @@ type Tier0Action = 'match-fl-contrib' | 'match-sunbiz-entity' | 'match-tier0-all
 export function EvidenceWorkspace({
   uploadId,
   upload,
+  summary,
+  refreshSummary,
 }: {
   uploadId: string;
   upload?: EvidenceUploadMeta | null;
+  /** Owned by the page-level useEvidenceSummary hook (single polling loop). */
+  summary: UploadEvidenceSummary | null;
+  refreshSummary: () => Promise<void>;
 }) {
-  const [summary, setSummary] = useState<UploadEvidenceSummary | null>(null);
   const [voters, setVoters] = useState<VoterListRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VoterDetail | null>(null);
@@ -108,13 +111,6 @@ export function EvidenceWorkspace({
   const [syncingAction, setSyncingAction] = useState<Tier0Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [committeeManagerOpen, setCommitteeManagerOpen] = useState(false);
-
-  const refreshSummary = useCallback(async () => {
-    const res = await fetch(`/api/uploads/${uploadId}/evidence-summary`);
-    const data = await res.json();
-    if (!res.ok) throw new Error([data.error, data.hint].filter(Boolean).join(' — '));
-    setSummary(data.summary);
-  }, [uploadId]);
 
   const refreshVoters = useCallback(async () => {
     const params = new URLSearchParams({ list: '1', limit: '1000' });
@@ -165,16 +161,6 @@ export function EvidenceWorkspace({
   useEffect(() => {
     void refreshAll();
   }, [refreshAll]);
-
-  useEffect(() => {
-    const fecStatus = summary?.fec_sweep?.status;
-    const fecRunning = fecStatus === 'running' || fecStatus === 'queued';
-    if (!fecRunning) return;
-    const id = window.setInterval(() => {
-      void refreshSummary().catch(() => {});
-    }, 5000);
-    return () => window.clearInterval(id);
-  }, [summary?.fec_sweep?.status, refreshSummary]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -265,8 +251,7 @@ export function EvidenceWorkspace({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Action failed');
-      if (data.summary) setSummary(data.summary);
-      await refreshVoters();
+      await Promise.all([refreshSummary(), refreshVoters()]);
       if (selectedId) await loadDetail(selectedId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed');
@@ -291,18 +276,17 @@ export function EvidenceWorkspace({
               undetermined_count: 0,
               by_lean: {},
             },
-            settled: { by_tier: {}, total: 0 },
+            settled: { by_tier: {}, by_arm: {}, total: 0 },
             review: { accepted_count: 0, re_enrolled_count: 0 },
-            waterfall: { eligible_remaining: upload?.row_count ?? 0, projected: null },
+            waterfall: {
+              eligible_remaining: upload?.row_count ?? 0,
+              eligible_by_tier: {},
+              projected: null,
+            },
             billing: null,
             fec_sweep: null,
           }),
     [summary, syncing, uploadId, upload?.row_count],
-  );
-
-  const pipelineScoreboard = useMemo(
-    () => (summary ? buildPipelineScoreboard(summary) : null),
-    [summary],
   );
 
   const suggestedStep = useMemo(() => suggestNextStep(pipelineSteps), [pipelineSteps]);
@@ -327,10 +311,6 @@ export function EvidenceWorkspace({
     if (suggested) return `${base} border-amber-400/70 bg-amber-500/20 ring-1 ring-amber-400/50`;
     return `${base} border-amber-400/50 bg-amber-500/10`;
   };
-
-  const fecArm = summary?.arms.fec;
-  const fusedCount = summary?.fusion.fused_count ?? 0;
-  const provisionalCount = summary?.fusion.provisional_count ?? 0;
 
   return (
     <section className="panel rounded-2xl p-6 space-y-4">
@@ -370,19 +350,12 @@ export function EvidenceWorkspace({
           )}
         </div>
         <PipelineFlowTrack steps={pipelineSteps} suggestedStep={suggestedStep} />
-        {pipelineScoreboard && <PipelineScoreboardPanel score={pipelineScoreboard} />}
+        {summary && <LineScore summary={summary} />}
         {summary && (
           <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-semibold uppercase tracking-wide opacity-60">
-                Waterfall gate
-              </span>
-              <span className="opacity-80">
-                {summary.waterfall.eligible_remaining} of {summary.voter_count} voters still in
-                research · {summary.review.accepted_count} accepted ·{' '}
-                {summary.review.re_enrolled_count} re-enrolled
-              </span>
-            </div>
+            <span className="font-semibold uppercase tracking-wide opacity-60">
+              Waterfall controls
+            </span>
             {summary.waterfall.projected && (
               <p className="opacity-75">
                 Max exposure if every remaining voter settles at the next arm: Tier 1 (FEC) $
@@ -557,67 +530,7 @@ export function EvidenceWorkspace({
         </p>
       )}
 
-      {/* Command bar */}
-      <div className="rounded-xl border border-white/15 bg-black/20 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-          <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums">
-              {pipelineScoreboard?.npas_in_file ?? summary?.voter_count ?? '—'}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">NPAs in file</div>
-          </div>
-          <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums text-emerald-300">
-              {summary?.fec_sweep?.confirmed_hits ?? '—'}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">FEC confirmed</div>
-          </div>
-          <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums text-emerald-300">
-              {pipelineScoreboard?.labeled_count ?? fusedCount + provisionalCount}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">
-              Labeled now
-              {pipelineScoreboard ? ` (${pipelineScoreboard.labeled_pct}%)` : ''}
-            </div>
-          </div>
-          <div className="rounded-lg bg-black/25 px-3 py-2 text-center">
-            <div className="text-2xl font-semibold tabular-nums">
-              ${(fecArm?.total_cost_usd ?? 0).toFixed(2)}
-            </div>
-            <div className="text-[10px] uppercase tracking-wide opacity-60">FEC cost</div>
-          </div>
-          <div className="rounded-lg bg-black/25 px-3 py-2 text-center sm:col-span-2">
-            <div className="text-sm font-medium">
-              FEC sweep: {summary?.fec_sweep?.status ?? 'not started'}
-              {summary?.fec_sweep
-                ? ` · ${summary.fec_sweep.processed_count}/${summary.voter_count}`
-                : ''}
-            </div>
-            <div className="text-xs opacity-70">
-              {summary?.fec_sweep?.raw_hits ?? 0} raw hits · OSINT arm:{' '}
-              {summary?.arms.osint?.event_count ?? 0} events
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {EVIDENCE_ARMS.filter((a) => a.default_enabled || summary?.arms[a.id]).map((arm) => {
-            const stats = summary?.arms[arm.id];
-            return (
-              <span
-                key={arm.id}
-                className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-xs"
-                title={arm.description}
-              >
-                {arm.label}
-                {stats ? ` · ${stats.event_count}` : ''}
-                {stats && stats.lean_signal_count > 0 ? ` · ${stats.lean_signal_count} lean` : ''}
-              </span>
-            );
-          })}
-        </div>
-      </div>
+      {/* Cumulative stats + per-arm counts live in the pinned box score / line score. */}
 
       {/* Split pane */}
       <div className="grid gap-4 lg:grid-cols-5">
