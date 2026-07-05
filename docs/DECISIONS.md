@@ -6,6 +6,28 @@ current as design shifts.
 
 ---
 
+## D-030 · Committee-master party feeds FEC lean; evidence itemizes receipts
+**Decision (2026-07-05, found during the Duval validation run):** Two defects fixed together.
+(1) The FEC bulk index stores each committee's **party code from the committee master**
+(`cm.txt`, denormalized at load per D-028), but the index lookup dropped it before lean
+scoring — lean depended entirely on name-pattern regexes ("winred", "actblue", "(REP)"…),
+which FEC committee names rarely satisfy. Donors to committees of *known* party scored
+"party unclear," suppressing Tier-1 yield (a likely contributor to Alachua's low 0.44%).
+Fix: `lookupFecIndexForVoter` now folds the party into the committee display name
+("NAME (REP)"), so the existing `\(rep\)`/`\(dem\)` patterns fire on authoritative data
+(labels renamed source-neutral; DFL added as a Democratic affiliate). (2) A confirmed donor
+with no derivable lean produced an evidence event with **no recipient lines at all** — the
+researcher saw "identity confirmed" plus bare receipt URLs (observed on Duval row 113). Fix:
+both FEC event builders (`fec_indiv_index` + `fec_sweep`) now always itemize confirmed
+receipts — `$amount → COMMITTEE (PARTY) · date`, top 5 + "+N more" — and store them
+structured in `payload.receipts` for the audit export. **Backfill:** evidence events upsert
+(`DO UPDATE` on the dedupe key) and the claim predicate skips only settled voters, so
+re-running the index match rewrites thin events in place; the in-flight Duval run was
+restarted (~10k rows re-processed) rather than finishing the county on the old code.
+Re-running Alachua later will enrich its events and may raise its measured yield.
+**Overrides:** nothing — completes D-028's intent (the party column was loaded for exactly
+this and never wired through).
+
 ## D-029 · Box-score dashboard: one pinned scoreboard, one polling loop
 **Decision (owner UX notes, 2026-07-05):** Restructure progress visibility around a baseball
 box-score metaphor — a **pinned scoreboard** (records in · leans settled · conflicted ·

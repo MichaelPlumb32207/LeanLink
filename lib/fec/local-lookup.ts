@@ -112,6 +112,14 @@ export async function lookupFecIndexForVoter(
     for (const row of rows) {
       if (seen.has(row.sub_id)) continue;
       seen.add(row.sub_id);
+      // Carry the committee master's party code into the display name (FL-file
+      // convention "NAME (REP)") — donation-lean's party patterns key off it,
+      // and evidence lines show the researcher who the money went to.
+      const party = row.committee_party?.trim().toUpperCase() || null;
+      const committeeName =
+        row.committee_name && party && !row.committee_name.toUpperCase().includes(`(${party})`)
+          ? `${row.committee_name} (${party})`
+          : row.committee_name;
       contributions.push({
         receipt_date: row.receipt_date,
         amount: row.amount != null ? Number(row.amount) : null,
@@ -121,7 +129,7 @@ export async function lookupFecIndexForVoter(
         contributor_zip: row.contributor_zip,
         contributor_employer: row.contributor_employer,
         contributor_occupation: row.contributor_occupation,
-        committee_name: row.committee_name,
+        committee_name: committeeName,
         candidate_name: null,
         fec_url: `https://www.fec.gov/data/receipts/individual-contributions/?sub_id=${row.sub_id}`,
       });

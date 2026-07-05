@@ -6,6 +6,22 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-05 latest, FEC party fix mid-Duval)
+
+**D-030 landed mid-run:** the owner spotted a confirmed Duval donor (row 113) whose timeline
+showed receipts but not recipients — root cause was two-fold (committee-master party never
+reached lean scoring; confirmed-no-lean events wrote zero recipient lines). Fixed in
+`lib/fec/local-lookup.ts` (party folded into committee display name), `lib/fec/donation-lean.ts`
+(labels source-neutral, DFL added), `lib/evidence/fec-events.ts` (itemized `$amt → committee
+(party) · date` lines + `payload.receipts` in both FEC builders). The Duval index run was
+**killed at ~10k and restarted on the fixed code** — upsert (`DO UPDATE`) + claim-predicate
+(skips only the 12 settled) means the first ~10k rewrite in place (~50 min redo), then the
+run continues; expect **higher Tier-1 yield** than the pre-fix trajectory. Keep-awake is
+active (built into the CLI as of `e9b9a15`; lid-close still sleeps — resume with the same
+command if needed). **When the run completes:** record the final funnel + wall-clock below,
+compare yield to Alachua's 0.44%, and consider **re-running Alachua** (skips its 178
+settled) to enrich its events + re-measure yield with the party fix.
+
 ## Where to pick up (continuity note — 2026-07-05 later, Duval + county-scale ingest)
 
 **County-scale ingest CLI shipped (`scripts/ingest-extract.ts`):** the Duval file (115 MB,
