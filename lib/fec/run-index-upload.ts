@@ -28,24 +28,24 @@ export interface FecIndexChunkResult {
   snapshot: FecIndexSnapshot;
 }
 
-export async function runFecIndexChunk(
-  client: PoolClient,
-  params: {
-    uploadId: string;
-    userId: string;
-    snapshot: FecIndexSnapshot;
-    afterRowIndex?: number;
-    limit?: number;
-  },
-): Promise<FecIndexChunkResult> {
-  const limit = params.limit ?? 500;
-  const afterRowIndex = params.afterRowIndex ?? -1;
+export interface FecIndexVoterRow {
+  id: string;
+  row_index: number;
+  raw_data: ParsedFlVoterRecord;
+}
 
-  const { rows: voters } = await client.query<{
-    id: string;
-    row_index: number;
-    raw_data: ParsedFlVoterRecord;
-  }>(
+export interface FecIndexVoterResult {
+  with_hit: boolean;
+  confirmed: boolean;
+  lean: boolean;
+}
+
+/** Claim the next chunk of unsettled voters, in row order. */
+export async function claimFecIndexRows(
+  client: PoolClient,
+  params: { uploadId: string; userId: string; afterRowIndex: number; limit: number },
+): Promise<FecIndexVoterRow[]> {
+  const { rows } = await client.query<FecIndexVoterRow>(
     `SELECT vr.id, vr.row_index, vr.raw_data
      FROM voter_records vr
      WHERE vr.upload_id = $1 AND vr.user_id = $2
@@ -59,40 +59,88 @@ export async function runFecIndexChunk(
        )
      ORDER BY vr.row_index
      LIMIT $4`,
-    [params.uploadId, params.userId, afterRowIndex, limit],
+    [params.uploadId, params.userId, params.afterRowIndex, params.limit],
   );
+  return rows;
+}
+
+/**
+ * Lookup → score → evidence upsert → fuse for ONE voter. Everything it touches
+ * is voter-scoped, so distinct voters are safe to process on parallel
+ * connections (the CLI's --concurrency path).
+ */
+export async function processFecIndexVoter(
+  client: PoolClient,
+  params: {
+    uploadId: string;
+    userId: string;
+    snapshot: FecIndexSnapshot;
+    voter: FecIndexVoterRow;
+  },
+): Promise<FecIndexVoterResult> {
+  const { voter } = params;
+  const lookup = await lookupFecIndexForVoter(client, params.snapshot.id, voter.raw_data);
+  const has_hits = lookup.contributions.length > 0;
+
+  const scored = scoreFecLookupForVoter({
+    voter: voter.raw_data,
+    contributions: lookup.contributions,
+    matchLevel: lookup.match_level,
+  });
+
+  await appendEvidenceEvent(
+    client,
+    buildFecIndexEvidenceEvent({
+      upload_id: params.uploadId,
+      voter_record_id: voter.id,
+      user_id: params.userId,
+      voter: voter.raw_data,
+      scored,
+      has_hits,
+      names_tried: lookup.names_tried,
+      snapshot_label: params.snapshot.label,
+    }),
+  );
+  await fuseAndPersistVoter(client, voter.id, params.uploadId, params.userId);
+
+  return {
+    with_hit: has_hits,
+    confirmed: scored.identity.probable_same_person,
+    lean: Boolean(scored.fec_lean && scored.fec_lean !== 'Undetermined'),
+  };
+}
+
+export async function runFecIndexChunk(
+  client: PoolClient,
+  params: {
+    uploadId: string;
+    userId: string;
+    snapshot: FecIndexSnapshot;
+    afterRowIndex?: number;
+    limit?: number;
+  },
+): Promise<FecIndexChunkResult> {
+  const voters = await claimFecIndexRows(client, {
+    uploadId: params.uploadId,
+    userId: params.userId,
+    afterRowIndex: params.afterRowIndex ?? -1,
+    limit: params.limit ?? 500,
+  });
 
   let with_hits = 0;
   let confirmed_identity = 0;
   let leans = 0;
 
   for (const voter of voters) {
-    const lookup = await lookupFecIndexForVoter(client, params.snapshot.id, voter.raw_data);
-    const has_hits = lookup.contributions.length > 0;
-    if (has_hits) with_hits += 1;
-
-    const scored = scoreFecLookupForVoter({
-      voter: voter.raw_data,
-      contributions: lookup.contributions,
-      matchLevel: lookup.match_level,
+    const result = await processFecIndexVoter(client, {
+      uploadId: params.uploadId,
+      userId: params.userId,
+      snapshot: params.snapshot,
+      voter,
     });
-    if (scored.identity.probable_same_person) confirmed_identity += 1;
-    if (scored.fec_lean && scored.fec_lean !== 'Undetermined') leans += 1;
-
-    await appendEvidenceEvent(
-      client,
-      buildFecIndexEvidenceEvent({
-        upload_id: params.uploadId,
-        voter_record_id: voter.id,
-        user_id: params.userId,
-        voter: voter.raw_data,
-        scored,
-        has_hits,
-        names_tried: lookup.names_tried,
-        snapshot_label: params.snapshot.label,
-      }),
-    );
-    await fuseAndPersistVoter(client, voter.id, params.uploadId, params.userId);
+    if (result.with_hit) with_hits += 1;
+    if (result.confirmed) confirmed_identity += 1;
+    if (result.lean) leans += 1;
   }
 
   return {

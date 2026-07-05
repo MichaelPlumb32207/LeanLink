@@ -6,20 +6,32 @@
  * Usage:
  *   npx tsx scripts/run-fec-index.ts --upload-id UUID
  *   npx tsx scripts/run-fec-index.ts --county ALA
- *   npx tsx scripts/run-fec-index.ts --upload-id UUID --start-after 15000
+ *   npx tsx scripts/run-fec-index.ts --upload-id UUID --start-after 15000 --concurrency 8
  *
- * Commits every chunk (500 voters), prints progress as it goes, and is safe to
- * re-run: settled/accepted voters are skipped by the claim predicate, and
- * evidence events upsert idempotently. --start-after skips rows with
- * row_index ≤ N (continue a partial pass without re-touching its rows).
+ * Commits in batches, prints progress as it goes, and is safe to re-run:
+ * settled/accepted voters are skipped by the claim predicate, and evidence
+ * events upsert idempotently. --start-after skips rows with row_index ≤ N
+ * (continue a partial pass without re-touching its rows).
  *
- * Progress is also written to arm_runs (migration 014) every chunk, so the
- * dashboard's current-inning panel shows this run live.
+ * --concurrency N (default 4, max 16) processes N voters in parallel on
+ * separate connections. The per-voter cost is Neon round-trip latency, not
+ * Postgres work, so overlapping the waits scales nearly linearly. Workers
+ * commit every ~10 voters; distinct voters never contend (events, fusion,
+ * settlement are all voter-scoped).
+ *
+ * Progress is written to arm_runs (migration 014) every chunk, so the
+ * dashboard's current-inning panel shows this run live. Ctrl-C marks the run
+ * 'cancelled' (a kill -9 leaves it to the 10-minute stale reaper).
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { Pool } from 'pg';
-import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
+import {
+  claimFecIndexRows,
+  getActiveFecIndivSnapshot,
+  processFecIndexVoter,
+  type FecIndexVoterRow,
+} from '@/lib/fec/run-index-upload';
 import {
   countEligibleVoters,
   finishArmRun,
@@ -68,7 +80,12 @@ async function main() {
     process.exit(1);
   }
 
-  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
+  const concurrency = Math.min(16, Math.max(1, Number(arg('--concurrency') ?? 4)));
+  const pool = new Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: true },
+    max: concurrency + 2,
+  });
   const client = await pool.connect();
   const startedAt = Date.now();
   try {
@@ -131,44 +148,104 @@ async function main() {
       );
       process.exit(1);
     }
+    console.log(`Concurrency: ${concurrency} worker(s)`);
+
+    // Ctrl-C / kill → mark the run cancelled so the dashboard shows intent,
+    // not a stall. (kill -9 can't be caught; the 10-min reaper covers that.)
+    let cancelling = false;
+    const cancel = () => {
+      if (cancelling) return;
+      cancelling = true;
+      console.log('\nCancelling — marking arm_runs row cancelled…');
+      void (async () => {
+        const c = await pool.connect();
+        try {
+          await c.query('BEGIN');
+          await c.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+          await finishArmRun(c, runId, 'cancelled');
+          await c.query('COMMIT');
+        } catch {
+          /* reaper covers us */
+        } finally {
+          c.release();
+          process.exit(130);
+        }
+      })();
+    };
+    process.on('SIGINT', cancel);
+    process.on('SIGTERM', cancel);
 
     const totals = { processed: 0, with_hits: 0, confirmed_identity: 0, leans: 0 };
     let afterRowIndex = startAfter;
 
     try {
-      // One transaction per chunk — a crash loses at most one chunk; re-run resumes.
       for (;;) {
+        // Claim the next chunk (read-only) on the main connection.
         await client.query('BEGIN');
         await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
-        const chunk = await runFecIndexChunk(client, {
+        const queue = await claimFecIndexRows(client, {
           uploadId: resolvedUploadId!,
           userId: userEmail,
-          snapshot,
           afterRowIndex,
           limit: 500,
         });
-        if (chunk.processed > 0) {
-          totals.processed += chunk.processed;
-          totals.with_hits += chunk.with_hits;
-          totals.confirmed_identity += chunk.confirmed_identity;
-          totals.leans += chunk.leans;
-          await heartbeatArmRun(client, runId, {
-            processed: totals.processed,
-            hits: totals.with_hits,
-            confirmed: totals.confirmed_identity,
-            leanSignals: totals.leans,
-          });
-        }
+        await client.query('COMMIT');
+        if (queue.length === 0) break;
+        const lastRowIndex = queue[queue.length - 1].row_index;
+
+        // Fan the chunk out across workers; each commits every ~10 voters.
+        // queue.splice is safe — JS is single-threaded between awaits.
+        const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+          const wc = await pool.connect();
+          try {
+            for (;;) {
+              const batch: FecIndexVoterRow[] = queue.splice(0, 10);
+              if (batch.length === 0) return;
+              await wc.query('BEGIN');
+              await wc.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+              try {
+                for (const voter of batch) {
+                  const r = await processFecIndexVoter(wc, {
+                    uploadId: resolvedUploadId!,
+                    userId: userEmail,
+                    snapshot,
+                    voter,
+                  });
+                  totals.processed += 1;
+                  if (r.with_hit) totals.with_hits += 1;
+                  if (r.confirmed) totals.confirmed_identity += 1;
+                  if (r.lean) totals.leans += 1;
+                }
+                await wc.query('COMMIT');
+              } catch (e) {
+                await wc.query('ROLLBACK').catch(() => {});
+                throw e;
+              }
+            }
+          } finally {
+            wc.release();
+          }
+        });
+        await Promise.all(workers);
+
+        afterRowIndex = lastRowIndex;
+
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+        await heartbeatArmRun(client, runId, {
+          processed: totals.processed,
+          hits: totals.with_hits,
+          confirmed: totals.confirmed_identity,
+          leanSignals: totals.leans,
+        });
         await client.query('COMMIT');
 
-        if (chunk.processed === 0) break;
-        afterRowIndex = chunk.last_row_index ?? afterRowIndex;
-
         const elapsed = (Date.now() - startedAt) / 1000;
-        const rate = Math.round(totals.processed / Math.max(1, elapsed));
+        const rate = totals.processed / Math.max(1, elapsed);
         console.log(
           `${totals.processed.toLocaleString()} voters · ${totals.with_hits} with rows · ` +
-            `${totals.confirmed_identity} identity-confirmed · ${totals.leans} leans · ${rate}/s`,
+            `${totals.confirmed_identity} identity-confirmed · ${totals.leans} leans · ` +
+            `${rate >= 10 ? Math.round(rate) : rate.toFixed(1)}/s`,
         );
       }
 

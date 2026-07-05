@@ -175,8 +175,11 @@ npx tsx scripts/import-fec-indiv.ts --file itcont.txt --committees cm.txt --labe
 node scripts/fec-indiv-status.mjs
 
 # 4. Match an upload against the index
-npx tsx scripts/run-fec-index.ts --upload-id UUID      # county scale (no cap)
+npx tsx scripts/run-fec-index.ts --upload-id UUID --concurrency 8   # county scale (no cap)
 #   …or the dashboard "Match FEC (local index)" button (uploads ≤ 5,000 voters)
+#   The per-voter cost is Neon round-trip latency, so N workers ≈ N× the rate
+#   (default 4, max 16). --start-after M resumes a partial pass; Ctrl-C marks
+#   the run cancelled in arm_runs (visible in the dashboard's current-inning strip).
 ```
 
 Lookups always use the newest **READY** snapshot (`completed_at` set) — a load in progress

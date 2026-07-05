@@ -6,6 +6,19 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-05 latest+2, 8-way concurrency)
+
+**ENH-004:** `run-fec-index.ts --concurrency N` (default 4, max 16) — the match was
+latency-bound (sequential Neon round-trips from the operator Mac ≈ 2.6 voters/s), so N
+workers on separate connections scale ~linearly. `runFecIndexChunk` was factored into
+`claimFecIndexRows` + `processFecIndexVoter` (voter-scoped writes — parallel-safe across
+distinct voters; the API route path is unchanged). Workers commit every ~10 voters;
+heartbeat after each 500-row chunk; SIGINT/SIGTERM now mark the run `cancelled` in
+arm_runs (kill -9 → 10-min reaper). **Measured on Duval: 22–23/s at 8 workers (~8.5×)** —
+run restarted `--start-after 12499 --concurrency 8`, ETA ~1.6 h for the remaining ~133k.
+Speed ladder for the record: API sweep ~0.026/s → index sequential ~2.6/s (100×) →
+index 8-way ~22.5/s (865×). Next lever if needed: run adjacent to Neon (us-east-1).
+
 ## Where to pick up (continuity note — 2026-07-05 latest+1, live run visibility)
 
 **Box score Phase B core shipped mid-Duval (ENH-003, migration 014 applied to Neon):**
