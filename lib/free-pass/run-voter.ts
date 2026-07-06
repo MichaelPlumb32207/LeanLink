@@ -1,7 +1,7 @@
 import { buildAnchorProfile } from '@/lib/anchor/profile';
 import { householdForVoterRecord, loadUploadHouseholdIndex } from '@/lib/anchor/upload-index';
 import { buildFlContribEvidenceEvent } from '@/lib/evidence/fl-contrib-events';
-import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
+import { appendEvidenceEvent, deleteVoterArmEvents, fuseAndPersistVoter } from '@/lib/evidence/ledger';
 import { buildHouseholdEvidenceEvent } from '@/lib/evidence/household-events';
 import { buildSunbizEvidenceEvent } from '@/lib/evidence/sunbiz-events';
 import { scoreFlContributionsAgainstVoter } from '@/lib/fl-contrib/identity-match';
@@ -153,44 +153,60 @@ export async function runFreePassForVoter(
     if (sunbizEvent) {
       await appendEvidenceEvent(client, sunbizEvent);
       events_written += 1;
+    } else {
+      // No qualifying officer this pass — supersede any stale prior Sunbiz event
+      // (e.g. a pre-ENH-012 name+zip collision that no longer clears the gate).
+      await deleteVoterArmEvents(client, params.voter_record_id, 'sunbiz', 'sunbiz_index');
     }
   }
 
-  if (steps.fl_contrib_l2 && params.flSnapshotId && sunbizEntities.length > 0) {
-    const flLabel = params.flLabel ?? (await snapshotLabel(client, params.flSnapshotId));
-    const layer2Hits = [];
-    for (const entity of sunbizEntities.slice(0, 3)) {
-      const hits = await lookupFlContributionsByEntityName({
-        client,
-        snapshotId: params.flSnapshotId,
-        entityName: entity.corp_name,
-      });
-      layer2Hits.push(...hits);
-    }
-    const dedupedL2 = [...new Map(layer2Hits.map((h) => [h.id, h])).values()];
-    if (dedupedL2.length > 0) {
-      const id2 = scoreFlContributionsAgainstVoter({
-        voter: params.voter,
-        hits: dedupedL2,
-        match_layer: 2,
-      });
-      await appendEvidenceEvent(
-        client,
-        buildFlContribEvidenceEvent({
-          upload_id: params.upload_id,
-          voter_record_id: params.voter_record_id,
-          user_id: params.user_id,
-          identity: id2,
+  if (steps.fl_contrib_l2 && params.flSnapshotId) {
+    let wroteLayer2 = false;
+    // Only address-corroborated officers produced sunbizEntities (ENH-012); if
+    // none did, there is no bridge to build this pass.
+    if (sunbizEntities.length > 0) {
+      const flLabel = params.flLabel ?? (await snapshotLabel(client, params.flSnapshotId));
+      const layer2Hits = [];
+      for (const entity of sunbizEntities.slice(0, 3)) {
+        const hits = await lookupFlContributionsByEntityName({
+          client,
+          snapshotId: params.flSnapshotId,
+          entityName: entity.corp_name,
+        });
+        layer2Hits.push(...hits);
+      }
+      const dedupedL2 = [...new Map(layer2Hits.map((h) => [h.id, h])).values()];
+      if (dedupedL2.length > 0) {
+        const id2 = scoreFlContributionsAgainstVoter({
+          voter: params.voter,
           hits: dedupedL2,
           match_layer: 2,
-          snapshot_label: flLabel,
-          entity_name: sunbizEntities[0]?.corp_name,
-          researcher_labels: params.researcherLabels,
-          lean_patterns: params.leanPatterns,
-        }),
-      );
-      events_written += 1;
-      fl_contrib_layer2 = dedupedL2.length;
+        });
+        await appendEvidenceEvent(
+          client,
+          buildFlContribEvidenceEvent({
+            upload_id: params.upload_id,
+            voter_record_id: params.voter_record_id,
+            user_id: params.user_id,
+            identity: id2,
+            hits: dedupedL2,
+            match_layer: 2,
+            snapshot_label: flLabel,
+            entity_name: sunbizEntities[0]?.corp_name,
+            researcher_labels: params.researcherLabels,
+            lean_patterns: params.leanPatterns,
+          }),
+        );
+        events_written += 1;
+        fl_contrib_layer2 = dedupedL2.length;
+        wroteLayer2 = true;
+      }
+    }
+    if (!wroteLayer2) {
+      // Bridge collapsed (no corroborated officer, or the corp made no FL
+      // donations) — supersede any stale layer-2 event so an old entity lean
+      // can't linger. Layer-1 (source fl_contrib_index) is untouched.
+      await deleteVoterArmEvents(client, params.voter_record_id, 'fl_contrib', 'fl_contrib_entity');
     }
   }
 

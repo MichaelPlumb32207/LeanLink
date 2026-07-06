@@ -22,12 +22,28 @@ layer-2 (`run-voter.ts`); (3) **fl_contrib** street bonus (soft) + **recency-awa
 penalty** (stale zip match decays to 0.5×). `SCORER_VERSION` → 3; goldens (i)–(l) added (the
 collision-doesn't-settle canary would fail the old scorer). **No migration** — matched
 in-memory over the migration-017 zip window. Gate green: tsc/lint/build clean, 25/25 goldens
-pass. **NEXT: the measurement re-run** — before kicking it off, spot-check `officer_address`
-density on Duval's Sunbiz rows (if sparse, `unknown` corroboration demotes broadly — the gate
-degrades safely but the *recovery* depends on address coverage). Then re-run the Sunbiz arm
-(`npx tsx scripts/run-free-pass.ts --steps sunbiz --concurrency 8`) and record the new
-funnel here beside the 99,360/98,650/0 baseline; ENH-006 anomaly flags should light amber on
-the hit-rate drop (expected — a live test of the Wave-1 rail).
+pass.
+
+**MEASURED (Duval Sunbiz re-run, v3, 146,121 processed):** raw qualifying hits **99,360 →
+46,124** (the −0.25 address-mismatch penalty culls the weakest substring-name collisions
+below the 0.45 floor entirely). Of the 46,124: **confirmed 25,663 (56%) / ambiguous 20,461
+(44%)** — vs the old 99.3%-confirmed. Spot-verified **200/200 confirmed are real
+exact-address officer matches, 0 false confirms** (FL is full of home-registered LLCs, so
+address corroboration is genuinely common). Layer-2 partisan leans **46**; **Sunbiz settles
+0** (tier-2 stays 8, all fl_contrib layer-1). Verdict: the gate works — Sunbiz is now a
+*trustworthy* identity/enrichment arm, still not a settle arm (officer status ≠ partisanship).
+
+**DEF-009 found on the same screen-read (owner caught it):** the box score still showed
+78,501 "confirmed" because the re-pass left **53,236 stale sunbiz + 5,244 stale layer-2**
+pre-gate events in place — the runner only writes/updates events for voters WITH a hit and
+never *superseded* the old event when a voter stopped matching (78,501 = 25,663 fresh +
+~52,838 stale). Fixed: `deleteVoterArmEvents` (`lib/evidence/ledger.ts`) wired into both
+free-pass branches (`lib/free-pass/run-voter.ts`) so a tightened re-pass self-cleans; the
+existing Duval rows reconciled via `scripts/cleanup-stale-sunbiz.ts` (dry-run default,
+`--commit` to apply; operator-run — deletes only stale scorer_v rows, re-fuses the 625
+lean-carrying layer-2 voters, verified 0 rows on settled/accepted). Post-cleanup the box
+score reads the true **25,663**. This is the seed of ENH-010 (re-pass as a product op with
+supersede + diff).
 
 ## Where to pick up (continuity note — 2026-07-06, Resilience Wave 1 SHIPPED)
 

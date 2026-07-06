@@ -84,6 +84,29 @@ export async function appendEvidenceEvent(
   return res.rows[0] ? parseEventRow(res.rows[0]) : null;
 }
 
+/**
+ * Supersede a voter's prior event for one arm+source. A re-pass writes a fresh
+ * event when it finds a qualifying hit (the upsert on `(voter_record_id, arm,
+ * source, dedupe_key)` replaces in place); but when tightened scoring makes a
+ * voter no longer match, the runner writes nothing — and without this the old
+ * event lingers, inflating "confirmed" counts and leaving stale leans in the
+ * timeline (the ENH-012 Sunbiz re-pass surfaced exactly this). Source-precise so
+ * a Sunbiz-only pass never touches the voter's layer-1 / household / FEC events.
+ */
+export async function deleteVoterArmEvents(
+  client: PoolClient,
+  voterRecordId: string,
+  arm: string,
+  source: string,
+): Promise<number> {
+  const res = await client.query(
+    `DELETE FROM evidence_events
+     WHERE voter_record_id = $1 AND arm = $2 AND source = $3`,
+    [voterRecordId, arm, source],
+  );
+  return res.rowCount ?? 0;
+}
+
 export async function listEvidenceForVoter(
   client: PoolClient,
   voterRecordId: string,
