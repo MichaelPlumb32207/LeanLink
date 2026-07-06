@@ -18,10 +18,15 @@ start/heartbeat/finish (heartbeat also tallies settled-at-arm so the strip's "le
 real), SIGINT→cancelled. Dashboard free-pass actions now **guard at 5,000 eligible**
 (400 + CLI hint) and run chunked (250/txn) with arm_runs when under it. **Calhoun smoke:**
 736 voters / 82 s at 4 workers, 3 with hits, lifecycle clean. **In flight overnight:**
-(1) Duval Tier 2 `--steps fl-contrib --concurrency 8` (146,211 eligible — first real
-Tier 2 yield measurement, the top ROADMAP item); (2) Alachua FEC re-run post-fixes
-(ENH-002, ~40k at 23/s). Both visible in the dashboard box score; record both results
-here when they complete.
+Duval Tier 2 `--steps fl-contrib --concurrency 8` (146,129 eligible — first real Tier 2
+yield measurement, the top ROADMAP item); record its result here when it completes.
+
+**Alachua FEC re-run COMPLETE (ENH-002 done, 2026-07-06):** 40,374 re-processed in 29 min
+(~23/s) → **+29 recovered leans: 178 → 207 settled at Tier 1** (146 Left / 61 Right),
+yield **0.44% → 0.51%**, confirmed unchanged at 253 → conversion **82%** (vs Duval's 69% —
+Gainesville donors more often give to party-identifiable committees). All Alachua evidence
+timelines now carry itemized receipts (D-030 backfill). **Measured Tier-1 band, both
+counties on the fixed pipeline: 0.32% (Duval) – 0.51% (Alachua).**
 
 ## Where to pick up (continuity note — 2026-07-06 FINAL, Duval post-DEF-005)
 
