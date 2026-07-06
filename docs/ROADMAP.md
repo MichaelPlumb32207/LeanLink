@@ -20,7 +20,7 @@ started · **Someday** = conditional / only if a trigger fires.
 | Item | State | Notes |
 |---|---|---|
 | **Client-doc HTML pass** | Partial | `enrichment-pipeline.html` redrawn to the commercial model; pitch/one-pager pricing current. **Still owed:** `evidence-accumulator-pitch.html` body still frames the research POC (banner only) — full billing/waterfall/two-track redraw + Alachua proof point. |
-| **Pitch yield recalibration** | Uncommitted | Two counties now measured at Tier 1: Alachua **0.44%** (pre-D-030), Duval **0.26%** (post-D-030, 2026-07-06) — quote a ~0.25–0.45% single-cycle band, not a point estimate; Tiers 2–3 honestly labeled "assumed" until measured. |
+| **Pitch yield recalibration** | Uncommitted | Two counties measured at Tier 1: Alachua **0.44%** (pre-fix pipeline), Duval **0.32%** (all fixes, 2026-07-06) — quote a ~0.3–0.45% single-cycle band; conversion from identity-confirmed is stable at ~70% in both. Tiers 2–3 honestly labeled "assumed" until measured. |
 | **Retire the FEC API sweep as primary** | In progress | Local bulk index (D-028) is now primary Tier 1; the throttled API sweep stays only as a freshness/spot-check fallback. |
 
 ## Next — committed near-term

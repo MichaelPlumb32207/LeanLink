@@ -6,6 +6,19 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 FINAL, Duval post-DEF-005)
+
+**DEF-005 re-pass complete — Duval Tier 1 FINAL: 470 settled (235 Left / 235 Right — a
+dead-even split), yield 0.32%.** The unmatchable party-code regex (`\b` before `\(`, found
+by the owner on rows 1619/3002) had left 85 confirmed donors Undetermined; the fixed-pattern
+re-pass (146,214 unsettled voters, 1h47m at ~23/s) recovered all of them. Identity totals
+unchanged (678 confirmed, 0.46%); confirmed→lean conversion now **69%** — matching
+Alachua's 70%, i.e., the two counties now behave consistently and the pipeline's conversion
+is stable. Measured Tier-1 band across two counties: **0.32% (Duval) – 0.44% (Alachua,
+pre-fix)**; ENH-002 (Alachua re-run) should lift the top of the band. On a billed
+engagement the DEF-005 recovery alone = 85 × $0.15 = $12.75 — small money, but 22% more
+deliverable leans from one regex character.
+
 ## Where to pick up (continuity note — 2026-07-06, Duval Tier 1 RESULTS)
 
 **Duval FEC index match COMPLETE** (upload `2036da1e`, snapshot `2024-fl`, all runs
