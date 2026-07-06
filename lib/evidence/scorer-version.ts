@@ -7,8 +7,12 @@
  *      (hardcoded lists, pre-2026-07-06). Payloads without the key are v1.
  * v2 — pattern registry (migration 019) + itemized receipts + party-code fixes
  *      (D-030, DEF-005/006).
+ * v3 — street-address corroboration across arms (ENH-012/013): Sunbiz officer
+ *      matches hard-gated on address (name+zip collisions demote to ambiguous),
+ *      per-person hit clustering on the layer-2 bridge, fl_contrib street bonus +
+ *      recency-aware zip penalty.
  *
  * Bump this when scoring behavior changes in a way that makes prior events
  * worth re-scoring.
  */
-export const SCORER_VERSION = 2;
+export const SCORER_VERSION = 3;

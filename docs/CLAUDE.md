@@ -69,6 +69,13 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
   `persistFusionForVoter`; **later arms exclude settled voters** from their work-sets
   (`claimFecSweepRows`, `runFreePassForUpload`, the batch worker). Migration 008 adds the
   `settled_*` columns. Fusion still runs for unsettled/fall-through voters.
+  - **Identity gate before a settle (ENH-012/013, 2026-07-06):** street-address
+    corroboration (`lib/reference-data/address-match.ts`) now feeds identity scoring across
+    arms. **Sunbiz hard-gates on it** — a name+zip officer match without a corroborated street
+    caps at `ambiguous` and can never settle (fixes the Duval 98,650-"confirmed"/0-settle
+    collision noise); the layer-2 bridge only bridges address-corroborated officers.
+    fl_contrib uses it as a soft bonus + a recency-aware zip penalty. FEC stays zip+city (no
+    street field). In-memory, no migration; `SCORER_VERSION` → 3.
 - **Prepaid billing** (`lib/billing/*`, migration 009): `accounts` hold a `prepaid_balance_usd`
   (keyed by a slug `account_id`, optional `fec_committee_id`); `billing_ledger` is the
   append-only signed money log (its `amount_usd` is the rate snapshot, so a later rate edit

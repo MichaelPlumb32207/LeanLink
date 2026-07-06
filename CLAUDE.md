@@ -132,6 +132,17 @@ current-inning strip; every runner writes start/heartbeat/finish via
   boundaries and thread through; scan functions stay pure. Scoring changes bump
   `SCORER_VERSION` (`lib/evidence/scorer-version.ts`), stamped as `payload.scorer_v`
   (missing key = v1).
+- **Street-address corroboration lives in ONE place: `lib/reference-data/address-match.ts`**
+  (`normalizeStreet`, `addressCorroboration`, `isAddressCorroborated`) — same fork-hazard as
+  the lean patterns, so never re-implement per arm. Each arm scores identity independently but
+  corroborates the street through this helper. **Sunbiz hard-gates on it** (ENH-012):
+  `scoreSunbizOfficerMatch` (`lib/sunbiz/lookup.ts`) caps any match lacking a corroborated
+  street below the 0.55 probable line, so name+zip collisions against the 20.6M-row officer
+  corpus land at `ambiguous` and can never settle; the layer-2 bridge
+  (`lib/free-pass/run-voter.ts`) bridges only address-corroborated officers. **fl_contrib**
+  uses it as a soft bonus plus a recency-aware zip penalty (ENH-013). FEC has no street field
+  → stays zip+city. Comparison is in-memory (address already stored/selected) — no
+  index/migration. Bump `SCORER_VERSION` on changes (currently 3).
 - **Never `trim()` a full voter line.** `normalizeLine` only strips `\r`/`\n` — `trim()`
   would drop trailing empty tab columns and break field alignment (the file's last column,
   email/history-code, is often empty).

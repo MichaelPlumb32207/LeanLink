@@ -24,6 +24,9 @@ import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import { scoreFlContributionsAgainstVoter } from '@/lib/fl-contrib/identity-match';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
+import { buildSunbizEvidenceEvent } from '@/lib/evidence/sunbiz-events';
+import { scoreSunbizOfficerMatch, sunbizIdentityBand } from '@/lib/sunbiz/lookup';
+import type { SunbizOfficerHit } from '@/lib/sunbiz/lookup';
 import { inferLeanFromCommitteeName } from '@/lib/committee-lean/infer';
 import {
   FALLBACK_LEAN_PATTERN_ROWS,
@@ -131,6 +134,25 @@ function flHit(overrides: Partial<FlContributionHit>): FlContributionHit {
     occupation: null,
     ...overrides,
   } as FlContributionHit;
+}
+
+function officerRow(
+  overrides: Partial<Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'>>,
+): Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'> {
+  return {
+    id: 'golden-officer-1',
+    snapshot_id: 'golden-snap',
+    corp_number: 'P00000001',
+    corp_name: 'SYNTHETIC HOLDINGS LLC',
+    corp_status: 'ACTIVE',
+    filing_type: 'llc',
+    officer_title: 'PRES',
+    officer_name: 'ALEX GOLDEN', // parsed as first=alex, last=golden → matches goldenVoter
+    officer_city: 'JACKSONVILLE',
+    officer_zip5: '32202',
+    officer_address: '100 SYNTHETIC WAY',
+    ...overrides,
+  };
 }
 
 /** Feed a builder's EvidenceEventInput into pure fusion as a persisted-row stand-in. */
@@ -269,6 +291,57 @@ async function main() {
     ok(Boolean(event.evidence?.some((l) => /\$500 → ACME CORP EMPLOYEE PAC/.test(l))), '(f) receipts itemized in evidence (D-030)');
     ok(Array.isArray(event.payload?.receipts) && (event.payload?.receipts as unknown[]).length === 1, '(f) payload.receipts populated');
     ok(event.payload?.scorer_v === SCORER_VERSION, `(f) payload.scorer_v === ${SCORER_VERSION}`);
+  }
+
+  // (i) ENH-012: Sunbiz officer at the voter's own street → confirmed, bridge-eligible.
+  {
+    const voter = goldenVoter();
+    const { score, corroboration } = scoreSunbizOfficerMatch(voter, officerRow({}));
+    ok(
+      corroboration === 'exact' && sunbizIdentityBand(score) === 'confirmed',
+      '(i) Sunbiz name+zip+street match → confirmed (ENH-012)',
+    );
+  }
+
+  // (j) ENH-012: name+zip collision with a DIFFERENT street → capped at ambiguous,
+  // never settles. This is the exact 98,650-hit / 0-settle Duval shape.
+  {
+    const voter = goldenVoter();
+    const row = officerRow({ officer_address: '999 DIFFERENT BLVD' });
+    const { score, reasons, corroboration } = scoreSunbizOfficerMatch(voter, row);
+    ok(
+      corroboration === 'mismatch' && score <= 0.54 && sunbizIdentityBand(score) === 'ambiguous',
+      '(j) Sunbiz name+zip collision, wrong street → ambiguous, capped (98k-noise shape)',
+    );
+    const hit: SunbizOfficerHit = { ...row, match_score: score, match_reasons: reasons };
+    const event = buildSunbizEvidenceEvent({ ...EVENT_IDS, hits: [hit], snapshot_label: 'golden-fixture' });
+    ok(
+      event !== null && event.identity_band === 'ambiguous' && event.probable_same_person === false,
+      '(j) collision event never clears the identity gate → cannot settle',
+    );
+  }
+
+  // (k) ENH-013: street corroboration lifts an otherwise-weak FL match into probable.
+  {
+    const voter = goldenVoter();
+    const now = new Date('2026-07-06T00:00:00Z');
+    const bare = flHit({ contributor_name: 'TAYLOR GOLDEN', zip5: null, city: null, address: null });
+    const withStreet = flHit({ contributor_name: 'TAYLOR GOLDEN', zip5: null, city: null, address: '100 SYNTHETIC WAY' });
+    const idBare = scoreFlContributionsAgainstVoter({ voter, hits: [bare], match_layer: 1, now });
+    const idStreet = scoreFlContributionsAgainstVoter({ voter, hits: [withStreet], match_layer: 1, now });
+    ok(idBare.identity_band === 'ambiguous' && !idBare.probable_same_person, '(k) name-only FL match stays ambiguous without street');
+    ok(idStreet.identity_band === 'probable' && idStreet.probable_same_person, '(k) same match + street corroboration → probable (ENH-013)');
+  }
+
+  // (l) ENH-013: a stale zip match scores below a recent one (address churn).
+  {
+    const voter = goldenVoter();
+    const now = new Date('2026-07-06T00:00:00Z');
+    const recent = flHit({ contributor_name: 'TAYLOR GOLDEN', address: null, city: null, contribution_date: '2024-06-01' });
+    const old = flHit({ contributor_name: 'TAYLOR GOLDEN', address: null, city: null, contribution_date: '2008-06-01' });
+    const idRecent = scoreFlContributionsAgainstVoter({ voter, hits: [recent], match_layer: 1, now });
+    const idOld = scoreFlContributionsAgainstVoter({ voter, hits: [old], match_layer: 1, now });
+    ok(idRecent.identity_score > idOld.identity_score, '(l) stale zip match scores below a recent one (ENH-013 recency)');
   }
 
   // (h) Anomaly-band math (ENH-006): the Duval Tier-2 zero-settle shape must flag.

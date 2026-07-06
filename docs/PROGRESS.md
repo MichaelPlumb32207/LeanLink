@@ -6,6 +6,29 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, Wave 2 identity gate SHIPPED, measurement pending)
+
+**ENH-012 + ENH-013 shipped (address-corroboration identity gate).** The 2nd Duval Sunbiz T2
+confirmed the noise on-screen (99,360 hits / 98,650 "confirmed" / 0 settles — loose
+last-name+zip against 20.6M officers). Root cause: the identity gate never looked at the
+street address, though every side carries one at match time (voter `residence.line1`,
+`officer_address`, fl_contrib `address`) and it was selected-then-discarded. Fix (owner call:
+**tighten in place**), all behind one shared helper `lib/reference-data/address-match.ts`
+(no per-arm fork — DEF-005/006 lesson): (1) **Sunbiz hard gate** — `scoreSunbizOfficerMatch`
+caps any match without a corroborated street below the 0.55 probable line, so collisions land
+at `ambiguous` (never settle) while a real officer at the voter's address still reaches
+`confirmed`; (2) **per-person clustering** — only address-corroborated officers bridge to
+layer-2 (`run-voter.ts`); (3) **fl_contrib** street bonus (soft) + **recency-aware zip
+penalty** (stale zip match decays to 0.5×). `SCORER_VERSION` → 3; goldens (i)–(l) added (the
+collision-doesn't-settle canary would fail the old scorer). **No migration** — matched
+in-memory over the migration-017 zip window. Gate green: tsc/lint/build clean, 25/25 goldens
+pass. **NEXT: the measurement re-run** — before kicking it off, spot-check `officer_address`
+density on Duval's Sunbiz rows (if sparse, `unknown` corroboration demotes broadly — the gate
+degrades safely but the *recovery* depends on address coverage). Then re-run the Sunbiz arm
+(`npx tsx scripts/run-free-pass.ts --steps sunbiz --concurrency 8`) and record the new
+funnel here beside the 99,360/98,650/0 baseline; ENH-006 anomaly flags should light amber on
+the hit-rate drop (expected — a live test of the Wave-1 rail).
+
 ## Where to pick up (continuity note — 2026-07-06, Resilience Wave 1 SHIPPED)
 
 **Wave 1 complete (ENH-006/007/008 — the trust & safety rails).** (1) **Pattern registry**

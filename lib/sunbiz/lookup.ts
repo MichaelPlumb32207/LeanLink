@@ -1,5 +1,7 @@
 import { normalizeCity, zip5 } from '@/lib/reference-data/normalize';
+import { addressCorroboration, isAddressCorroborated } from '@/lib/reference-data/address-match';
 import { officerNameNorm } from '@/lib/sunbiz/parse-cor';
+import type { FecIdentityBand } from '@/lib/fec/identity-match';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -56,10 +58,23 @@ export async function getActiveSunbizSnapshotId(
   return ids[ids.length - 1] ?? null;
 }
 
-function scoreOfficerMatch(
+/** Sunbiz band from a gated match score — kept in one place for the event builder. */
+export function sunbizIdentityBand(score: number): FecIdentityBand {
+  return score >= 0.75 ? 'confirmed' : score >= 0.55 ? 'probable' : 'ambiguous';
+}
+
+/**
+ * Score a voter against one officer row. ENH-012: street-address corroboration
+ * is a HARD GATE — a name+zip collision against 20.6M officers can no longer
+ * reach the settle-capable bands. Only when the officer's `officer_address`
+ * matches the voter's own street (`house_and_street`/`exact`) does the score
+ * clear 0.55 (probable). Missing address on either side degrades to `unknown`
+ * (never a penalty), which still caps at `ambiguous` — evidence, never a settle.
+ */
+export function scoreSunbizOfficerMatch(
   voter: ParsedFlVoterRecord,
   row: Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'>,
-): { score: number; reasons: string[] } {
+): { score: number; reasons: string[]; corroboration: string } {
   const reasons: string[] = [];
   let score = 0.2;
 
@@ -97,7 +112,27 @@ function scoreOfficerMatch(
     reasons.push('city_match');
   }
 
-  return { score: Math.min(1, Math.max(0, score)), reasons };
+  const corroboration = addressCorroboration(voter.residence.line1, row.officer_address);
+  if (isAddressCorroborated(corroboration)) {
+    score += 0.25;
+    reasons.push('address_match');
+  } else if (corroboration === 'partial') {
+    score += 0.05;
+    reasons.push('address_partial');
+  } else if (corroboration === 'mismatch') {
+    score -= 0.25;
+    reasons.push('address_mismatch');
+  }
+
+  score = Math.min(1, Math.max(0, score));
+  // Hard gate: without a corroborated street, cap below the 0.55 'probable'
+  // line so name+zip collisions land at 'ambiguous' and can never settle.
+  if (!isAddressCorroborated(corroboration)) {
+    score = Math.min(score, 0.54);
+    reasons.push('uncorroborated_cap');
+  }
+
+  return { score, reasons, corroboration };
 }
 
 export async function lookupSunbizOfficersForVoter(params: {
@@ -139,7 +174,7 @@ export async function lookupSunbizOfficersForVoter(params: {
       );
 
   const scored = res.rows.map((row) => {
-    const { score, reasons } = scoreOfficerMatch(params.voter, row);
+    const { score, reasons } = scoreSunbizOfficerMatch(params.voter, row);
     return { ...row, match_score: score, match_reasons: reasons };
   });
 

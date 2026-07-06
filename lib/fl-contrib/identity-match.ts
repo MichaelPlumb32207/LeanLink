@@ -1,7 +1,24 @@
 import { normalizeCity, zip5 } from '@/lib/reference-data/normalize';
+import { addressCorroboration, isAddressCorroborated } from '@/lib/reference-data/address-match';
 import type { FecIdentityBand } from '@/lib/fec/identity-match';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
+
+/**
+ * Address churn makes a stale zip match weaker proof of *current* identity: a
+ * voter may have moved into a zip a donor left years ago. Full weight within
+ * ~4 years, decaying to 0.5× beyond ~12. No/unparseable date → full weight.
+ */
+function zipRecencyFactor(dateStr: string | null | undefined, now: Date): number {
+  if (!dateStr) return 1;
+  const d = new Date(dateStr);
+  const t = d.getTime();
+  if (Number.isNaN(t)) return 1;
+  const years = (now.getTime() - t) / (365.25 * 24 * 60 * 60 * 1000);
+  if (years <= 4) return 1;
+  if (years >= 12) return 0.5;
+  return 1 - 0.5 * ((years - 4) / 8);
+}
 
 export interface FlContribIdentityResult {
   identity_band: FecIdentityBand;
@@ -28,6 +45,8 @@ export function scoreFlContributionsAgainstVoter(params: {
   voter: ParsedFlVoterRecord;
   hits: FlContributionHit[];
   match_layer: 1 | 2;
+  /** Reference time for the zip-recency penalty; defaults to now (deterministic in tests). */
+  now?: Date;
 }): FlContribIdentityResult {
   const { voter, hits, match_layer } = params;
   if (hits.length === 0) {
@@ -40,8 +59,10 @@ export function scoreFlContributionsAgainstVoter(params: {
     };
   }
 
+  const now = params.now ?? new Date();
   const voterZip = zip5(voter.residence.zip);
   const voterCity = normalizeCity(voter.residence.city);
+  const voterLine1 = voter.residence.line1;
 
   let bestScore = 0;
   let bestHit: FlContributionHit | null = null;
@@ -52,13 +73,24 @@ export function scoreFlContributionsAgainstVoter(params: {
 
     const hitZip = hit.zip5 ?? '';
     if (voterZip && hitZip) {
-      score += voterZip === hitZip ? 0.35 : -0.2;
+      // ENH-013: a zip *match* is discounted by contribution age (churn); a
+      // zip *mismatch* penalty is not — a mismatch is a mismatch regardless.
+      score += voterZip === hitZip ? 0.35 * zipRecencyFactor(hit.contribution_date, now) : -0.2;
     }
     const hitCity = normalizeCity(hit.city ?? '');
     if (voterCity && hitCity) {
       score += voterCity === hitCity ? 0.2 : hitCity.includes(voterCity) ? 0.1 : -0.1;
     }
     score += nameTokens(voter, hit.contributor_name);
+
+    // ENH-013: street-address corroboration — additive here (unlike the Sunbiz
+    // hard gate) so zip+name can still qualify, but it lifts the weak-band
+    // matches that identity gating otherwise withholds.
+    const corr = addressCorroboration(voterLine1, hit.address);
+    if (isAddressCorroborated(corr)) score += 0.2;
+    else if (corr === 'partial') score += 0.08;
+    else if (corr === 'mismatch') score -= 0.15;
+
     score = Math.min(1, Math.max(0, score));
 
     if (score > bestScore) {

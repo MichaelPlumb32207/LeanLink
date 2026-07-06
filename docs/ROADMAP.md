@@ -8,7 +8,7 @@ backward-looking docs:
 - **What it's supposed to do** → [`USE_CASES.md`](USE_CASES.md) (use cases + folded-in test cases)
 
 Keep this current when priorities shift or an item ships (moving a shipped item to PROGRESS.md).
-Horizons are intent, not commitments with dates. Last reviewed: **2026-07-05**.
+Horizons are intent, not commitments with dates. Last reviewed: **2026-07-06**.
 
 Legend: **Now** = actively in flight · **Next** = committed near-term · **Later** = planned, not
 started · **Someday** = conditional / only if a trigger fires.
@@ -28,8 +28,10 @@ started · **Someday** = conditional / only if a trigger fires.
 1. **Measure real Tier 3 yield** (Tier 2 ✅ measured 2026-07-06 on Duval: **~0.005% settles**
    — 8 of 146,129 — plus heavy evidence enrichment; identity gating dominates FL person-name
    matches). Remaining: OSINT (Tier 3) on a curated cohort with the stage-gate exposure
-   numbers in view, and the Sunbiz side of Tier 2 once ENH-001 lands. Pitch worked example
-   must move Tier 2 from "assumed settles" to "enrichment arm".
+   numbers in view. **Sunbiz Tier 2 re-measurement** is now the near-term step: the address
+   gate (ENH-012) shipped 2026-07-06 — re-run the Duval Sunbiz arm and record whether the
+   tightened gate recovers any address-backed settles vs the 98,650-noise/0-settle baseline.
+   Pitch worked example must move Tier 2 from "assumed settles" to "enrichment arm".
 2. **Box score Phase B — `arm_runs` live progress (D-029, migration 014).** Per-arm run rows
    (status/processed/heartbeat/rate) written by every runner **including the CLI scripts**, a
    generalized current-inning panel with rate/ETA/stalled detection, free-pass chunking + a
@@ -127,6 +129,11 @@ These are reversible-config forks currently parked; each one nudges the roadmap 
 
 ## Recently shipped (see PROGRESS.md for detail)
 
+Address-corroboration identity gate (ENH-012/013): Sunbiz officer matches hard-gated on
+street address (name+zip collisions demote to `ambiguous`, never settle) + per-person hit
+clustering on the layer-2 bridge; fl_contrib street-corroboration bonus + recency-aware zip
+penalty; one shared `lib/reference-data/address-match.ts`; `SCORER_VERSION` → 3 ·
+Resilience Wave 1: pattern registry (019) + golden voters + funnel anomaly flags (ENH-006/7/8) ·
 Box-score dashboard Phase A: pinned scoreboard + per-arm line score + unified polling (D-029) ·
 FEC federal bulk index (D-028) · two-track use posture + `fl_extract` unbillable constraint (D-027) ·
 confirmed pricing + $2,500 initiation fee + researcher review controls (D-026) · client deliverable

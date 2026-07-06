@@ -6,6 +6,30 @@ current as design shifts.
 
 ---
 
+## D-032 · Street-address corroboration as the identity gate; Sunbiz tightened in place
+**Decision (2026-07-06, Wave 2; owner call — "tighten in place" over "demote to opt-in"):**
+Identity scoring gains a first-class **street-address** signal, in ONE shared helper
+`lib/reference-data/address-match.ts` (`normalizeStreet`/`addressCorroboration` — never forked
+per arm, the DEF-005/006 lesson). The Duval Sunbiz run measured 98,650 "confirmed"
+name+zip officer hits / **0 settles**: against a 20.6M-row officer corpus, last-name+zip is
+mostly collisions, and the layer-2 bridge rightly won't attribute a *company's* giving to a
+same-named individual. **Sunbiz hard-gates on the street** (`scoreSunbizOfficerMatch`): a
+match without a corroborated `officer_address` vs the voter's `residence.line1` caps below the
+0.55 probable line → lands `ambiguous`, never settles; only a real officer at the voter's
+address reaches `confirmed`. **Per-person clustering** (`run-voter.ts`): only
+address-corroborated officers bridge to layer-2. **fl_contrib** (ENH-013) takes the same
+corroboration as a *soft* bonus (lifts weak-band matches) plus a **recency-aware zip penalty**
+(a zip match decays from full weight ≤4 yr to 0.5× ≥12 yr — churn makes a stale zip weaker
+proof of current identity). FEC is unchanged: the bulk indiv file carries **no** street field
+(dropped at load per D-028), so it stays zip+city. **Why tighten-in-place, not opt-in:** the
+data shows real officers *are* in the pile, buried in collisions — address corroboration
+recovers them instead of discarding the arm, and the same machinery is the general identity
+upgrade that also helps fl_contrib. **No migration** — all three addresses are already
+stored/selected; comparison runs in-memory over the migration-017 same-zip window.
+`SCORER_VERSION` → 3; goldens (i)–(l) pin it (the collision-doesn't-settle canary fails the
+old scorer). **Overrides:** the zip5+city-only identity scoring in `scoreSunbizOfficerMatch`
+and `scoreFlContributionsAgainstVoter`; the ENH-012 "or demote to opt-in" alternative.
+
 ## D-031 · Lean-pattern registry: per-scope seeds, order preserved, scorer versioning
 **Decision (2026-07-06, Wave 1 of the Resilience build):** Lean patterns move from two
 hardcoded lists into the `lean_patterns` table (migration 019) with

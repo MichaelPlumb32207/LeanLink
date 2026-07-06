@@ -1,4 +1,5 @@
 import type { SunbizOfficerHit } from '@/lib/sunbiz/lookup';
+import { sunbizIdentityBand } from '@/lib/sunbiz/lookup';
 import { SCORER_VERSION } from '@/lib/evidence/scorer-version';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
 
@@ -12,13 +13,16 @@ export function buildSunbizEvidenceEvent(params: {
   if (params.hits.length === 0) return null;
 
   const top = params.hits[0];
-  const identity_band =
-    top.match_score >= 0.75 ? 'confirmed' : top.match_score >= 0.55 ? 'probable' : 'ambiguous';
+  const identity_band = sunbizIdentityBand(top.match_score);
 
-  const evidence = params.hits.slice(0, 5).map(
-    (h) =>
-      `Officer ${h.officer_title || '?'} of ${h.corp_name} (${h.filing_type || 'corp'}) — score ${Math.round(h.match_score * 100)}%`,
-  );
+  const evidence = params.hits.slice(0, 5).map((h) => {
+    const addr = h.match_reasons.includes('address_match')
+      ? 'address ✓'
+      : h.match_reasons.includes('uncorroborated_cap')
+        ? 'no address match'
+        : 'address ?';
+    return `Officer ${h.officer_title || '?'} of ${h.corp_name} (${h.filing_type || 'corp'}) — score ${Math.round(h.match_score * 100)}% · ${addr}`;
+  });
 
   return {
     upload_id: params.upload_id,

@@ -249,4 +249,6 @@ fusion and catch scoring regressions before they touch a county
 | T18.4 | Fixture (f) | Employer PAC: no lean but itemized receipts + `payload.receipts` + `scorer_v` (D-030 regression). |
 | T18.5 | Fixture (g) | DB registry classifies 17 probes identically to the code fallback in both scopes (seed-parity guard); zero invalid patterns. |
 | T18.6 | Fixture (h) | Anomaly math: Duval zero-settle shape flags; below-floor and healthy runs stay silent. |
-| T18.7 | Exit code | Any ✗ → exit 1 (CI-able); `smoke-billing.ts` still passes alongside. |
+| T18.7 | Fixtures (i)–(j) | Sunbiz address gate (ENH-012): name+zip+street match → `confirmed`; a name+zip collision at a **different** street caps at `ambiguous` (≤0.54) and its event never clears the identity gate — the 98,650-hit / 0-settle Duval shape can no longer settle. |
+| T18.8 | Fixtures (k)–(l) | fl_contrib identity upgrades (ENH-013): street corroboration lifts a name-only match from `ambiguous` → `probable`; a stale zip match (18 yr) scores below a recent one (recency penalty). |
+| T18.9 | Exit code | Any ✗ → exit 1 (CI-able); `smoke-billing.ts` still passes alongside. |

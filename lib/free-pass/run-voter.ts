@@ -13,6 +13,7 @@ import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { lookupSunbizOfficersForVoter } from '@/lib/sunbiz/lookup';
+import { addressCorroboration, isAddressCorroborated } from '@/lib/reference-data/address-match';
 import type { FreePassSteps } from '@/lib/free-pass/steps';
 import { FREE_PASS_ALL } from '@/lib/free-pass/steps';
 import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
@@ -132,7 +133,15 @@ export async function runFreePassForVoter(
       voter: params.voter,
     });
     sunbiz_hits = officers.length;
-    sunbizEntities = officers.map((o) => ({ corp_name: o.corp_name }));
+    // ENH-012 per-person clustering: only officers whose street corroborates the
+    // voter's own address bridge to layer-2. One person can officer several corps
+    // at their address; a scatter of same-name+zip officers across many addresses
+    // is the collision signature — it yields no bridge (that's the 98k noise).
+    sunbizEntities = officers
+      .filter((o) =>
+        isAddressCorroborated(addressCorroboration(params.voter.residence.line1, o.officer_address)),
+      )
+      .map((o) => ({ corp_name: o.corp_name }));
 
     const sunbizEvent = buildSunbizEvidenceEvent({
       upload_id: params.upload_id,
