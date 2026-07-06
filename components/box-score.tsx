@@ -23,14 +23,14 @@ const STALLED_MS = 5 * 60 * 1000;
 
 const INNING_STATE_STYLES: Record<BoxScoreInning['state'], string> = {
   live: 'border-sky-400/50 bg-sky-500/15 text-sky-100',
-  run: 'border-emerald-400/50 bg-emerald-500/10 text-emerald-100',
+  complete: 'border-emerald-400/50 bg-emerald-500/10 text-emerald-100',
   partial: 'border-amber-400/50 bg-amber-500/10 text-amber-100',
   not_run: 'border-white/15 bg-black/20 opacity-60',
 };
 
 const INNING_STATE_LABELS: Record<BoxScoreInning['state'], string> = {
   live: 'live',
-  run: 'run',
+  complete: 'complete',
   partial: 'partial',
   not_run: 'not run',
 };

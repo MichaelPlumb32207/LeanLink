@@ -8,7 +8,7 @@ import { EVIDENCE_ARMS } from '@/lib/evidence/arms';
 import { ARM_TIER } from '@/lib/evidence/settlement';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
 
-export type InningState = 'not_run' | 'partial' | 'run' | 'live';
+export type InningState = 'not_run' | 'partial' | 'complete' | 'live';
 
 export interface BoxScoreInning {
   arm: string;
@@ -16,7 +16,8 @@ export interface BoxScoreInning {
   tier: number;
   /** Waterfall before-state: voters flowing into this tier (estimate). */
   eligible_in: number;
-  /** Distinct voters this arm has produced evidence for ("processed so far"). */
+  /** Voters run through per the arm run (processed_count), or distinct voters
+   * with evidence when no run record exists ("processed so far"). */
   attempted: number;
   identity_hits: number;
   lean_signals: number;
@@ -73,17 +74,34 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
   if (summary.fec_sweep?.status === 'running' || summary.fec_sweep?.status === 'queued') {
     liveArms.add('fec');
   }
+  const activeRunByArm = new Map((summary.runs?.active ?? []).map((r) => [r.arm, r]));
+  const recentRunByArm = new Map((summary.runs?.recent ?? []).map((r) => [r.arm, r]));
 
   const inningFor = (arm: string): BoxScoreInning => {
     const tier = ARM_TIER[arm] ?? 3;
     const stats = summary.arms[arm];
     const eligible_in = summary.waterfall.eligible_by_tier[String(tier)] ?? 0;
-    const attempted = stats?.voters_touched ?? 0;
     const settled_here = summary.settled.by_arm[arm] ?? 0;
+    // "Processed" = the fullest coverage we can show: the run's voters-run-through
+    // (right for hit-only arms like Sunbiz, whose event count undercounts) vs the
+    // cumulative event-touched count (right for no-hit arms run in segments, where
+    // the last run's processed_count undercounts). max() picks the better of the two.
+    const run = activeRunByArm.get(arm) ?? recentRunByArm.get(arm);
+    const attempted = Math.max(run?.processed_count ?? 0, stats?.voters_touched ?? 0);
+    // STATE is the arm's run lifecycle — a completed run is COMPLETE even when a
+    // hit-only arm (Sunbiz) produced far fewer events than eligible voters.
+    // PARTIAL is reserved for genuinely interrupted runs (cancelled/failed).
     let state: InningState = 'not_run';
-    if (liveArms.has(arm)) state = 'live';
-    else if (attempted >= eligible_in && (attempted > 0 || settled_here > 0)) state = 'run';
-    else if (attempted > 0 || settled_here > 0) state = 'partial';
+    if (liveArms.has(arm)) {
+      state = 'live';
+    } else {
+      const recent = recentRunByArm.get(arm);
+      if (recent) {
+        state = recent.status === 'completed' ? 'complete' : 'partial';
+      } else if (attempted > 0 || settled_here > 0) {
+        state = attempted >= eligible_in ? 'complete' : 'partial';
+      }
+    }
     return {
       arm,
       label: ARM_LABELS[arm] ?? arm,

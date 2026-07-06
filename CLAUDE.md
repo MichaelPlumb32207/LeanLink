@@ -122,6 +122,11 @@ loops or render summary numbers a second time — extend the summary/builder ins
 `summary.runs` (migration 014 `arm_runs` ∪ `fec_sweep_jobs`, adapt-at-read) feeds the
 current-inning strip; every runner writes start/heartbeat/finish via
 `lib/evidence/arm-runs.ts` (one ACTIVE run per upload+arm; stale runs reaped at 10 min).
+The line-score **STATE** badge is derived from the arm's **run lifecycle**
+(`summary.runs.recent[].status`), NOT event coverage — a `completed` run reads COMPLETE even
+for a hit-only arm like Sunbiz whose event count is far below the eligible pool (DEF-010);
+PARTIAL means a genuinely interrupted (cancelled/failed) run. PROCESSED shows
+`max(run.processed_count, voters_touched)`.
 
 ## Conventions & gotchas
 

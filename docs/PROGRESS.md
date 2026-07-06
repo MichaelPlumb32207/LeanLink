@@ -6,6 +6,19 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, box-score STATE = run lifecycle, DEF-010)
+
+**Line-score STATE no longer rests on PARTIAL by design.** Owner flagged that Sunbiz read
+PARTIAL despite a clean `completed` run. `inningFor` (`lib/box-score.ts`) derived STATE from
+event coverage (`voters_touched >= eligible_in`), which a hit-only arm (Sunbiz writes an event
+only on a match) can never satisfy. Now STATE reads the arm's run lifecycle
+(`summary.runs.recent[].status`, already in the summary): completed → **COMPLETE** (renamed
+from `run`; all finished arms match the pipeline cards), cancelled/failed → **PARTIAL** (the
+only remaining use — a genuine interruption), heuristic kept as the run-less fallback.
+PROCESSED shows `max(run.processed_count, voters_touched)` so FEC reads 146,599 and Sunbiz
+146,121 (not 46,124). Verified against the live Duval summary; gate green. Two files
+(`lib/box-score.ts`, `components/box-score.tsx`), no migration.
+
 ## Where to pick up (continuity note — 2026-07-06, Wave 2 identity gate SHIPPED, measurement pending)
 
 **ENH-012 + ENH-013 shipped (address-corroboration identity gate).** The 2nd Duval Sunbiz T2

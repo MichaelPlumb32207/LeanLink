@@ -235,6 +235,7 @@ progress incl. CLI runs, migration 014.)
 | T17.12 | `run-free-pass.ts --steps fl-contrib --concurrency N` | Household+person steps only (arm `fl_contrib`); chunk-committed, resumable via `--start-after`; strip shows hits + settled-at-arm as "leans". |
 | T17.13 | Upload with unresolved FL committees | **"On base — runners in scoring position"** strip directly under the line score: N committees · M eligible voters could gain a fused lean, with a "Label committees" action opening the manager; label one committee → both counts shrink on the next poll (no re-pass needed for the counter). Numbers render only there (button stays plain). |
 | T17.14 | Active run deviates from history (≥1,000 processed, priors exist) | Amber ⚠ line in the run strip: "hit rate X% vs typical Y% (median of N prior runs) — source drift?"; below 1,000 processed or with no priors → silent (documented: first-ever runs get no flags). |
+| T17.15 | STATE badge after a `completed` run of a hit-only arm (Sunbiz) | Reads **COMPLETE**, never PARTIAL, even though its event count (46,124) is far below eligible (146,129) — STATE follows `runs.recent[].status`, not event coverage (DEF-010). PROCESSED shows real coverage (`max(processed_count, voters_touched)` = 146,121). PARTIAL appears only for a `cancelled`/`failed` run. |
 
 ## UC-18 — Golden-voter canaries ✅
 **As** the operator, **I can** run known-answer synthetic voters through identity → lean →
