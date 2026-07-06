@@ -231,3 +231,5 @@ progress incl. CLI runs, migration 014.)
 | T17.8 | Start a county run from the CLI (`run-fec-index.ts`) | Current-inning strip appears in the pinned box score within ≤30 s (idle poll) — progress bar, rate, ETA, heartbeat age, `CLI` chip; uploads list shows the pulsing live dot. |
 | T17.9 | Kill the CLI mid-run | Heartbeat age climbs; strip flags "stalled?" past 5 min; next `startArmRun` reaps the dead run as failed after 10 min and claims the slot. |
 | T17.10 | Start a second run for the same arm while one is live | Rejected ("active run already exists") — `uniq_arm_runs_active` holds. |
+| T17.11 | Dashboard free-pass button on an upload with >5,000 eligible | 400 with the `run-free-pass.ts` CLI hint — the in-request pass never attempts county scale. |
+| T17.12 | `run-free-pass.ts --steps fl-contrib --concurrency N` | Household+person steps only (arm `fl_contrib`); chunk-committed, resumable via `--start-after`; strip shows hits + settled-at-arm as "leans". |

@@ -6,6 +6,23 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 overnight, Tier 2 hardened + two runs in flight)
+
+**Free-pass runner hardened (closes ENH-003):** `lib/free-pass/run-upload.ts` refactored —
+`loadFreePassContext` (household index + labels + snapshot ids load **once**, shared
+read-only across workers), `claimFreePassRows` on `CLAIM_ELIGIBLE_PREDICATE`, per-voter
+`runFreePassVoterWithContext` (voter-scoped writes incl. inline fusion → parallel-safe).
+CLI `run-free-pass.ts` rewritten to the run-fec-index pattern: `--steps
+fl-contrib|sunbiz|all`, `--concurrency` (default 4/max 16), `--start-after`, arm_runs
+start/heartbeat/finish (heartbeat also tallies settled-at-arm so the strip's "leans" is
+real), SIGINT→cancelled. Dashboard free-pass actions now **guard at 5,000 eligible**
+(400 + CLI hint) and run chunked (250/txn) with arm_runs when under it. **Calhoun smoke:**
+736 voters / 82 s at 4 workers, 3 with hits, lifecycle clean. **In flight overnight:**
+(1) Duval Tier 2 `--steps fl-contrib --concurrency 8` (146,211 eligible — first real
+Tier 2 yield measurement, the top ROADMAP item); (2) Alachua FEC re-run post-fixes
+(ENH-002, ~40k at 23/s). Both visible in the dashboard box score; record both results
+here when they complete.
+
 ## Where to pick up (continuity note — 2026-07-06 FINAL, Duval post-DEF-005)
 
 **DEF-005 re-pass complete — Duval Tier 1 FINAL: 470 settled (235 Left / 235 Right — a

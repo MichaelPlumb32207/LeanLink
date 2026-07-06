@@ -5,6 +5,7 @@ import { getActiveFlContribSnapshotId } from '@/lib/fl-contrib/lookup';
 import { runFreePassForVoter, type FreePassVoterResult } from '@/lib/free-pass/run-voter';
 import { getActiveSunbizSnapshotIds } from '@/lib/sunbiz/lookup';
 import { loadUploadHouseholdIndex } from '@/lib/anchor/upload-index';
+import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -17,63 +18,127 @@ export interface FreePassUploadResult {
   rows: FreePassVoterResult[];
 }
 
+/**
+ * Everything a free-pass run loads once and reuses for every voter. At county
+ * scale the household-index rebuild would dominate if loaded per chunk — load
+ * it once, pass it to every chunk (plain in-memory data, read-only thereafter,
+ * safe to share across parallel workers).
+ */
+export interface FreePassContext {
+  flSnapshotId: string | null;
+  sunbizSnapshotIds: string[];
+  missing_indexes: string[];
+  householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
+  researcherLabels: Awaited<ReturnType<typeof loadResearcherCommitteeLabels>>;
+}
+
+export async function loadFreePassContext(
+  client: PoolClient,
+  uploadId: string,
+  userId: string,
+): Promise<FreePassContext> {
+  const flSnapshotId = await getActiveFlContribSnapshotId(client);
+  const sunbizSnapshotIds = await getActiveSunbizSnapshotIds(client);
+  const missing_indexes: string[] = [];
+  if (!flSnapshotId) missing_indexes.push('fl_contrib');
+  if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
+  const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
+  const researcherLabels = await loadResearcherCommitteeLabels(client, userId);
+  return { flSnapshotId, sunbizSnapshotIds, missing_indexes, householdIndex, researcherLabels };
+}
+
+export interface FreePassVoterRow {
+  id: string;
+  row_index: number;
+  raw_data: ParsedFlVoterRecord;
+}
+
+/** Claim the next chunk of unsettled voters, in row order. */
+export async function claimFreePassRows(
+  client: PoolClient,
+  params: { uploadId: string; userId: string; afterRowIndex: number; limit: number },
+): Promise<FreePassVoterRow[]> {
+  const { rows } = await client.query<FreePassVoterRow>(
+    `SELECT vr.id, vr.row_index, vr.raw_data FROM voter_records vr
+     WHERE vr.upload_id = $1 AND vr.user_id = $2
+       AND vr.row_index > $3
+       AND ${CLAIM_ELIGIBLE_PREDICATE}
+     ORDER BY vr.row_index
+     LIMIT $4`,
+    [params.uploadId, params.userId, params.afterRowIndex, params.limit],
+  );
+  return rows;
+}
+
+/** Run the free pass for one claimed voter (voter-scoped writes; parallel-safe). */
+export async function runFreePassVoterWithContext(
+  client: PoolClient,
+  params: {
+    uploadId: string;
+    userId: string;
+    context: FreePassContext;
+    steps: FreePassSteps;
+    voter: FreePassVoterRow;
+  },
+): Promise<FreePassVoterResult> {
+  return runFreePassForVoter(client, {
+    upload_id: params.uploadId,
+    voter_record_id: params.voter.id,
+    user_id: params.userId,
+    voter: params.voter.raw_data,
+    flSnapshotId: params.context.flSnapshotId,
+    sunbizSnapshotIds: params.context.sunbizSnapshotIds,
+    householdIndex: params.context.householdIndex,
+    researcherLabels: params.context.researcherLabels,
+    steps: params.steps,
+  });
+}
+
+/**
+ * Whole-upload free pass on one client — the small-list path (the API route
+ * caps it at 5,000 voters; county scale goes through scripts/run-free-pass.ts,
+ * which chunks, parallelizes, and reports progress via arm_runs).
+ */
 export async function runFreePassForUpload(
   client: PoolClient,
   uploadId: string,
   userId: string,
   steps: FreePassSteps = FREE_PASS_ALL,
 ): Promise<FreePassUploadResult> {
-  const flSnapshotId = await getActiveFlContribSnapshotId(client);
-  const sunbizSnapshotIds = await getActiveSunbizSnapshotIds(client);
-  const missing_indexes: string[] = [];
-  if (!flSnapshotId) missing_indexes.push('fl_contrib');
-  if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
-
-  const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
-  const researcherLabels = await loadResearcherCommitteeLabels(client, userId);
-
-  const { rows: voters } = await client.query<{
-    id: string;
-    raw_data: ParsedFlVoterRecord;
-  }>(
-    `SELECT vr.id, vr.raw_data FROM voter_records vr
-     WHERE vr.upload_id = $1 AND vr.user_id = $2
-       AND NOT EXISTS (
-         SELECT 1 FROM voter_lean_fusion vlf
-         WHERE vlf.voter_record_id = vr.id
-           AND (vlf.review_status = 'accepted'
-                OR (vlf.settled_tier IS NOT NULL
-                    AND vlf.research_status IS DISTINCT FROM 're_enrolled'))
-       )
-     ORDER BY vr.row_index`,
-    [uploadId, userId],
-  );
+  const context = await loadFreePassContext(client, uploadId, userId);
 
   const results: FreePassVoterResult[] = [];
   let events_total = 0;
+  let afterRowIndex = -1;
 
-  for (const voter of voters) {
-    const result = await runFreePassForVoter(client, {
-      upload_id: uploadId,
-      voter_record_id: voter.id,
-      user_id: userId,
-      voter: voter.raw_data,
-      flSnapshotId,
-      sunbizSnapshotIds,
-      householdIndex,
-      researcherLabels,
-      steps,
+  for (;;) {
+    const voters = await claimFreePassRows(client, {
+      uploadId,
+      userId,
+      afterRowIndex,
+      limit: 250,
     });
-    results.push(result);
-    events_total += result.events_written;
+    if (voters.length === 0) break;
+    for (const voter of voters) {
+      const result = await runFreePassVoterWithContext(client, {
+        uploadId,
+        userId,
+        context,
+        steps,
+        voter,
+      });
+      results.push(result);
+      events_total += result.events_written;
+    }
+    afterRowIndex = voters[voters.length - 1].row_index;
   }
 
   return {
-    processed: voters.length,
+    processed: results.length,
     events_total,
-    fl_contrib_snapshot: flSnapshotId,
-    sunbiz_snapshots: sunbizSnapshotIds,
-    missing_indexes,
+    fl_contrib_snapshot: context.flSnapshotId,
+    sunbiz_snapshots: context.sunbizSnapshotIds,
+    missing_indexes: context.missing_indexes,
     rows: results,
   };
 }

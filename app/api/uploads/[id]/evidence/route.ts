@@ -11,7 +11,17 @@ import {
   FREE_PASS_FL_CONTRIB,
   FREE_PASS_SUNBIZ_ENTITY,
 } from '@/lib/free-pass/steps';
-import { runFreePassForUpload } from '@/lib/free-pass/run-upload';
+import {
+  claimFreePassRows,
+  loadFreePassContext,
+  runFreePassVoterWithContext,
+} from '@/lib/free-pass/run-upload';
+import {
+  countEligibleVoters,
+  finishArmRun,
+  heartbeatArmRun,
+  startArmRun,
+} from '@/lib/evidence/arm-runs';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
@@ -268,12 +278,98 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           : body.action === 'match-sunbiz-entity'
             ? FREE_PASS_SUNBIZ_ENTITY
             : FREE_PASS_ALL;
-      const result = await withUserDb(userEmail, async (client) => {
-        const run = await runFreePassForUpload(client, uploadId, userEmail, steps);
-        const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
-        return { run, summary, steps: body.action };
+      const arm = body.action === 'match-sunbiz-entity' ? 'sunbiz' : 'fl_contrib';
+
+      // Serverless-time guard: county-scale passes go through the CLI
+      // (scripts/run-free-pass.ts — chunked, parallel, resumable).
+      const { eligible, context, runId } = await withUserDb(userEmail, async (client) => {
+        const eligibleCount = await countEligibleVoters(client, uploadId, userEmail);
+        if (eligibleCount > 5000) {
+          return { eligible: eligibleCount, context: null, runId: null };
+        }
+        const ctx = await loadFreePassContext(client, uploadId, userEmail);
+        const id = await startArmRun(client, {
+          uploadId,
+          userId: userEmail,
+          arm,
+          runner: 'free_pass_api',
+          totalCount: eligibleCount,
+          meta: { steps: body.action },
+        });
+        return { eligible: eligibleCount, context: ctx, runId: id };
       });
-      return NextResponse.json(result);
+      if (eligible > 5000) {
+        return NextResponse.json(
+          {
+            error: `This upload has ${eligible.toLocaleString()} eligible voters — too many for the in-request free pass (cap 5,000).`,
+            hint: 'Run it county-scale: npx tsx scripts/run-free-pass.ts --upload-id … --concurrency 8 (chunked, resumable, live in the box score).',
+          },
+          { status: 400 },
+        );
+      }
+      if (!runId || !context) {
+        return NextResponse.json(
+          { error: `A ${arm} run is already active for this upload — watch it in the box score.` },
+          { status: 409 },
+        );
+      }
+
+      try {
+        const totals = { processed: 0, events_total: 0, hits: 0 };
+        let afterRowIndex = -1;
+        for (;;) {
+          const chunk = await withUserDb(userEmail, async (client) => {
+            const voters = await claimFreePassRows(client, {
+              uploadId,
+              userId: userEmail,
+              afterRowIndex,
+              limit: 250,
+            });
+            for (const voter of voters) {
+              const r = await runFreePassVoterWithContext(client, {
+                uploadId,
+                userId: userEmail,
+                context,
+                steps,
+                voter,
+              });
+              totals.processed += 1;
+              totals.events_total += r.events_written;
+              if (r.fl_contrib_layer1 + r.fl_contrib_layer2 + r.sunbiz_hits > 0) totals.hits += 1;
+            }
+            if (voters.length > 0) {
+              await heartbeatArmRun(client, runId, {
+                processed: totals.processed,
+                hits: totals.hits,
+                confirmed: 0,
+                leanSignals: 0,
+              });
+            }
+            return voters;
+          });
+          if (chunk.length === 0) break;
+          afterRowIndex = chunk[chunk.length - 1].row_index;
+        }
+        const summary = await withUserDb(userEmail, async (client) => {
+          await finishArmRun(client, runId, 'completed');
+          return getUploadEvidenceSummary(client, uploadId, userEmail);
+        });
+        return NextResponse.json({
+          run: { ...totals, missing_indexes: context.missing_indexes },
+          summary,
+          steps: body.action,
+        });
+      } catch (error) {
+        await withUserDb(userEmail, (client) =>
+          finishArmRun(
+            client,
+            runId,
+            'failed',
+            error instanceof Error ? error.message : String(error),
+          ),
+        ).catch(() => {});
+        throw error;
+      }
     }
 
     if (body.action === 'build-anchor') {

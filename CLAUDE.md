@@ -60,12 +60,13 @@ hashed twice (across uploads) will conflict on insert into `lean_results`.
 
 **Waterfall/review semantics** (`voter_lean_fusion`, migrations 008/011): settlement
 (`settled_tier`, billed once ever) and research continuation are separate switches. Arm claim
-queries (`claimFecSweepRows`, `runFreePassForUpload`) share one predicate: `review_status =
-'accepted'` → never claim; settled + `research_status = 're_enrolled'` → claim anyway;
-otherwise claim only unsettled. Researcher acceptance also freezes fusion —
-`persistFusionForVoter` early-returns for accepted voters so their deliverable values never
-drift. Keep that predicate in sync (both claim queries + `getUploadEvidenceSummary`'s
-eligible-remaining count) if you add an arm.
+queries share one predicate: `review_status = 'accepted'` → never claim; settled +
+`research_status = 're_enrolled'` → claim anyway; otherwise claim only unsettled. The
+canonical SQL lives in `CLAIM_ELIGIBLE_PREDICATE` (`lib/evidence/arm-runs.ts`), used by
+`claimFecIndexRows`, `claimFreePassRows`, `countEligibleVoters`, and the ledger's
+eligible-remaining count; `claimFecSweepRows` still inlines a copy — keep it in sync.
+Researcher acceptance also freezes fusion — `persistFusionForVoter` early-returns for
+accepted voters so their deliverable values never drift.
 
 **Two input files, both tab-delimited FL DOS extracts, both parsed by hand (no CSV lib):**
 - `lib/fl-voter-registration.ts` — the registration extract: **38 fields, no header**.
