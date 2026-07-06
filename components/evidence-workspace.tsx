@@ -286,6 +286,7 @@ export function EvidenceWorkspace({
             billing: null,
             fec_sweep: null,
             runs: { active: [], recent: [] },
+            committees: { unlabeled_count: 0, voters_affected: 0 },
           }),
     [summary, syncing, uploadId, upload?.row_count],
   );
@@ -514,8 +515,28 @@ export function EvidenceWorkspace({
               className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
             >
               Committee lean labels
+              {summary && summary.committees.unlabeled_count > 0
+                ? ` (${summary.committees.unlabeled_count.toLocaleString()})`
+                : ''}
             </button>
           </div>
+          {summary && summary.committees.unlabeled_count > 0 && (
+            <p className="pl-[calc(1.35rem+0.625rem)] text-xs text-violet-200/90">
+              ⚑ {summary.committees.unlabeled_count.toLocaleString()} committees have no lean
+              label — labeling them could give{' '}
+              <span className="font-semibold tabular-nums">
+                {summary.committees.voters_affected.toLocaleString()}
+              </span>{' '}
+              still-eligible voters a shot at a fused lean.{' '}
+              <button
+                type="button"
+                onClick={() => setCommitteeManagerOpen(true)}
+                className="underline decoration-violet-300/60 underline-offset-2 hover:opacity-80"
+              >
+                Label committees
+              </button>
+            </p>
+          )}
         </div>
       </div>
 

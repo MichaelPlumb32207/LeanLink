@@ -1,4 +1,6 @@
 import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
+import { inferLeanFromCommitteeName } from '@/lib/committee-lean/infer';
+import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { computeSettlement } from '@/lib/evidence/settlement';
 import { getUploadAccountId, chargeSettlement } from '@/lib/billing/ledger';
@@ -393,6 +395,31 @@ export async function getUploadEvidenceSummary(
     if (!recentByArm.has(r.arm)) recentByArm.set(r.arm, r); // rows are newest-first
   }
 
+  // Researcher labeling opportunity: (eligible voter, committee) pairs from
+  // fl_contrib events, filtered live through patterns + current labels — so
+  // labeling a committee (or a pattern fix) shrinks the counts without a re-pass.
+  const committeePairsRes = await client.query<{ voter_id: string; committee: string }>(
+    `SELECT DISTINCT ee.voter_record_id::text AS voter_id, x.committee
+     FROM evidence_events ee
+     JOIN voter_records vr ON vr.id = ee.voter_record_id
+     CROSS JOIN LATERAL jsonb_array_elements_text(ee.payload->'unresolved_committees') AS x(committee)
+     WHERE ee.upload_id = $1 AND ee.user_id = $2 AND ee.arm = 'fl_contrib'
+       AND ee.payload -> 'unresolved_committees' <> '[]'::jsonb
+       AND ${CLAIM_ELIGIBLE_PREDICATE}`,
+    [uploadId, userId],
+  );
+  const researcherLabels = committeePairsRes.rows.length
+    ? await loadResearcherCommitteeLabels(client, userId)
+    : undefined;
+  const unlabeledNames = new Set<string>();
+  const votersAffected = new Set<string>();
+  for (const row of committeePairsRes.rows) {
+    if (!inferLeanFromCommitteeName(row.committee, researcherLabels)) {
+      unlabeledNames.add(row.committee);
+      votersAffected.add(row.voter_id);
+    }
+  }
+
   const arms: UploadEvidenceSummary['arms'] = {};
   for (const row of armRes.rows) {
     arms[row.arm] = {
@@ -517,6 +544,10 @@ export async function getUploadEvidenceSummary(
     runs: {
       active: active.map(toArmRunSummary),
       recent: [...recentByArm.values()].map(toArmRunSummary),
+    },
+    committees: {
+      unlabeled_count: unlabeledNames.size,
+      voters_affected: votersAffected.size,
     },
   };
 }

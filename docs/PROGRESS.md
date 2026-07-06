@@ -6,6 +6,23 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 morning+1, Sunbiz unlocked + committee counter)
+
+**ENH-001 done (migration 015):** `(snapshot_id, officer_name_norm)` index over 20.6M
+Sunbiz rows — officer lookups ~7 s → **~53 ms**; county-scale step ⑤ feasible for the
+first time. **First Duval Sunbiz run launched** (`--steps sunbiz --concurrency 8`,
+arm `sunbiz`) — first measured Sunbiz/layer-2 numbers ever, and the first with layer-2
+party codes working (DEF-006). **Unlabeled-committees counter shipped:**
+`summary.committees {unlabeled_count, voters_affected}` — (eligible voter, committee)
+pairs from fl_contrib event payloads, filtered live through patterns + researcher labels
+(labeling shrinks it next poll, no re-pass). Migration **016** partial index keeps the
+poll cheap — note the predicate tests **non-empty** `unresolved_committees` (events carry
+an empty array when none; a bare `?` existence test matches everything and narrows
+nothing — first version of 016 made that mistake, measured, fixed). UI: count badge on
+the "Committee lean labels" button + flag line with voters-affected (ENH-005 workflow).
+**Identity-scoring upgrades still queued** (street-address corroboration, recency-aware
+zip penalty, per-person hit clustering — the plan from the T2 improvement discussion).
+
 ## Where to pick up (continuity note — 2026-07-06 morning, Tier 2 MEASURED)
 
 **Duval Tier 2 re-pass complete (post-DEF-006): 8 settled at Tier 2.** County waterfall

@@ -36,8 +36,10 @@ applied before deploying code that includes them**); `012` adds the fl_extract-u
 posture CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
 `reference_snapshots.completed_at` — Tier 1 as a local lookup; loader/runbook in
 `docs/SETUP.md` §8); `014` adds `arm_runs` (per-arm run progress incl. CLI runs — the
-summary's `runs` feed degrades gracefully pre-migration, but apply it anyway). See
-`docs/SETUP.md`.
+summary's `runs` feed degrades gracefully pre-migration, but apply it anyway); `015` adds
+the Sunbiz officer-name index (county-scale step ⑤ is infeasible without it); `016` adds
+the partial index behind the unlabeled-committees counter (predicate tests a **non-empty**
+`unresolved_committees` — events carry an empty array when none). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 

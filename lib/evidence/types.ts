@@ -152,4 +152,14 @@ export interface UploadEvidenceSummary {
     /** Latest terminal run per arm. */
     recent: ArmRunSummary[];
   };
+  /**
+   * Researcher labeling opportunity: FL committees that neither the pattern
+   * list nor a researcher label currently resolves, and how many eligible
+   * (unsettled, unaccepted) voters could gain a fused lean from labeling them.
+   * Computed live — labeling a committee shrinks both numbers on the next poll.
+   */
+  committees: {
+    unlabeled_count: number;
+    voters_affected: number;
+  };
 }
