@@ -186,6 +186,11 @@ async function main() {
     const totals = { processed: 0, events_total: 0, hits: 0, settled_before: -1 };
     let settledNow = 0;
     let afterRowIndex = startAfter;
+    // Time-based heartbeat: at slow per-voter rates a 500-voter chunk can take
+    // >5 min, which trips the UI's stalled warning. Workers refresh the
+    // heartbeat inside their batch transaction (RLS config still set) when due.
+    const heartbeat = { last: Date.now() };
+    const HEARTBEAT_MS = 45_000;
 
     try {
       for (;;) {
@@ -223,6 +228,15 @@ async function main() {
                   if (r.fl_contrib_layer1 + r.fl_contrib_layer2 + r.sunbiz_hits > 0) {
                     totals.hits += 1;
                   }
+                }
+                if (Date.now() - heartbeat.last > HEARTBEAT_MS) {
+                  heartbeat.last = Date.now();
+                  await heartbeatArmRun(wc, runId, {
+                    processed: totals.processed,
+                    hits: totals.hits,
+                    confirmed: totals.hits,
+                    leanSignals: settledNow,
+                  });
                 }
                 await wc.query('COMMIT');
               } catch (e) {
