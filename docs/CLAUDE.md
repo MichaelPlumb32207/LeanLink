@@ -119,7 +119,19 @@ keep this table current. Do **not** pin prices/rate-limits here (they rot); pin 
 | Live X search | Responses API `tools: [{ type: 'x_search' }]` | n/a | https://docs.x.ai/docs/guides/live-search | 2026-06-27 |
 | Vision (Street View) | Responses API `input_image` + text | `grok-4.3` | https://docs.x.ai/docs/models | 2026-06-27 |
 | FEC contributor lookup | `GET https://api.open.fec.gov/v1/schedules/schedule_a/` | n/a | https://api.open.fec.gov/developers/ | 2026-06-28 |
-| FEC bulk indiv file (Tier 1 index) | `https://www.fec.gov/files/bulk-downloads/{yyyy}/indiv{yy}.zip` (+ `cm{yy}.zip`) | n/a — 21 pipe-delimited cols, no header; SUB_ID unique; dates MMDDYYYY | https://www.fec.gov/campaign-finance-data/contributions-individuals-file-description/ | 2026-07-04 |
+
+## Data-source verification (layouts drift too — Resilience norm, 2026-07-06)
+
+Same convention as the AI table, for the **data** sources: pin the conventions we depend on
+and the canonical URL, never the volatile numbers. **Re-verify when:** loading a new
+cycle/quarter, a parser reject-rate spike, or any loader error — and record the date here.
+
+| Source | Conventions we depend on | Docs URL | Last verified |
+|---|---|---|---|
+| FL DOS voter-registration extract | 38 tab-delimited fields, **no header**; party = field 24, status = field 29 (1-based); trailing columns often empty — **never `trim()` a line**; `*_H_*` history files: 5 fields | https://dos.fl.gov/elections/data-statistics/voter-registration-statistics/voter-extract-disk-request/ | 2026-06-27 |
+| FEC bulk indiv + committee master | `indiv{yy}.zip`/`cm{yy}.zip`; 21 pipe-delimited cols, no header; SUB_ID unique; dates MMDDYYYY; committee party from cm master | https://www.fec.gov/campaign-finance-data/contributions-individuals-file-description/ | 2026-07-04 |
+| FL DOS campaign-finance contributions | TSV export; contributor name/address/city/zip/occupation, committee name embeds party as "(REP)/(DEM)" suffixes | https://dos.elections.myflorida.com/campaign-finance/contributions/ | 2026-06-29 (initial load) |
+| Sunbiz corporate officers (COR quarterly) | Fixed-width COR files, sharded quarterly (`{yyyy}q{n}-cor{i}` snapshots); officer name/title/address per row | https://dos.fl.gov/sunbiz/other-services/data-downloads/ | 2026-06-29 (initial load) |
 
 Conventions we depend on (these don't change as often and trip you up when they do):
 - Base URL `https://api.x.ai/v1`; auth via `Authorization: Bearer $XAI_API_KEY`.

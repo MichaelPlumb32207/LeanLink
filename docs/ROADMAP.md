@@ -19,8 +19,8 @@ started · **Someday** = conditional / only if a trigger fires.
 
 | Item | State | Notes |
 |---|---|---|
-| **Client-doc HTML pass** | Partial | `enrichment-pipeline.html` redrawn to the commercial model; pitch/one-pager pricing current. **Still owed:** `evidence-accumulator-pitch.html` body still frames the research POC (banner only) — full billing/waterfall/two-track redraw + Alachua proof point. |
-| **Pitch yield recalibration** | Uncommitted | Two counties measured at Tier 1 **on the fixed pipeline**: Duval **0.32%**, Alachua **0.51%** (both 2026-07-06) — quote a ~0.3–0.5% single-cycle band. Tier 2 measurement in flight (Duval fl-contrib); Tier 3 still honestly "assumed". |
+| **Client-doc HTML pass** | Partial | Pitch + one-pager recalibrated to **measured** numbers 2026-07-06 (T1 band 0.32–0.51%, T2 evidence-rich framing, county-in-2h turnaround, receipt-level audit) and OnRecord mirrors regenerated. **Still owed:** `evidence-accumulator-pitch.html` body still frames the research POC (banner only) — full billing/waterfall/two-track redraw + Duval/Alachua proof points. |
+| **Pitch yield recalibration** | ✅ Done 2026-07-06 | Worked example now uses the measured T1 band (0.32–0.51%, two counties/187k voters) and measured Tier 2 framing (evidence-rich, settle-light); Tier 3 honestly labeled assumed. |
 | **Retire the FEC API sweep as primary** | In progress | Local bulk index (D-028) is now primary Tier 1; the throttled API sweep stays only as a freshness/spot-check fallback. |
 
 ## Next — committed near-term
@@ -40,6 +40,46 @@ started · **Someday** = conditional / only if a trigger fires.
    `voter_uploads`, hide-without-losing-ledger, ideally bulk), beyond the bare DELETE endpoint.
 4. **Name a pasted list** — a "List name" input on generic intake so pastes stop landing as
    `filename = 'pasted-list'` (route already accepts `filename`); improves inventory + deliverable naming.
+
+## Resilience — recognize · adapt · deliver (adopted 2026-07-06, owner)
+
+Client files, data sources, and protocols change; the Duval week proved recovery is cheap
+(idempotent re-passes, arm isolation) but detection was human-only. This horizon moves
+detection into the system and makes adaptation cheaper still. Ledger entries: ENH-006…011.
+
+**Recognize**
+1. **Funnel baselines + anomaly flags** (ENH-006, P1) — arm_runs already records the funnel;
+   compare each run to prior-run bands and flag deviations in the box score ("hit rate 0.9%
+   vs typical 10% — source drift?"). A zero-settle pass should flag itself in the first
+   thousand voters.
+2. **Golden-voter canaries** (ENH-007, P1) — PII-safe known-answer fixtures through
+   parse → match → fuse, asserting funnel outcomes (à la `smoke-billing.ts`); sharpens the
+   "automated tests" item into a drift detector. DEF-005 would have failed a golden on day one.
+3. **Format sentinels at intake seams** (ENH-009, P2) — schema fingerprints on client files
+   and reference loads (column counts, field-shape sanity, reject-rate thresholds, layout
+   deltas vs prior cycle) so upstream protocol changes fail loudly at the door.
+4. **Data-source verification table** (✅ done 2026-07-06) — the AI-vendor last-verified
+   convention extended to FEC bulk / FL DOS extract / FL contributions / Sunbiz COR layouts
+   (docs/CLAUDE.md).
+
+**Adapt**
+5. **Unified, data-driven pattern registry** (ENH-008, P1) — one source for lean patterns
+   (donation-lean + committee-lean forked once already: DEF-005/006), moved beside researcher
+   labels so tuning is an edit, not a deploy.
+6. **Scorer version stamps on evidence** (part of ENH-008) — `scorer_v` in payloads so logic
+   changes can target re-passes at exactly the stale events.
+7. **Re-pass as a product operation** (ENH-010, P2) — "re-score with current logic" as a
+   button/CLI with a before/after diff (settles gained, leans changed, why).
+
+**Deliver**
+8. **Deliverable versioning + delta reports** (ENH-011, P2) — when data/logic improves after
+   delivery, ship the diff with evidence; turns "results changed" into a trust feature and a
+   billable refresh.
+9. **Status-snapshot export** (part of ENH-011) — one-click client-ready paragraph from the
+   box score.
+
+**Norm (definition of done for every new arm):** funnel metrics in arm_runs + a golden
+fixture + a data-source verification entry, before the arm ships.
 
 ## Later — planned
 

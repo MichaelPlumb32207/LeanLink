@@ -32,6 +32,13 @@ Status: 🔴 open · 🟡 in progress · ✅ fixed/shipped · ⬜ won't fix (say
 | ENH-001 | ✅ 2026-07-06 | P2 | Sunbiz index performance | Fixed in two steps: migration 015 (name index — turned out not to serve the real leading-wildcard query, see DEF-007) then migration **017** `(snapshot_id, officer_zip5)`, which matches the lookup's actual zip restriction. County-scale step ⑤ unlocked for real; measured rate on relaunch in PROGRESS. |
 | ENH-005 | 🔴 | P2 | Label top Duval FL committees (researcher workflow) | After DEF-006, the remaining unresolved committees are the genuinely ambiguous ones — top of census: Palm Beach PBA (61 voters), Realtors PAC (36), Empower Parents PAC (19), NRA PVF (12). **Now surfaced in-app** (2026-07-06): `summary.committees` counter + flag line next to the Committee lean labels button (live — labeling shrinks it on the next poll; migration 016 partial index keeps the poll cheap). |
 
+| ENH-006 | 🔴 | P1 | Funnel baselines + anomaly flags per arm run | Compare each arm_runs funnel (hit/confirmed/lean rates) to prior-run bands; flag deviations in the box score. Would have self-flagged the Tier 2 zero-settle pass in the first 1,000 voters. Resilience #1. |
+| ENH-007 | 🔴 | P1 | Golden-voter canary fixtures | PII-safe known-answer voters through parse→match→fuse asserting funnel outcomes (smoke-billing pattern). DEF-005 would have failed a golden the day it was written. Resilience #2. |
+| ENH-008 | 🔴 | P1 | Unified data-driven lean-pattern registry + scorer version stamps | One pattern source (donation-lean & committee-lean forked once: DEF-005/006), stored beside researcher labels so tuning is an edit not a deploy; `scorer_v` on evidence payloads so re-passes can target stale events precisely. Resilience #5–6. |
+| ENH-009 | 🔴 | P2 | Format sentinels at intake seams | Schema fingerprints on client files + reference loads: column counts, field-shape sanity, reject-rate thresholds, layout/row-count deltas vs prior cycle. Upstream protocol changes fail loudly at the door. Resilience #3. |
+| ENH-010 | 🔴 | P2 | Re-pass as a product operation with diff report | "Re-score with current logic" button/CLI + before/after delta (settles gained, leans changed, why) — the Duval/Alachua re-pass pattern productized. Resilience #7. |
+| ENH-011 | 🔴 | P2 | Deliverable versioning + delta reports; status-snapshot export | Post-delivery improvements ship as an evidence-backed diff (trust feature, billable refresh); box score exports a client-ready status paragraph. Resilience #8–9. |
+
 ## Features
 
 | ID | Status | Pri | Title | Notes |

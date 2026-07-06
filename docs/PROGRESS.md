@@ -6,6 +6,20 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 midday, Resilience adopted + pitch recalibrated)
+
+**Resilience plan adopted (owner: "implement all of it"):** ROADMAP gains a dedicated
+**Resilience — recognize · adapt · deliver** horizon (funnel anomaly flags, golden-voter
+canaries, unified pattern registry + scorer_v, format sentinels, re-pass-with-diff,
+deliverable deltas + status snapshot; ENH-006…011 in BACKLOG with priorities). The
+data-source verification table shipped immediately (docs/CLAUDE.md — FL extract, FEC bulk,
+FL contributions, Sunbiz COR layouts + re-verify triggers). New-arm definition of done:
+funnel metrics + golden fixture + verification entry. **Outward docs recalibrated to the
+measured story:** pitch worked example now uses the T1 band (0.32–0.51%, two counties/187k
+voters), honest Tier 2 evidence-rich framing, county-in-2h turnaround, receipt-level audit
+language; one-pager gains "Proven at county scale"; OnRecord mirrors regenerated via the
+documented sed (never hand-edit). Duval Sunbiz run still in flight (~12/s).
+
 ## Where to pick up (continuity note — 2026-07-06 morning+2, Tier 2 perf trilogy + On-base strip)
 
 **DEF-007/DEF-008 (the leading-wildcard family, members 2 and 3):** the first Sunbiz county
