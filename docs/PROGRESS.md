@@ -73,6 +73,24 @@ the "Committee lean labels" button + flag line with voters-affected (ENH-005 wor
 **Identity-scoring upgrades still queued** (street-address corroboration, recency-aware
 zip penalty, per-person hit clustering — the plan from the T2 improvement discussion).
 
+## Where to pick up (continuity note — 2026-07-06, Duval Sunbiz DONE — Tier 2 chapter closed)
+
+**Duval Sunbiz (step ⑤) COMPLETE — the honest Tier 2 verdict.** 146,121 processed in
+2h43m (~15/s, 8 workers, clean completion): **99,360 officer-name hits (68%), 98,650 at the
+event's confirmed/probable band, but 0 Tier 2 settles from Sunbiz** (county waterfall
+unchanged at 478 = 470 T1 + 8 T2-from-fl_contrib). The 68% "hit" / 98k "confirmed" are
+**loose last-name+zip matches against 20.6M officer rows — overwhelmingly name collisions**,
+which is exactly why nothing settles: the layer-2 bridge (voter → same-named officer →
+their corp → corp's FL donations) can't confidently attribute a *company's* political
+giving to an individual who merely shares a name — and shouldn't. **Product finding:**
+Sunbiz as constituted is **neither a settle arm nor a clean evidence arm** — it's noise at
+county scale. Candidate action (new ENH): tighten the officer identity gate (require
+street-address match, not just name+zip) before Sunbiz earns its place in the default
+pipeline, OR demote it to opt-in. Full measured Tier 2 = fl_contrib 8 settles (evidence-rich,
+D-030/DEF-006 era) + Sunbiz 0 (noise). Pitch Tier 2 framing ("enrichment, not settles") is
+now doubly confirmed. **Next: Wave 2** ([[build-out-waves]]) — identity-scoring upgrades are
+the direct lever on both this and fl_contrib's 419 unlikely-band hits.
+
 ## Where to pick up (continuity note — 2026-07-06 morning, Tier 2 MEASURED)
 
 **Duval Tier 2 re-pass complete (post-DEF-006): 8 settled at Tier 2.** County waterfall

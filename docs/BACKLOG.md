@@ -40,6 +40,8 @@ Status: 🔴 open · 🟡 in progress · ✅ fixed/shipped · ⬜ won't fix (say
 | ENH-010 | 🔴 | P2 | Re-pass as a product operation with diff report | "Re-score with current logic" button/CLI + before/after delta (settles gained, leans changed, why) — the Duval/Alachua re-pass pattern productized. Resilience #7. |
 | ENH-011 | 🔴 | P2 | Deliverable versioning + delta reports; status-snapshot export | Post-delivery improvements ship as an evidence-backed diff (trust feature, billable refresh); box score exports a client-ready status paragraph. Resilience #8–9. |
 
+| ENH-012 | 🔴 | P2 | Sunbiz officer identity gate too loose (or demote arm) | Duval measured 2026-07-06: 99,360 officer-name hits (68%) / 98,650 "confirmed" but **0 settles** — last-name+zip matching against 20.6M officers is mostly collisions, and the layer-2 bridge can't attribute a company's donations to a same-named officer. Require street-address corroboration before Sunbiz enters the default pipeline, or make it opt-in. Ties into Wave 2 identity upgrades. |
+
 ## Features
 
 | ID | Status | Pri | Title | Notes |
