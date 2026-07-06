@@ -6,6 +6,30 @@ current as design shifts.
 
 ---
 
+## D-031 · Lean-pattern registry: per-scope seeds, order preserved, scorer versioning
+**Decision (2026-07-06, Wave 1 of the Resilience build):** Lean patterns move from two
+hardcoded lists into the `lean_patterns` table (migration 019) with
+`lib/lean-patterns/patterns.ts` as the byte-identical fallback — ONE source, editable
+without a deploy. **Seeds are per-scope ('fec'/'fl'), never merged**, because scan order
+encodes behavior: first-match-wins with Right→Left→Neutral block precedence, and the two
+scanners order shared tokens differently ("WINRED REPUBLICAN FUND" → fec: WinRed/90,
+fl: Republican/85 — a unified order would change confidences and evidence labels).
+`sort_order` encodes the blocks (Right 10–90, Left 110–190, Neutral 300); 'both' scope is
+reserved for future researcher-added rows. **Fallback rules:** missing table → fallback;
+zero enabled rows → fallback (you cannot disable every pattern via enabled=false); invalid
+regex rows are skipped, warned, counted in `meta.invalidCount`, and surfaced in the
+committee manager's registry stats line. **Threading:** optional `patterns?` params
+everywhere, loaded once at run boundaries (CLI startup, request start, FreePassContext) —
+pure functions stay pure, un-threaded callers keep today's behavior exactly.
+**Scorer versioning:** `SCORER_VERSION` (=2) stamps `payload.scorer_v` in all four event
+builders; payloads without the key are implicitly v1 (pre-registry) — targeted re-passes
+query `payload->>'scorer_v' IS NULL OR (payload->>'scorer_v')::int < N`. Event upserts
+refresh the stamp on re-runs (intended). **Guards:** `scripts/smoke-golden-voters.ts`
+asserts seed↔fallback parity and pins DEF-005/006/D-030 regressions; the anomaly-band
+math (ENH-006: median ⅓×/3× bands, 1,000-processed floor, active runs only) is asserted in
+the same script. **Overrides:** the hardcoded RIGHT/LEFT/NEUTRAL lists in
+lib/fec/donation-lean.ts and lib/committee-lean/infer.ts (deleted).
+
 ## D-030 · Committee-master party feeds FEC lean; evidence itemizes receipts
 **Decision (2026-07-05, found during the Duval validation run):** Two defects fixed together.
 (1) The FEC bulk index stores each committee's **party code from the committee master**

@@ -38,6 +38,7 @@ import {
   heartbeatArmRun,
   startArmRun,
 } from '@/lib/evidence/arm-runs';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
@@ -131,6 +132,12 @@ async function main() {
     // Register the run so the dashboard's current-inning panel can watch it.
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
+    const patterns = await loadLeanPatterns(client, userEmail);
+    console.log(
+      `Lean patterns: ${patterns.meta.rowCount} rows (${patterns.meta.source}` +
+        (patterns.meta.invalidCount ? `, ${patterns.meta.invalidCount} invalid skipped` : '') +
+        ')',
+    );
     const totalCount = await countEligibleVoters(client, resolvedUploadId!, userEmail);
     const runId = await startArmRun(client, {
       uploadId: resolvedUploadId!,
@@ -210,6 +217,7 @@ async function main() {
                     userId: userEmail,
                     snapshot,
                     voter,
+                    patterns,
                   });
                   totals.processed += 1;
                   if (r.with_hit) totals.with_hits += 1;

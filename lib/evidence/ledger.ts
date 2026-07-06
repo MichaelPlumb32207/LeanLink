@@ -1,5 +1,7 @@
 import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
+import { computeRunAnomalies, loadPriorRunRates } from '@/lib/evidence/run-baselines';
 import { inferLeanFromCommitteeName } from '@/lib/committee-lean/infer';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { computeSettlement } from '@/lib/evidence/settlement';
@@ -395,6 +397,27 @@ export async function getUploadEvidenceSummary(
     if (!recentByArm.has(r.arm)) recentByArm.set(r.arm, r); // rows are newest-first
   }
 
+  // Funnel anomaly flags for active runs only (ENH-006) — zero cost on idle polls.
+  const anomaliesByRunId = new Map<string, string[]>();
+  if (active.length > 0) {
+    const priors = await loadPriorRunRates(client, userId, [
+      ...new Set(active.map((r) => r.arm)),
+    ]);
+    for (const run of active) {
+      const flags = computeRunAnomalies(
+        {
+          arm: run.arm,
+          processed_count: run.processed_count,
+          hits_count: run.hits_count,
+          confirmed_count: run.confirmed_count,
+          lean_signal_count: run.lean_signal_count,
+        },
+        priors.get(run.arm) ?? [],
+      );
+      if (flags.length > 0) anomaliesByRunId.set(run.id, flags);
+    }
+  }
+
   // Researcher labeling opportunity: (eligible voter, committee) pairs from
   // fl_contrib events, filtered live through patterns + current labels — so
   // labeling a committee (or a pattern fix) shrinks the counts without a re-pass.
@@ -411,10 +434,13 @@ export async function getUploadEvidenceSummary(
   const researcherLabels = committeePairsRes.rows.length
     ? await loadResearcherCommitteeLabels(client, userId)
     : undefined;
+  const leanPatterns = committeePairsRes.rows.length
+    ? await loadLeanPatterns(client, userId)
+    : undefined;
   const unlabeledNames = new Set<string>();
   const votersAffected = new Set<string>();
   for (const row of committeePairsRes.rows) {
-    if (!inferLeanFromCommitteeName(row.committee, researcherLabels)) {
+    if (!inferLeanFromCommitteeName(row.committee, researcherLabels, leanPatterns)) {
       unlabeledNames.add(row.committee);
       votersAffected.add(row.voter_id);
     }
@@ -542,8 +568,8 @@ export async function getUploadEvidenceSummary(
         }
       : null,
     runs: {
-      active: active.map(toArmRunSummary),
-      recent: [...recentByArm.values()].map(toArmRunSummary),
+      active: active.map((r) => toArmRunSummary(r, anomaliesByRunId.get(r.id))),
+      recent: [...recentByArm.values()].map((r) => toArmRunSummary(r)),
     },
     committees: {
       unlabeled_count: unlabeledNames.size,
@@ -552,22 +578,25 @@ export async function getUploadEvidenceSummary(
   };
 }
 
-function toArmRunSummary(r: {
-  id: string;
-  arm: string;
-  runner: string;
-  status: string;
-  processed_count: number;
-  total_count: number;
-  failed_count: number;
-  hits_count: number;
-  confirmed_count: number;
-  lean_signal_count: number;
-  error_message: string | null;
-  started_at: string | null;
-  last_heartbeat_at: string | null;
-  completed_at: string | null;
-}): ArmRunSummary {
+function toArmRunSummary(
+  r: {
+    id: string;
+    arm: string;
+    runner: string;
+    status: string;
+    processed_count: number;
+    total_count: number;
+    failed_count: number;
+    hits_count: number;
+    confirmed_count: number;
+    lean_signal_count: number;
+    error_message: string | null;
+    started_at: string | null;
+    last_heartbeat_at: string | null;
+    completed_at: string | null;
+  },
+  anomalies?: string[],
+): ArmRunSummary {
   // Postgres ::text timestamps ("2026-07-05 21:59:00+00") are not ISO — Safari
   // rejects them in new Date(). Normalize server-side where Node parses fine.
   const iso = (v: string | null) => (v ? new Date(v).toISOString() : null);
@@ -586,5 +615,6 @@ function toArmRunSummary(r: {
     started_at: iso(r.started_at),
     last_heartbeat_at: iso(r.last_heartbeat_at),
     completed_at: iso(r.completed_at),
+    ...(anomalies && anomalies.length > 0 ? { anomalies } : {}),
   };
 }

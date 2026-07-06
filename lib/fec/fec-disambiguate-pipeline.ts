@@ -12,6 +12,7 @@ import {
   type FecIdentityMatchResult,
 } from '@/lib/fec/identity-match';
 import type { DonationLeanResult } from '@/lib/fec/donation-lean';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
 import { getXaiModel, xaiResponsesWithWebSearch, type XaiUsageSummary } from '@/lib/xai/client';
@@ -22,6 +23,7 @@ export interface FecDisambiguateInput {
   matchLevel: 'strict' | 'state_only' | 'none';
   historySummary?: VoterHistorySummary | null;
   ballotFavors?: BallotFavors;
+  patterns?: LeanPatternSets;
 }
 
 export interface FecDisambiguateResult {
@@ -115,7 +117,7 @@ export async function runFecDisambiguatePipeline(
 
   const donation_lean =
     identity.probable_same_person && identity.contributions.length > 0
-      ? inferLeanFromDonations(identity.contributions)
+      ? inferLeanFromDonations(identity.contributions, { patterns: input.patterns })
       : null;
 
   const grokDecision = shouldRunGrok(identity);

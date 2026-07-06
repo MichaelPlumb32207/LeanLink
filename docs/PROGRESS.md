@@ -6,6 +6,25 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, Resilience Wave 1 SHIPPED)
+
+**Wave 1 complete (ENH-006/007/008 — the trust & safety rails).** (1) **Pattern registry**
+(migration 019, applied): 35 seeds per-scope in scanner order (D-031 has the rationale);
+`lib/lean-patterns/{patterns,registry}.ts` is THE source (hardcoded lists deleted from both
+scanners); threaded through the entire FEC chain (index CLI/API, sweep worker, retry cron,
+sync, rescore, disambiguate) and FL chain (free-pass context, refusion, queue, summary
+counter); `SCORER_VERSION=2` stamped in all four builders; registry stats line in the
+committee manager. Pattern edits = SQL for now (ENH-008-UI deferred). (2) **Golden voters**
+(`scripts/smoke-golden-voters.ts`): 26 assertions pinning DEF-005/006/D-030 + identity
+gates + conflict fusion + seed parity + anomaly math; `--offline` mode; **caught a real
+subtlety on first run** (single-receipt aggregate confidence deflates by identity score —
+existing behavior, fixtures model multi-receipt donors). (3) **Anomaly flags**
+(`lib/evidence/run-baselines.ts`): median ⅓×/3× bands vs prior completed runs (cross-upload,
+1,000-processed floor, sweep priors excluded from lean median), computed at read while runs
+are active, amber ⚠ lines in the RunStrip. **Next: Wave 2** (identity upgrades → re-pass
+diff → FEC backfill → Tier 3 capped cohort) per the approved build-out plan; the Duval
+Sunbiz run's result still lands in the note below when it completes.
+
 ## Where to pick up (continuity note — 2026-07-06 midday, Resilience adopted + pitch recalibrated)
 
 **Resilience plan adopted (owner: "implement all of it"):** ROADMAP gains a dedicated

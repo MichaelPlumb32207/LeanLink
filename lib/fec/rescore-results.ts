@@ -1,5 +1,7 @@
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -9,12 +11,14 @@ export async function rescoreFecLookupRow(
   voter: ParsedFlVoterRecord,
   contributions: FecContributionHit[],
   matchLevel: 'strict' | 'state_only' | 'none',
+  patterns?: LeanPatternSets,
 ): Promise<void> {
   const has_hits = contributions.length > 0;
   const scored = scoreFecLookupForVoter({
     voter,
     contributions,
     matchLevel: has_hits ? matchLevel : 'none',
+    patterns,
   });
 
   await client.query(
@@ -44,20 +48,32 @@ export async function rescoreFecSweepJob(
 ): Promise<{ rescored: number }> {
   const { rows } = await client.query<{
     id: string;
+    user_id: string;
     raw_data: ParsedFlVoterRecord;
     contributions: FecContributionHit[];
     match_level: 'strict' | 'state_only' | 'none';
   }>(
-    `SELECT flr.id, vr.raw_data, flr.contributions, flr.match_level
+    `SELECT flr.id, flr.user_id, vr.raw_data, flr.contributions, flr.match_level
      FROM fec_lookup_results flr
      JOIN voter_records vr ON vr.id = flr.voter_record_id
      WHERE flr.sweep_job_id = $1`,
     [jobId],
   );
 
+  const patterns = rows.length
+    ? await loadLeanPatterns(client, rows[0].user_id)
+    : undefined;
+
   for (const row of rows) {
     const contributions = Array.isArray(row.contributions) ? row.contributions : [];
-    await rescoreFecLookupRow(client, row.id, row.raw_data, contributions, row.match_level);
+    await rescoreFecLookupRow(
+      client,
+      row.id,
+      row.raw_data,
+      contributions,
+      row.match_level,
+      patterns,
+    );
   }
 
   await client.query(

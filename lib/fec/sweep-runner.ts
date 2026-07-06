@@ -8,6 +8,7 @@ import { lookupFecForVoter } from '@/lib/fec/lookup-voter';
 import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
 import { buildFecSweepEvidenceEvent } from '@/lib/evidence/fec-events';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -80,6 +81,7 @@ export async function processFecSweepRow(
   jobId: string,
   userId: string,
   row: FecSweepClaimedRow,
+  patterns?: LeanPatternSets,
 ): Promise<void> {
   const fecLookup = await lookupFecForVoter(row.raw_data);
   const { lookup, match_level, contributions, names_tried, variant_used } = fecLookup;
@@ -88,6 +90,7 @@ export async function processFecSweepRow(
     voter: row.raw_data,
     contributions,
     matchLevel: has_hits ? match_level : 'none',
+    patterns,
   });
 
   await client.query(

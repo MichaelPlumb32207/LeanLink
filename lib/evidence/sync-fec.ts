@@ -1,6 +1,7 @@
 import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger';
 import { buildFecSweepEvidenceEvent } from '@/lib/evidence/fec-events';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
@@ -11,6 +12,7 @@ export async function syncFecSweepToEvidenceLedger(
   uploadId: string,
   userId: string,
 ): Promise<{ synced: number }> {
+  const patterns = await loadLeanPatterns(client, userId);
   const { rows } = await client.query<{
     id: string;
     voter_record_id: string;
@@ -32,6 +34,7 @@ export async function syncFecSweepToEvidenceLedger(
       voter: row.raw_data,
       contributions,
       matchLevel: row.has_hits ? row.match_level : 'none',
+      patterns,
     });
 
     await appendEvidenceEvent(

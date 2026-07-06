@@ -6,6 +6,8 @@ import { runFreePassForVoter, type FreePassVoterResult } from '@/lib/free-pass/r
 import { getActiveSunbizSnapshotIds } from '@/lib/sunbiz/lookup';
 import { loadUploadHouseholdIndex } from '@/lib/anchor/upload-index';
 import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -30,6 +32,7 @@ export interface FreePassContext {
   missing_indexes: string[];
   householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
   researcherLabels: Awaited<ReturnType<typeof loadResearcherCommitteeLabels>>;
+  leanPatterns: LeanPatternSets;
   /** Loaded once here so per-voter processing never queries static labels. */
   flLabel?: string;
   sunbizQuarterLabel?: string;
@@ -47,6 +50,7 @@ export async function loadFreePassContext(
   if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
   const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
   const researcherLabels = await loadResearcherCommitteeLabels(client, userId);
+  const leanPatterns = await loadLeanPatterns(client, userId);
 
   const labelFor = async (snapshotId: string): Promise<string> => {
     const res = await client.query<{ label: string }>(
@@ -66,6 +70,7 @@ export async function loadFreePassContext(
     missing_indexes,
     householdIndex,
     researcherLabels,
+    leanPatterns,
     flLabel,
     sunbizQuarterLabel,
   };
@@ -114,6 +119,7 @@ export async function runFreePassVoterWithContext(
     sunbizSnapshotIds: params.context.sunbizSnapshotIds,
     householdIndex: params.context.householdIndex,
     researcherLabels: params.context.researcherLabels,
+    leanPatterns: params.context.leanPatterns,
     steps: params.steps,
     flLabel: params.context.flLabel,
     sunbizQuarterLabel: params.context.sunbizQuarterLabel,

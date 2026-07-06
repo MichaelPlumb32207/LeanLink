@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { listUncertainCommittees } from '@/lib/committee-lean/queue';
 import { refusionFlContribForCommittee } from '@/lib/committee-lean/refusion';
 import { upsertCommitteeLeanLabel } from '@/lib/committee-lean/store';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { withUserDb } from '@/lib/db';
 import type { LeanLabel } from '@/lib/enrichment/types';
 
@@ -16,7 +17,12 @@ export async function GET(request: Request) {
     const uploadId = searchParams.get('uploadId');
 
     const data = await withUserDb(userEmail, async (client) => {
-      return listUncertainCommittees(client, userEmail, uploadId);
+      const queue = await listUncertainCommittees(client, userEmail, uploadId);
+      const { meta } = await loadLeanPatterns(client, userEmail);
+      return {
+        ...queue,
+        patterns: { source: meta.source, total: meta.rowCount, invalid: meta.invalidCount },
+      };
     });
 
     return NextResponse.json(data);

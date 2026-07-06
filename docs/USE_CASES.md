@@ -234,3 +234,19 @@ progress incl. CLI runs, migration 014.)
 | T17.11 | Dashboard free-pass button on an upload with >5,000 eligible | 400 with the `run-free-pass.ts` CLI hint — the in-request pass never attempts county scale. |
 | T17.12 | `run-free-pass.ts --steps fl-contrib --concurrency N` | Household+person steps only (arm `fl_contrib`); chunk-committed, resumable via `--start-after`; strip shows hits + settled-at-arm as "leans". |
 | T17.13 | Upload with unresolved FL committees | **"On base — runners in scoring position"** strip directly under the line score: N committees · M eligible voters could gain a fused lean, with a "Label committees" action opening the manager; label one committee → both counts shrink on the next poll (no re-pass needed for the counter). Numbers render only there (button stays plain). |
+| T17.14 | Active run deviates from history (≥1,000 processed, priors exist) | Amber ⚠ line in the run strip: "hit rate X% vs typical Y% (median of N prior runs) — source drift?"; below 1,000 processed or with no priors → silent (documented: first-ever runs get no flags). |
+
+## UC-18 — Golden-voter canaries ✅
+**As** the operator, **I can** run known-answer synthetic voters through identity → lean →
+fusion and catch scoring regressions before they touch a county
+(`npx tsx scripts/smoke-golden-voters.ts`; `--offline` skips the DB parity check).
+
+| ID | Test | Expected |
+|---|---|---|
+| T18.1 | Fixtures (a)–(c) | Party-coded committees fire (DEF-005/006 regressions); conduits classify (ActBlue/WinRed). |
+| T18.2 | Fixture (d) | Same-name wrong-geography stays unconfirmed: no lean, no receipt lines. |
+| T18.3 | Fixture (e) | Equal-strength Left+Right confirmed events fuse to conflicted/Undetermined. |
+| T18.4 | Fixture (f) | Employer PAC: no lean but itemized receipts + `payload.receipts` + `scorer_v` (D-030 regression). |
+| T18.5 | Fixture (g) | DB registry classifies 17 probes identically to the code fallback in both scopes (seed-parity guard); zero invalid patterns. |
+| T18.6 | Fixture (h) | Anomaly math: Duval zero-settle shape flags; below-floor and healthy runs stay silent. |
+| T18.7 | Exit code | Any ✗ → exit 1 (CI-able); `smoke-billing.ts` still passes alongside. |

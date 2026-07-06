@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 import { FEC_REQUEST_INTERVAL_MS, sleep } from '@/lib/fec/sweep-config';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import {
   processFecSweepRow,
   refreshFecSweepJobCounts,
@@ -108,7 +109,8 @@ export async function retryFailedFecRows(
       };
       // Re-runs the lookup, re-scores, upserts the result (clearing api_error on
       // success), appends the FEC evidence event, and re-fuses (settle + bill).
-      await processFecSweepRow(client, row.sweep_job_id, row.user_id, claimed);
+      const patterns = await loadLeanPatterns(client, row.user_id);
+      await processFecSweepRow(client, row.sweep_job_id, row.user_id, claimed, patterns);
 
       const after = await client.query<{ api_error: string | null }>(
         `SELECT api_error FROM fec_lookup_results

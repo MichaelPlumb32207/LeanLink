@@ -184,6 +184,11 @@ function RunStrip({ run }: { run: ArmRunSummary }) {
           </span>
         )}
       </p>
+      {run.anomalies?.map((anomaly) => (
+        <p key={anomaly} className="mt-1 text-[11px] font-medium text-amber-300">
+          ⚠ {anomaly}
+        </p>
+      ))}
     </div>
   );
 }

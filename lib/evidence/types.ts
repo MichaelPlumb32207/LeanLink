@@ -77,6 +77,11 @@ export interface ArmRunSummary {
   started_at: string | null;
   last_heartbeat_at: string | null;
   completed_at: string | null;
+  /**
+   * Read-time funnel anomalies vs prior completed runs of this arm (active
+   * runs only; coarse 3×/⅓× median bands after 1,000 processed — ENH-006).
+   */
+  anomalies?: string[];
 }
 
 export interface UploadEvidenceSummary {

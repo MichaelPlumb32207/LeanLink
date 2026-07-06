@@ -4,6 +4,8 @@ import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 import { inferLeanFromFlContributions } from '@/lib/fl-contrib/donation-lean';
 import type { FlContribIdentityResult } from '@/lib/fl-contrib/identity-match';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
+import { SCORER_VERSION } from '@/lib/evidence/scorer-version';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
 
 function shouldInferFlContribLean(
@@ -26,17 +28,23 @@ export function buildFlContribEvidenceEvent(params: {
   snapshot_label: string;
   entity_name?: string;
   researcher_labels?: Map<string, ResearcherCommitteeLabel>;
+  lean_patterns?: LeanPatternSets;
 }): EvidenceEventInput {
   const committees = [
     ...new Set(params.hits.map((h) => h.committee_name).filter(Boolean) as string[]),
   ];
-  const unresolved = unresolvedCommitteeNames(committees, params.researcher_labels);
+  const unresolved = unresolvedCommitteeNames(
+    committees,
+    params.researcher_labels,
+    params.lean_patterns,
+  );
 
   const lean = shouldInferFlContribLean(params.identity, params.match_layer, params.hits.length)
     ? inferLeanFromFlContributions(params.hits, {
         layer: params.match_layer,
         entity_name: params.entity_name,
         researcher_labels: params.researcher_labels,
+        patterns: params.lean_patterns,
       })
     : {
         lean: 'Undetermined' as const,
@@ -78,6 +86,7 @@ export function buildFlContribEvidenceEvent(params: {
       committees,
       committee_norms: committees.map((c) => committeeNameNorm(c)),
       unresolved_committees: unresolved,
+      scorer_v: SCORER_VERSION,
     },
     cost_usd: 0,
     dedupe_key: `fl_contrib_l${params.match_layer}`,

@@ -1,4 +1,5 @@
 import type { SunbizOfficerHit } from '@/lib/sunbiz/lookup';
+import { SCORER_VERSION } from '@/lib/evidence/scorer-version';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
 
 export function buildSunbizEvidenceEvent(params: {
@@ -40,6 +41,7 @@ export function buildSunbizEvidenceEvent(params: {
         corp_name: h.corp_name,
         officer_title: h.officer_title,
       })),
+      scorer_v: SCORER_VERSION,
     },
     cost_usd: 0,
     dedupe_key: 'sunbiz_index_v1',

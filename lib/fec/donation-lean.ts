@@ -1,6 +1,11 @@
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import type { LeanLabel } from '@/lib/enrichment/types';
 import type { ScoredFecContribution } from '@/lib/fec/identity-match';
+import {
+  getFallbackLeanPatterns,
+  scanLeanPatterns,
+  type LeanPatternSets,
+} from '@/lib/lean-patterns/patterns';
 
 export interface DonationLeanHit {
   lean: LeanLabel;
@@ -28,65 +33,21 @@ interface LeanSignal {
   reason: string;
 }
 
-const RIGHT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = [
-  { pattern: /\bwinred\b/i, confidence: 90, label: 'WinRed conduit' },
-  { pattern: /\btrump\b/i, confidence: 88, label: 'Trump-affiliated recipient' },
-  { pattern: /\brepublican\b/i, confidence: 85, label: 'Republican committee/candidate' },
-  { pattern: /\bkatherine\s+harris\b/i, confidence: 88, label: 'Katherine Harris (R)' },
-  { pattern: /\b(?:rnc|gop)\b/i, confidence: 85, label: 'RNC/GOP' },
-  { pattern: /\bmaga\b/i, confidence: 82, label: 'MAGA-affiliated' },
-  { pattern: /\bconservative\b/i, confidence: 70, label: 'Conservative committee' },
-  { pattern: /\bliberty\b/i, confidence: 65, label: 'Liberty-oriented PAC' },
-  // No \b before \( — a word boundary needs a word char adjacent, and both
-  // the space and the paren are non-word, so \b\(rep\) can never match (DEF-005).
-  { pattern: /\(rep\)/i, confidence: 82, label: 'recipient party code (REP)' },
-];
-
-const LEFT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = [
-  { pattern: /\bactblue\b/i, confidence: 90, label: 'ActBlue conduit' },
-  { pattern: /\bdemocrat(ic)?\b/i, confidence: 85, label: 'Democratic committee/candidate' },
-  { pattern: /\b(?:dnc|democratic national)\b/i, confidence: 85, label: 'DNC' },
-  { pattern: /\bbiden\b/i, confidence: 82, label: 'Biden-affiliated' },
-  { pattern: /\b(?:kamala\s+)?harris\s+(?:for|2024)\b/i, confidence: 80, label: 'Harris campaign' },
-  { pattern: /\bprogressive\b/i, confidence: 72, label: 'Progressive committee' },
-  { pattern: /\b(?:emily'?s list|moveon)\b/i, confidence: 78, label: 'Progressive advocacy PAC' },
-  { pattern: /\(dem\)/i, confidence: 82, label: 'recipient party code (DEM)' },
-  { pattern: /\(dfl\)/i, confidence: 82, label: 'recipient party code (DFL — Democratic affiliate)' },
-];
-
-const NEUTRAL_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = [
-  { pattern: /\b(?:bipartisan|nonpartisan|independent)\b/i, confidence: 55, label: 'Nonpartisan committee' },
-];
-
-function scanText(text: string, patterns: typeof RIGHT_PATTERNS): LeanSignal | null {
-  for (const { pattern, confidence, label } of patterns) {
-    if (pattern.test(text)) {
-      return { lean: patterns === RIGHT_PATTERNS ? 'Right' : 'Left', confidence, reason: label };
-    }
-  }
-  return null;
-}
-
-function inferContributionLean(contribution: FecContributionHit): LeanSignal | null {
+// Patterns live in the lean_patterns registry (migration 019) with
+// lib/lean-patterns/patterns.ts as the single fallback source — never
+// re-hardcode a list here (that fork is how DEF-005/006 happened).
+function inferContributionLean(
+  contribution: FecContributionHit,
+  patterns: LeanPatternSets,
+): LeanSignal | null {
   const text = [contribution.committee_name, contribution.candidate_name]
     .filter(Boolean)
     .join(' ')
     .trim();
   if (!text) return null;
 
-  const right = scanText(text, RIGHT_PATTERNS);
-  if (right) return right;
-
-  const left = scanText(text, LEFT_PATTERNS);
-  if (left) return left;
-
-  for (const { pattern, confidence, label } of NEUTRAL_PATTERNS) {
-    if (pattern.test(text)) {
-      return { lean: 'Independent', confidence, reason: label };
-    }
-  }
-
-  return null;
+  const match = scanLeanPatterns(text, patterns.fec);
+  return match ? { lean: match.lean, confidence: match.confidence, reason: match.label } : null;
 }
 
 function aggregateLean(hits: DonationLeanHit[]): {
@@ -169,15 +130,16 @@ function aggregateLean(hits: DonationLeanHit[]): {
  */
 export function inferLeanFromDonations(
   scoredContributions: ScoredFecContribution[],
-  options?: { minIdentityScore?: number },
+  options?: { minIdentityScore?: number; patterns?: LeanPatternSets },
 ): DonationLeanResult {
   const minScore = options?.minIdentityScore ?? 0.55;
+  const patterns = options?.patterns ?? getFallbackLeanPatterns();
   const eligible = scoredContributions.filter((s) => s.identity_score >= minScore);
 
   const hits: DonationLeanHit[] = [];
 
   for (const scored of eligible) {
-    const signal = inferContributionLean(scored.contribution);
+    const signal = inferContributionLean(scored.contribution, patterns);
     if (!signal) continue;
 
     const amount = scored.contribution.amount;

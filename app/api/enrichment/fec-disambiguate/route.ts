@@ -5,6 +5,7 @@ import { defaultScorecardRowIndices } from '@/lib/enrichment/scorecard';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import { runFecDisambiguatePipeline } from '@/lib/fec/fec-disambiguate-pipeline';
 import { lookupFecForVoter } from '@/lib/fec/lookup-voter';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { BallotFavors, VoterHistorySummary } from '@/lib/fl-voter-history';
@@ -103,12 +104,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'uploadId is required' }, { status: 400 });
     }
 
-    const uploadMeta = await withUserDb(userEmail, async (client) => {
+    const { uploadMeta, patterns } = await withUserDb(userEmail, async (client) => {
       const res = await client.query<{ filename: string }>(
         `SELECT filename FROM voter_uploads WHERE id = $1 AND user_id = $2`,
         [body.uploadId, userEmail],
       );
-      return res.rows[0] ?? null;
+      return {
+        uploadMeta: res.rows[0] ?? null,
+        patterns: await loadLeanPatterns(client, userEmail),
+      };
     });
 
     if (!uploadMeta) {
@@ -160,6 +164,7 @@ export async function POST(request: Request) {
         voter: row.raw_data,
         contributions,
         matchLevel: contributions.length > 0 ? matchLevel : 'none',
+        patterns,
       });
 
       const persistFecEvidence = async () => {
@@ -209,6 +214,7 @@ export async function POST(request: Request) {
         matchLevel: contributions.length > 0 ? matchLevel : 'none',
         historySummary: row.history_summary,
         ballotFavors: row.ballot_favors,
+        patterns,
       });
 
       await persistFecEvidence();

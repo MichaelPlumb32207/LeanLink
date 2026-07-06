@@ -1,4 +1,5 @@
 import { buildAnchorProfile } from '@/lib/anchor/profile';
+import { SCORER_VERSION } from '@/lib/evidence/scorer-version';
 import type { EvidenceEventInput } from '@/lib/evidence/types';
 import type { FecScoredLookupResult } from '@/lib/fec/score-lookup-result';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
@@ -102,6 +103,7 @@ export function buildFecIndexEvidenceEvent(params: {
       contributor_name: params.voter.name.full,
       names_tried: params.names_tried,
       receipts: confirmedReceiptPayload(scored),
+      scorer_v: SCORER_VERSION,
     },
     cost_usd: 0,
     dedupe_key: 'fec_indiv_index_v1',
@@ -164,6 +166,7 @@ export function buildFecSweepEvidenceEvent(params: {
       contributor_name: params.voter.name.full,
       fec_query_names: anchorProfile.fec_query_names,
       receipts: confirmedReceiptPayload(scored),
+      scorer_v: SCORER_VERSION,
     },
     cost_usd: 0,
     dedupe_key: params.sweep_job_id,

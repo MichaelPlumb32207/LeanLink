@@ -15,6 +15,7 @@ import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import { lookupSunbizOfficersForVoter } from '@/lib/sunbiz/lookup';
 import type { FreePassSteps } from '@/lib/free-pass/steps';
 import { FREE_PASS_ALL } from '@/lib/free-pass/steps';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -48,6 +49,7 @@ export async function runFreePassForVoter(
     sunbizSnapshotIds: string[];
     householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
     researcherLabels?: Map<string, ResearcherCommitteeLabel>;
+    leanPatterns?: LeanPatternSets;
     steps?: FreePassSteps;
     /** Pass from FreePassContext to skip two per-voter label queries. */
     flLabel?: string;
@@ -112,6 +114,7 @@ export async function runFreePassForVoter(
         match_layer: 1,
         snapshot_label: flLabel,
         researcher_labels: params.researcherLabels,
+        lean_patterns: params.leanPatterns,
       }),
     );
     events_written += 1;
@@ -174,6 +177,7 @@ export async function runFreePassForVoter(
           snapshot_label: flLabel,
           entity_name: sunbizEntities[0]?.corp_name,
           researcher_labels: params.researcherLabels,
+          lean_patterns: params.leanPatterns,
         }),
       );
       events_written += 1;

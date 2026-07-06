@@ -39,7 +39,11 @@ posture CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
 summary's `runs` feed degrades gracefully pre-migration, but apply it anyway); `015` adds
 the Sunbiz officer-name index (county-scale step ⑤ is infeasible without it); `016` adds
 the partial index behind the unlabeled-committees counter (predicate tests a **non-empty**
-`unresolved_committees` — events carry an empty array when none). See `docs/SETUP.md`.
+`unresolved_committees` — events carry an empty array when none); `017` adds the Sunbiz
+officer-zip index (the one the lookup's real query shape uses — DEF-007); `018` adds the
+fl_contributions name-prefix index (text_pattern_ops, DEF-008); `019` adds the
+**lean_patterns registry** (seeded with the exact hardcoded lists — see the patterns
+gotcha below). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -121,6 +125,13 @@ current-inning strip; every runner writes start/heartbeat/finish via
 
 ## Conventions & gotchas
 
+- **Lean patterns live in the `lean_patterns` table (migration 019) with
+  `lib/lean-patterns/patterns.ts` as the single fallback source — edit BOTH or
+  `scripts/smoke-golden-voters.ts` fails.** Never re-hardcode a pattern list inside a
+  scanner (that fork is how DEF-005/006 happened). Load via `loadLeanPatterns` at run
+  boundaries and thread through; scan functions stay pure. Scoring changes bump
+  `SCORER_VERSION` (`lib/evidence/scorer-version.ts`), stamped as `payload.scorer_v`
+  (missing key = v1).
 - **Never `trim()` a full voter line.** `normalizeLine` only strips `\r`/`\n` — `trim()`
   would drop trailing empty tab columns and break field alignment (the file's last column,
   email/history-code, is often empty).

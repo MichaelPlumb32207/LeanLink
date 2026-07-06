@@ -32,6 +32,11 @@ export function CommitteeLeanManager({
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, CommitteeDraft>>({});
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [patternStats, setPatternStats] = useState<{
+    source: string;
+    total: number;
+    invalid: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!uploadId) return;
@@ -44,6 +49,7 @@ export function CommitteeLeanManager({
       if (!res.ok) throw new Error([data.error, data.hint].filter(Boolean).join(' — '));
       setUncertain(data.uncertain ?? []);
       setLabeled(data.labeled ?? []);
+      setPatternStats(data.patterns ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -108,6 +114,14 @@ export function CommitteeLeanManager({
               Committees the parser could not classify. Labels are <strong>global</strong> (all counties)
               — saving re-fuses matching voters automatically; no pipeline re-run required.
             </p>
+            {patternStats && (
+              <p className="mt-1 text-xs opacity-60">
+                Pattern registry: {patternStats.total} patterns active (
+                {patternStats.source === 'db' ? 'DB seed' : 'code fallback'}
+                {patternStats.invalid > 0 ? ` · ${patternStats.invalid} invalid skipped` : ''}) —
+                edited via SQL for now; editor UI is a planned follow-up.
+              </p>
+            )}
           </div>
           <button
             type="button"

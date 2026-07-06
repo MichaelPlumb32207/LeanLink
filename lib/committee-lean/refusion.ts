@@ -8,6 +8,7 @@ import {
 } from '@/lib/fl-contrib/lookup';
 import { committeeNameNorm } from '@/lib/committee-lean/normalize';
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
@@ -32,6 +33,7 @@ export async function refusionFlContribForCommittee(
 ): Promise<{ voters_refused: number }> {
   const norm = committeeNameNorm(params.committee_name);
   const labels = await loadResearcherCommitteeLabels(client, params.user_id);
+  const leanPatterns = await loadLeanPatterns(client, params.user_id);
   const flSnapshotId = await getActiveFlContribSnapshotId(client);
   if (!flSnapshotId) return { voters_refused: 0 };
 
@@ -113,6 +115,7 @@ export async function refusionFlContribForCommittee(
         snapshot_label: flLabel,
         entity_name: row.entity_name ?? undefined,
         researcher_labels: labels,
+        lean_patterns: leanPatterns,
       }),
     );
 

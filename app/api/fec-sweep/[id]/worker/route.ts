@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withUserDb } from '@/lib/db';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import {
   claimFecSweepRows,
   fecSweepRemainingCount,
@@ -78,9 +79,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
       const row = claimed[0];
       try {
-        await withUserDb(userEmail, (client) =>
-          processFecSweepRow(client, jobId, job.user_id, row),
-        );
+        await withUserDb(userEmail, async (client) => {
+          const patterns = await loadLeanPatterns(client, job.user_id);
+          return processFecSweepRow(client, jobId, job.user_id, row, patterns);
+        });
         processedThisRun += 1;
       } catch (error) {
         failedThisRun += 1;

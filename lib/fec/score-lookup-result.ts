@@ -6,6 +6,7 @@ import {
 } from '@/lib/fec/identity-match';
 import type { DonationLeanResult } from '@/lib/fec/donation-lean';
 import type { LeanLabel } from '@/lib/enrichment/types';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 
 export interface FecScoredLookupResult {
@@ -19,6 +20,8 @@ export function scoreFecLookupForVoter(params: {
   voter: ParsedFlVoterRecord;
   contributions: FecContributionHit[];
   matchLevel: FecMatchLevel | 'none';
+  /** Load via loadLeanPatterns at the run boundary; defaults to the fallback. */
+  patterns?: LeanPatternSets;
 }): FecScoredLookupResult {
   const identity = scoreFecContributionsAgainstVoter({
     voter: params.voter,
@@ -35,7 +38,9 @@ export function scoreFecLookupForVoter(params: {
     };
   }
 
-  const donation_lean = inferLeanFromDonations(identity.contributions);
+  const donation_lean = inferLeanFromDonations(identity.contributions, {
+    patterns: params.patterns,
+  });
   const fec_lean = donation_lean.lean_signals_found ? donation_lean.lean : null;
   const fec_lean_confidence = donation_lean.lean_signals_found ? donation_lean.confidence : null;
 

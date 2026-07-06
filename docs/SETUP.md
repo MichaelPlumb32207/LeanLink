@@ -156,6 +156,13 @@ overrides). Verify the billing engine without the UI via `npx tsx scripts/smoke-
 (runs against your DB in a rolled-back transaction — nothing persists). Settlement
 threshold is `LEANLINK_SETTLE_THRESHOLD` (default 60).
 
+**Scoring canaries:** `npx tsx scripts/smoke-golden-voters.ts` runs known-answer synthetic
+voters through identity → lean → fusion (regressions for DEF-005/006/D-030, registry-seed
+parity, anomaly-band math). Run it after applying migration 019 and after ANY change to
+lean patterns or scoring; `--offline` skips the DB parity check. Lean patterns live in the
+`lean_patterns` table (edit via SQL; keep `lib/lean-patterns/patterns.ts` in sync or the
+parity golden fails).
+
 ## 8. FEC federal bulk index (fast Tier 1)
 
 Load a cycle of FEC individual contributions (Florida-filtered, ~4–5M rows ≈ 2 GB with

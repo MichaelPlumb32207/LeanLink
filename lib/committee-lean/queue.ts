@@ -1,6 +1,7 @@
 import { committeeNameNorm } from '@/lib/committee-lean/normalize';
 import { inferLeanFromCommitteeName } from '@/lib/committee-lean/infer';
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
+import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import type { PoolClient } from 'pg';
 
 export interface UncertainCommitteeRow {
@@ -19,6 +20,7 @@ export async function listUncertainCommittees(
   uploadId?: string | null,
 ): Promise<{ uncertain: UncertainCommitteeRow[]; labeled: UncertainCommitteeRow[] }> {
   const labels = await loadResearcherCommitteeLabels(client, userId);
+  const leanPatterns = await loadLeanPatterns(client, userId);
 
   const labeledParams: string[] = [userId];
   let labeledUploadFilter = '';
@@ -79,7 +81,7 @@ export async function listUncertainCommittees(
       if (!name?.trim()) continue;
       const norm = committeeNameNorm(name);
       if (labels.has(norm)) continue;
-      if (inferLeanFromCommitteeName(name, labels)) continue;
+      if (inferLeanFromCommitteeName(name, labels, leanPatterns)) continue;
 
       const existing = counts.get(norm);
       if (existing) {

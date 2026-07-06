@@ -14,6 +14,7 @@ import {
   type FecIndexSnapshot,
 } from '@/lib/fec/local-lookup';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
+import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
@@ -76,6 +77,7 @@ export async function processFecIndexVoter(
     userId: string;
     snapshot: FecIndexSnapshot;
     voter: FecIndexVoterRow;
+    patterns?: LeanPatternSets;
   },
 ): Promise<FecIndexVoterResult> {
   const { voter } = params;
@@ -86,6 +88,7 @@ export async function processFecIndexVoter(
     voter: voter.raw_data,
     contributions: lookup.contributions,
     matchLevel: lookup.match_level,
+    patterns: params.patterns,
   });
 
   await appendEvidenceEvent(
@@ -118,6 +121,7 @@ export async function runFecIndexChunk(
     snapshot: FecIndexSnapshot;
     afterRowIndex?: number;
     limit?: number;
+    patterns?: LeanPatternSets;
   },
 ): Promise<FecIndexChunkResult> {
   const voters = await claimFecIndexRows(client, {
@@ -137,6 +141,7 @@ export async function runFecIndexChunk(
       userId: params.userId,
       snapshot: params.snapshot,
       voter,
+      patterns: params.patterns,
     });
     if (result.with_hit) with_hits += 1;
     if (result.confirmed) confirmed_identity += 1;
