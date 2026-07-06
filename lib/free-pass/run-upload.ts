@@ -30,6 +30,9 @@ export interface FreePassContext {
   missing_indexes: string[];
   householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
   researcherLabels: Awaited<ReturnType<typeof loadResearcherCommitteeLabels>>;
+  /** Loaded once here so per-voter processing never queries static labels. */
+  flLabel?: string;
+  sunbizQuarterLabel?: string;
 }
 
 export async function loadFreePassContext(
@@ -44,7 +47,28 @@ export async function loadFreePassContext(
   if (sunbizSnapshotIds.length === 0) missing_indexes.push('sunbiz_cor');
   const householdIndex = await loadUploadHouseholdIndex(client, uploadId, userId);
   const researcherLabels = await loadResearcherCommitteeLabels(client, userId);
-  return { flSnapshotId, sunbizSnapshotIds, missing_indexes, householdIndex, researcherLabels };
+
+  const labelFor = async (snapshotId: string): Promise<string> => {
+    const res = await client.query<{ label: string }>(
+      `SELECT label FROM reference_snapshots WHERE id = $1`,
+      [snapshotId],
+    );
+    return res.rows[0]?.label ?? snapshotId;
+  };
+  const flLabel = flSnapshotId ? await labelFor(flSnapshotId) : undefined;
+  const sunbizQuarterLabel = sunbizSnapshotIds.length
+    ? (await labelFor(sunbizSnapshotIds[0])).replace(/-cor\d+$/, '')
+    : undefined;
+
+  return {
+    flSnapshotId,
+    sunbizSnapshotIds,
+    missing_indexes,
+    householdIndex,
+    researcherLabels,
+    flLabel,
+    sunbizQuarterLabel,
+  };
 }
 
 export interface FreePassVoterRow {
@@ -91,6 +115,8 @@ export async function runFreePassVoterWithContext(
     householdIndex: params.context.householdIndex,
     researcherLabels: params.context.researcherLabels,
     steps: params.steps,
+    flLabel: params.context.flLabel,
+    sunbizQuarterLabel: params.context.sunbizQuarterLabel,
   });
 }
 

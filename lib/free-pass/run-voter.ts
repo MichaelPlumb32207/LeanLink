@@ -49,6 +49,9 @@ export async function runFreePassForVoter(
     householdIndex: Awaited<ReturnType<typeof loadUploadHouseholdIndex>>;
     researcherLabels?: Map<string, ResearcherCommitteeLabel>;
     steps?: FreePassSteps;
+    /** Pass from FreePassContext to skip two per-voter label queries. */
+    flLabel?: string;
+    sunbizQuarterLabel?: string;
   },
 ): Promise<FreePassVoterResult> {
   const steps = params.steps ?? FREE_PASS_ALL;
@@ -76,7 +79,7 @@ export async function runFreePassForVoter(
   }
 
   if (steps.fl_contrib_l1 && params.flSnapshotId) {
-    const flLabel = await snapshotLabel(client, params.flSnapshotId);
+    const flLabel = params.flLabel ?? (await snapshotLabel(client, params.flSnapshotId));
     const emailInsights = parseEmailInsights(params.voter.email, params.voter.name.full);
     const names = fecQueryNames(buildNameSearchVariants(params.voter, emailInsights), 3);
 
@@ -117,8 +120,9 @@ export async function runFreePassForVoter(
 
   let sunbizEntities: { corp_name: string }[] = [];
   if (steps.sunbiz && params.sunbizSnapshotIds.length > 0) {
-    const sunbizLabel = await snapshotLabel(client, params.sunbizSnapshotIds[0]);
-    const quarterLabel = sunbizLabel.replace(/-cor\d+$/, '');
+    const quarterLabel =
+      params.sunbizQuarterLabel ??
+      (await snapshotLabel(client, params.sunbizSnapshotIds[0])).replace(/-cor\d+$/, '');
     const officers = await lookupSunbizOfficersForVoter({
       client,
       snapshotIds: params.sunbizSnapshotIds,
@@ -141,7 +145,7 @@ export async function runFreePassForVoter(
   }
 
   if (steps.fl_contrib_l2 && params.flSnapshotId && sunbizEntities.length > 0) {
-    const flLabel = await snapshotLabel(client, params.flSnapshotId);
+    const flLabel = params.flLabel ?? (await snapshotLabel(client, params.flSnapshotId));
     const layer2Hits = [];
     for (const entity of sunbizEntities.slice(0, 3)) {
       const hits = await lookupFlContributionsByEntityName({

@@ -188,8 +188,15 @@ function RunStrip({ run }: { run: ArmRunSummary }) {
   );
 }
 
-export function LineScore({ summary }: { summary: UploadEvidenceSummary }) {
-  const { innings, supporting } = buildBoxScore(summary);
+export function LineScore({
+  summary,
+  onOpportunityAction,
+}: {
+  summary: UploadEvidenceSummary;
+  /** Maps an opportunity id to a UI action (e.g. open the committee manager). */
+  onOpportunityAction?: (id: string) => void;
+}) {
+  const { innings, supporting, opportunities } = buildBoxScore(summary);
   const dash = <span className="opacity-40">—</span>;
   return (
     <div className="rounded-lg border border-white/10 bg-black/25 p-3">
@@ -255,6 +262,33 @@ export function LineScore({ summary }: { summary: UploadEvidenceSummary }) {
             )
             .join(' · ')}
         </p>
+      )}
+      {opportunities.length > 0 && (
+        <div className="mt-2 rounded-lg border border-violet-400/40 bg-violet-500/10 px-3 py-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-violet-200/80">
+            On base — runners in scoring position
+          </div>
+          {opportunities.map((op) => (
+            <p
+              key={op.id}
+              className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-violet-100/90"
+            >
+              <span className="text-base font-semibold tabular-nums">{nf.format(op.count)}</span>
+              <span>
+                {op.headline} — {op.detail}.
+              </span>
+              {onOpportunityAction && (
+                <button
+                  type="button"
+                  onClick={() => onOpportunityAction(op.id)}
+                  className="font-medium underline decoration-violet-300/60 underline-offset-2 hover:opacity-80"
+                >
+                  {op.action_label}
+                </button>
+              )}
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );

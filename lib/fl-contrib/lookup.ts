@@ -61,6 +61,9 @@ export async function lookupFlContributionsByEntityName(params: {
   const norm = entityNameKey(params.entityName);
   const limit = params.limit ?? 15;
 
+  // Exact-or-PREFIX only — the old leading-wildcard contains-match could not
+  // use any index and cost seconds per call over 14.2M rows, up to 3× per
+  // voter (DEF-008; prefix served by idx_fl_contrib_name_prefix, migration 018).
   const res = await params.client.query<FlContributionHit>(
     `SELECT id, snapshot_id, contributor_name, address, city, state, zip5,
             amount, contribution_date, committee_name, contribution_type, occupation
@@ -72,7 +75,7 @@ export async function lookupFlContributionsByEntityName(params: {
        )
      ORDER BY contribution_date DESC NULLS LAST
      LIMIT $4`,
-    [params.snapshotId, normalizeNameKey(params.entityName), `%${norm}%`, limit],
+    [params.snapshotId, normalizeNameKey(params.entityName), `${norm}%`, limit],
   );
   return res.rows;
 }

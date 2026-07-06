@@ -6,6 +6,23 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 morning+2, Tier 2 perf trilogy + On-base strip)
+
+**DEF-007/DEF-008 (the leading-wildcard family, members 2 and 3):** the first Sunbiz county
+run crawled at 0.5/s (ETA 72 h) despite migration 015 — the officer lookup matches with
+`LIKE '%<last>%'` (btree-unusable; 015 indexed the wrong shape — *benchmark the exact query
+shape*), and the layer-2 entity lookup did the same over 14.2M fl_contributions up to
+3×/voter, plus two static snapshot-label queries per voter. Fixes: migration **017**
+(officer zip index) + explicit zip-required query shape (the `($x='' OR col=$x)` optional
+param blocked the index); migration **018** (text_pattern_ops prefix index) + prefix-only
+entity matching; labels hoisted into FreePassContext; workers heartbeat every 45 s in-txn
+(no more false "stalled?" on slow arms). **Measured: 0.6/s → 12/s**; Duval Sunbiz run in
+flight (~3.5 h). **On-base strip shipped (owner UX):** the unlabeled-committees counter
+moved from a flag line by the button into a violet **"On base — runners in scoring
+position"** strip directly under the line score — `BoxScoreOpportunity[]` in
+`lib/box-score.ts` is data-driven so future cheap-action opportunities (re-enroll cohorts,
+review queues) plug in beside the innings; action buttons map ids in the workspace.
+
 ## Where to pick up (continuity note — 2026-07-06 morning+1, Sunbiz unlocked + committee counter)
 
 **ENH-001 done (migration 015):** `(snapshot_id, officer_name_norm)` index over 20.6M

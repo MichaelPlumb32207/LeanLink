@@ -112,16 +112,31 @@ export async function lookupSunbizOfficersForVoter(params: {
   const voterZip = zip5(params.voter.residence.zip);
   const limit = params.limit ?? 20;
 
-  const res = await params.client.query<Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'>>(
-    `SELECT id, snapshot_id, corp_number, corp_name, corp_status, filing_type,
-            officer_title, officer_name, officer_city, officer_zip5, officer_address
-     FROM sunbiz_officers
-     WHERE snapshot_id = ANY($1::uuid[])
-       AND officer_name_norm LIKE '%' || $2 || '%'
-       AND ($3 = '' OR officer_zip5 = $3)
-     LIMIT $4`,
-    [params.snapshotIds, lastNorm, voterZip, limit],
-  );
+  // Two explicit shapes instead of an ($x = '' OR col = $x) optional param —
+  // the OR disjunct blocks the (snapshot_id, officer_zip5) index (DEF-007/008).
+  // Zip-present (every FL-extract voter) probes the index and LIKE-filters the
+  // few hundred same-zip rows in memory; the zip-less fallback (generic intake
+  // rows without a zip) still scans and stays capped by LIMIT.
+  const res = voterZip
+    ? await params.client.query<Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'>>(
+        `SELECT id, snapshot_id, corp_number, corp_name, corp_status, filing_type,
+                officer_title, officer_name, officer_city, officer_zip5, officer_address
+         FROM sunbiz_officers
+         WHERE snapshot_id = ANY($1::uuid[])
+           AND officer_zip5 = $2
+           AND officer_name_norm LIKE '%' || $3 || '%'
+         LIMIT $4`,
+        [params.snapshotIds, voterZip, lastNorm, limit],
+      )
+    : await params.client.query<Omit<SunbizOfficerHit, 'match_score' | 'match_reasons'>>(
+        `SELECT id, snapshot_id, corp_number, corp_name, corp_status, filing_type,
+                officer_title, officer_name, officer_city, officer_zip5, officer_address
+         FROM sunbiz_officers
+         WHERE snapshot_id = ANY($1::uuid[])
+           AND officer_name_norm LIKE '%' || $2 || '%'
+         LIMIT $3`,
+        [params.snapshotIds, lastNorm, limit],
+      );
 
   const scored = res.rows.map((row) => {
     const { score, reasons } = scoreOfficerMatch(params.voter, row);

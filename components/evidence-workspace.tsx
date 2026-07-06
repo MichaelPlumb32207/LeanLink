@@ -352,7 +352,14 @@ export function EvidenceWorkspace({
           )}
         </div>
         <PipelineFlowTrack steps={pipelineSteps} suggestedStep={suggestedStep} />
-        {summary && <LineScore summary={summary} />}
+        {summary && (
+          <LineScore
+            summary={summary}
+            onOpportunityAction={(id) => {
+              if (id === 'label_committees') setCommitteeManagerOpen(true);
+            }}
+          />
+        )}
         {summary && (
           <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs space-y-2">
             <span className="font-semibold uppercase tracking-wide opacity-60">
@@ -515,28 +522,10 @@ export function EvidenceWorkspace({
               className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
             >
               Committee lean labels
-              {summary && summary.committees.unlabeled_count > 0
-                ? ` (${summary.committees.unlabeled_count.toLocaleString()})`
-                : ''}
             </button>
           </div>
-          {summary && summary.committees.unlabeled_count > 0 && (
-            <p className="pl-[calc(1.35rem+0.625rem)] text-xs text-violet-200/90">
-              ⚑ {summary.committees.unlabeled_count.toLocaleString()} committees have no lean
-              label — labeling them could give{' '}
-              <span className="font-semibold tabular-nums">
-                {summary.committees.voters_affected.toLocaleString()}
-              </span>{' '}
-              still-eligible voters a shot at a fused lean.{' '}
-              <button
-                type="button"
-                onClick={() => setCommitteeManagerOpen(true)}
-                className="underline decoration-violet-300/60 underline-offset-2 hover:opacity-80"
-              >
-                Label committees
-              </button>
-            </p>
-          )}
+          {/* Unlabeled-committee counts render once, in the line score's
+              "On base" strip (BoxScoreOpportunity) — not here. */}
         </div>
       </div>
 

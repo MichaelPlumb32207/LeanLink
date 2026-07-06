@@ -26,6 +26,19 @@ export interface BoxScoreInning {
   state: InningState;
 }
 
+/**
+ * "Runners on base" — cheap human actions that could convert into settles.
+ * Data-driven so new opportunity types plug in beside the innings; the UI maps
+ * `id` to an action (e.g. opening the committee-label manager).
+ */
+export interface BoxScoreOpportunity {
+  id: 'label_committees';
+  count: number;
+  headline: string;
+  detail: string;
+  action_label: string;
+}
+
 export interface BoxScore {
   scoreboard: {
     records_in: number;
@@ -41,6 +54,7 @@ export interface BoxScore {
   innings: BoxScoreInning[];
   /** Non-tier arms with activity (household, researcher, …) — footnote line. */
   supporting: { arm: string; label: string; events: number; lean_signals: number }[];
+  opportunities: BoxScoreOpportunity[];
 }
 
 const ARM_LABELS: Record<string, string> = Object.fromEntries(
@@ -102,6 +116,17 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     }))
     .sort((a, b) => b.lean_signals - a.lean_signals || b.events - a.events);
 
+  const opportunities: BoxScoreOpportunity[] = [];
+  if ((summary.committees?.unlabeled_count ?? 0) > 0) {
+    opportunities.push({
+      id: 'label_committees',
+      count: summary.committees.voters_affected,
+      headline: `${summary.committees.unlabeled_count.toLocaleString()} committees have no lean label`,
+      detail: `${summary.committees.voters_affected.toLocaleString()} still-eligible voters could gain a fused lean`,
+      action_label: 'Label committees',
+    });
+  }
+
   return {
     scoreboard: {
       records_in: summary.voter_count,
@@ -119,5 +144,6 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     },
     innings,
     supporting,
+    opportunities,
   };
 }
