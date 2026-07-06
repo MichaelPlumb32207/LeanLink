@@ -6,6 +6,22 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, Duval Tier 1 RESULTS)
+
+**Duval FEC index match COMPLETE** (upload `2036da1e`, snapshot `2024-fl`, all runs
+post-D-030): **146,599 voters covered** → 678 identity-confirmed donors (0.46%) →
+**385 settled at Tier 1** (200 Left / 185 Right / 0 Ind). **Tier-1 lean yield 0.26%** vs
+Alachua's 0.44% (pre-D-030) — yield is county-dependent (Alachua/Gainesville NPAs donate
+federally at a higher rate: 0.62% identity-confirmed vs Duval's 0.46%); treat the pitch
+band as ~0.25–0.45% per single cycle loaded. Duval's donor split is near-even (52 L/48 R)
+vs Alachua's 74/26 L — good research color. **Wall-clock:** final 8-way segment processed
+134,099 voters in 1h37m (23/s sustained, zero stalls, keep-awake held); the full county at
+final configuration ≈ 1h46m vs ~65 days on the API sweep (≈880×). arm_runs row completed
+cleanly; dashboard current-inning strip retired itself on the final poll. **Next levers:**
+backfill `indiv22`/`indiv20` (raises both counties' yield; settled voters skipped),
+re-run Alachua post-D-030 (ENH-002), Tier 2 free pass on the ~146k remainder (mind Sunbiz
+perf, ENH-001).
+
 ## Where to pick up (continuity note — 2026-07-05 latest+2, 8-way concurrency)
 
 **ENH-004:** `run-fec-index.ts --concurrency N` (default 4, max 16) — the match was
