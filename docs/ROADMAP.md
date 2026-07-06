@@ -25,9 +25,11 @@ started · **Someday** = conditional / only if a trigger fires.
 
 ## Next — committed near-term
 
-1. **Measure real Tier 2 / Tier 3 yield.** Run FL/Sunbiz then OSINT on the Alachua remainder to
-   replace the pitch's *assumed* Tier 2/3 numbers with measured ones (Tier 1 is now measured at
-   0.44%). This is the single biggest input to honest client pricing examples.
+1. **Measure real Tier 3 yield** (Tier 2 ✅ measured 2026-07-06 on Duval: **~0.005% settles**
+   — 8 of 146,129 — plus heavy evidence enrichment; identity gating dominates FL person-name
+   matches). Remaining: OSINT (Tier 3) on a curated cohort with the stage-gate exposure
+   numbers in view, and the Sunbiz side of Tier 2 once ENH-001 lands. Pitch worked example
+   must move Tier 2 from "assumed settles" to "enrichment arm".
 2. **Box score Phase B — `arm_runs` live progress (D-029, migration 014).** Per-arm run rows
    (status/processed/heartbeat/rate) written by every runner **including the CLI scripts**, a
    generalized current-inning panel with rate/ETA/stalled detection, free-pass chunking + a

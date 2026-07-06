@@ -6,6 +6,21 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 morning, Tier 2 MEASURED)
+
+**Duval Tier 2 re-pass complete (post-DEF-006): 8 settled at Tier 2.** County waterfall
+now: **478 settled** (470 T1 + 8 T2 · 238 Left / 240 Right · 0 conflicted). The honest
+Tier 2 finding: from 465 FL person-name contribution matches, party-coded committees now
+emit lean signals (DEF-006 fixed), but **identity gating dominates** — FL person-name
+matches without address corroboration mostly land in weak identity bands, so fusion
+withholds. Measured Tier 2 settle yield: **~0.005%** (8/146,129) + substantial evidence
+enrichment (465 hit voters, 92,483 household anchors, 238k events). **Pricing
+implication:** the pitch's assumed Tier 2 numbers were far too optimistic — Tier 2 as
+constituted is an *enrichment* arm, not a settle arm; revenue concentrates in baseline +
+Tier 1. Levers to raise T2: researcher labels for ambiguous PACs (ENH-005), and
+(research direction) FL identity corroboration via address/occupation fields in the DOS
+contribution data. Next unmeasured tier: **Tier 3 / OSINT** (paid; stage-gate).
+
 ## Where to pick up (continuity note — 2026-07-06 ~1am, Tier 2 first pass + DEF-006)
 
 **Duval Tier 2 (fl-contrib) first pass COMPLETE — and it found DEF-006.** Clean run:
