@@ -6,6 +6,21 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06 ~1am, Tier 2 first pass + DEF-006)
+
+**Duval Tier 2 (fl-contrib) first pass COMPLETE — and it found DEF-006.** Clean run:
+146,129 voters in 2h16m (~18/s, 8 workers), 465 with FL person-name contribution matches,
+92,483 household anchor events, **0 Tier 2 settles**. The zero was the tell: the
+unresolved-committee census (521 distinct names over 453 voters) had "DeSantis, Ron
+(REP)(GOV)" 39 voters · "Crist, Charlie (DEM)(GOV)" 27 · "Gillum, Andrew (DEM)(GOV)" 19
+sitting *unresolved* — `lib/committee-lean/infer.ts` had its own copy of the DEF-005
+`\b\(` bug (lines 17/18/28), so Tier 2 could never read FL party codes. Fixed (codebase
+swept — no further instances); **Duval fl-contrib re-pass launched** (~2h15m). Expect the
+first real Tier 2 settles from party-coded candidate committees; remaining unresolved
+committees are the genuinely ambiguous PACs → researcher labeling workflow (ENH-005,
+census top-12 recorded there). Household/hits evidence from the first pass upserts
+unchanged. Record final Tier 2 yield here when the re-pass completes.
+
 ## Where to pick up (continuity note — 2026-07-06 overnight, Tier 2 hardened + two runs in flight)
 
 **Free-pass runner hardened (closes ENH-003):** `lib/free-pass/run-upload.ts` refactored —

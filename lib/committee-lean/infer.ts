@@ -14,8 +14,10 @@ const RIGHT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] =
   { pattern: /\bwinred\b/i, confidence: 90, label: 'WinRed conduit' },
   { pattern: /\bgop\b/i, confidence: 85, label: 'GOP' },
   { pattern: /\bconservative\b/i, confidence: 70, label: 'Conservative committee' },
-  { pattern: /\b\(rep\)/i, confidence: 82, label: 'FL recipient (REP)' },
-  { pattern: /\b\(pty\).*republican/i, confidence: 88, label: 'Republican party committee (PTY)' },
+  // No \b before \( — a word boundary needs a word char adjacent, and both the
+  // space and the paren are non-word, so \b\(rep\) can never match (DEF-005/006).
+  { pattern: /\(rep\)/i, confidence: 82, label: 'FL recipient (REP)' },
+  { pattern: /\(pty\).*republican/i, confidence: 88, label: 'Republican party committee (PTY)' },
   { pattern: /\bflorida house republican\b/i, confidence: 85, label: 'Florida House Republican' },
   { pattern: /\btrump\b/i, confidence: 88, label: 'Trump-affiliated recipient' },
 ];
@@ -25,7 +27,7 @@ const LEFT_PATTERNS: { pattern: RegExp; confidence: number; label: string }[] = 
   { pattern: /\b(?:fdp|florida democratic)\b/i, confidence: 88, label: 'Florida Democratic Party' },
   { pattern: /\bactblue\b/i, confidence: 90, label: 'ActBlue conduit' },
   { pattern: /\bprogressive\b/i, confidence: 72, label: 'Progressive committee' },
-  { pattern: /\b\(dem\)/i, confidence: 82, label: 'FL recipient (DEM)' },
+  { pattern: /\(dem\)/i, confidence: 82, label: 'FL recipient (DEM)' },
   { pattern: /\b(?:dnc|democratic national)\b/i, confidence: 85, label: 'DNC' },
   { pattern: /\bbiden\b/i, confidence: 82, label: 'Biden-affiliated' },
 ];
