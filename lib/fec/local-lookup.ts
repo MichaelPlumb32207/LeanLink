@@ -24,17 +24,43 @@ export interface FecIndexSnapshot {
   label: string;
 }
 
-/** Latest COMPLETED fec_indiv snapshot — in-progress loads are never matched. */
-export async function getActiveFecIndivSnapshot(
+/**
+ * A set of completed fec_indiv snapshots to match a voter against at once — one
+ * per loaded cycle (2024-fl, 2022-fl, 2020-fl). Backfilling older cycles lifts
+ * Tier 1 hit rate without any per-cycle "which snapshot?" decision at match time.
+ */
+export interface FecIndexSnapshotSet {
+  ids: string[];
+  /** Combined provenance label, e.g. "2024-fl+2022-fl+2020-fl" (newest-first). */
+  label: string;
+}
+
+/** All COMPLETED fec_indiv snapshots, newest-first — in-progress loads excluded. */
+export async function getActiveFecIndivSnapshots(
   client: PoolClient,
-): Promise<FecIndexSnapshot | null> {
+): Promise<FecIndexSnapshot[]> {
   const res = await client.query<FecIndexSnapshot>(
     `SELECT id, label FROM reference_snapshots
      WHERE source = 'fec_indiv' AND completed_at IS NOT NULL
-     ORDER BY imported_at DESC
-     LIMIT 1`,
+     ORDER BY imported_at DESC`,
   );
-  return res.rows[0] ?? null;
+  return res.rows;
+}
+
+/** The full snapshot set (all cycles) as one matchable unit, or null if none loaded. */
+export async function getActiveFecIndivSnapshotSet(
+  client: PoolClient,
+): Promise<FecIndexSnapshotSet | null> {
+  const snaps = await getActiveFecIndivSnapshots(client);
+  if (snaps.length === 0) return null;
+  return { ids: snaps.map((s) => s.id), label: snaps.map((s) => s.label).join('+') };
+}
+
+/** Latest COMPLETED fec_indiv snapshot only (kept for single-snapshot callers). */
+export async function getActiveFecIndivSnapshot(
+  client: PoolClient,
+): Promise<FecIndexSnapshot | null> {
+  return (await getActiveFecIndivSnapshots(client))[0] ?? null;
 }
 
 /** "First [Middle] Last" variant → "last first" index key (suffixes stripped). */
@@ -85,9 +111,10 @@ export interface FecIndexLookupResult {
 
 export async function lookupFecIndexForVoter(
   client: PoolClient,
-  snapshotId: string,
+  snapshotIds: string | string[],
   record: ParsedFlVoterRecord,
 ): Promise<FecIndexLookupResult> {
+  const ids = Array.isArray(snapshotIds) ? snapshotIds : [snapshotIds];
   const keys = fecIndexKeysForVoter(record);
   const seen = new Set<string>();
   const contributions: FecContributionHit[] = [];
@@ -106,7 +133,7 @@ export async function lookupFecIndexForVoter(
            committee_name,
            committee_party
     FROM fec_contributions
-    WHERE snapshot_id = $1 AND `;
+    WHERE snapshot_id = ANY($1) AND `;
 
   const collect = (rows: IndexRow[]) => {
     for (const row of rows) {
@@ -144,7 +171,7 @@ export async function lookupFecIndexForVoter(
     `${select} contributor_name_norm = ANY($2)
      ORDER BY contribution_date DESC NULLS LAST
      LIMIT $3`,
-    [snapshotId, keys, HITS_PER_KEY * keys.length],
+    [ids, keys, HITS_PER_KEY * keys.length * Math.max(1, ids.length)],
   );
   collect(exact.rows);
 
@@ -155,7 +182,7 @@ export async function lookupFecIndexForVoter(
       `${select} contributor_name_norm LIKE $2
        ORDER BY contribution_date DESC NULLS LAST
        LIMIT $3`,
-      [snapshotId, `${keys[0]} %`, HITS_PER_KEY],
+      [ids, `${keys[0]} %`, HITS_PER_KEY * Math.max(1, ids.length)],
     );
     collect(prefix.rows);
   }

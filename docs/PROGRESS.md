@@ -6,6 +6,25 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, FEC multi-snapshot backfill CODE READY (ENH-014))
+
+**FEC index now matches across ALL loaded cycles — indiv22/indiv20 backfill is code-ready.**
+The blocker was architectural: `getActiveFecIndivSnapshot` returned the single newest
+`fec_indiv` snapshot and `lookupFecIndexForVoter` took one `snapshotId`, so a backfilled cycle
+would never be searched. Fix: `getActiveFecIndivSnapshotSet` (all completed snapshots,
+newest-first, combined label like `2024-fl+2022-fl+2020-fl`) + `lookupFecIndexForVoter(client,
+ids[], record)` on `snapshot_id = ANY($1)` — the existing name indexes (`contributor_name_norm`
+[+zip], text_pattern_ops prefix) serve it unchanged, **no migration**. Threaded through
+`run-index-upload.ts` (`snapshot`→`snapshots: FecIndexSnapshotSet`), `run-fec-index.ts` CLI
+(prints `FEC index snapshots (N): …`), and the dashboard `match-fec-index` action. **Verified
+live (read-only):** the `ids[]` path returns identical hits to the old single-snapshot path
+(8/13/0 on Duval confirmed-donor samples); the set currently resolves to just `2024-fl`.
+tsc/lint/build clean. **Operator-gated remainder:** download indiv22.zip+cm22.zip and
+indiv20.zip+cm20.zip (~2 GB each), load each under its own `--label` (SETUP §8a; ~30 min/cycle,
+resumable), then a `repass-diff`-bracketed `run-fec-index --county DUV`/`ALA` to measure the
+Tier-1 lift. Settled voters are skipped on re-match, so it only touches the unsettled. **Next in
+Wave 2:** Tier-3 capped OSINT cohort.
+
 ## Where to pick up (continuity note — 2026-07-06, ENH-010 re-pass diff SHIPPED)
 
 **ENH-010 complete — re-pass is now a product operation with a before/after diff.** The

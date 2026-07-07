@@ -28,7 +28,7 @@ import { join } from 'path';
 import { Pool } from 'pg';
 import {
   claimFecIndexRows,
-  getActiveFecIndivSnapshot,
+  getActiveFecIndivSnapshotSet,
   processFecIndexVoter,
   type FecIndexVoterRow,
 } from '@/lib/fec/run-index-upload';
@@ -117,15 +117,15 @@ async function main() {
     // Snapshot check in its own transaction.
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
-    const snapshot = await getActiveFecIndivSnapshot(client);
+    const snapshots = await getActiveFecIndivSnapshotSet(client);
     await client.query('COMMIT');
-    if (!snapshot) {
+    if (!snapshots) {
       console.error(
         'No READY fec_indiv snapshot. Load one first: npx tsx scripts/import-fec-indiv.ts …',
       );
       process.exit(1);
     }
-    console.log(`FEC index snapshot: ${snapshot.label}`);
+    console.log(`FEC index snapshots (${snapshots.ids.length}): ${snapshots.label}`);
 
     const startAfter = Number(arg('--start-after') ?? -1);
 
@@ -145,7 +145,7 @@ async function main() {
       arm: 'fec',
       runner: 'fec_index_cli',
       totalCount,
-      meta: { snapshot: snapshot.label, chunk_size: 500, start_after: startAfter },
+      meta: { snapshot: snapshots.label, chunk_size: 500, start_after: startAfter },
     });
     await client.query('COMMIT');
     if (!runId) {
@@ -215,7 +215,7 @@ async function main() {
                   const r = await processFecIndexVoter(wc, {
                     uploadId: resolvedUploadId!,
                     userId: userEmail,
-                    snapshot,
+                    snapshots,
                     voter,
                     patterns,
                   });
@@ -283,7 +283,7 @@ async function main() {
 
     console.log(
       JSON.stringify(
-        { ...totals, snapshot: snapshot.label, seconds: Math.round((Date.now() - startedAt) / 1000) },
+        { ...totals, snapshot: snapshots.label, seconds: Math.round((Date.now() - startedAt) / 1000) },
         null,
         2,
       ),

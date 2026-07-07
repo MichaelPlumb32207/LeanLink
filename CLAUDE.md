@@ -101,6 +101,9 @@ future UI/deliverable-delta attachment; golden (m) pins it.
    **Tier 1 primary path (D-028):** the local FEC bulk index — `match-fec-index` evidence
    action (≤5k voters) or `scripts/run-fec-index.ts` at county scale; the API sweep is the
    fallback. Requires a READY `fec_indiv` snapshot (loader: `scripts/import-fec-indiv.ts`).
+   Matching spans **all** completed `fec_indiv` snapshots at once (`getActiveFecIndivSnapshotSet`
+   → `lookupFecIndexForVoter(client, ids[], …)`, `snapshot_id = ANY`), so backfilling older
+   cycles (indiv22/indiv20, each its own `--label`) is a pure additive hit-rate lift — SETUP §8a.
 3. `POST /api/uploads/[id]/run` — batch job start — **gated** by `LEANLINK_ENABLE_BATCH_INFERENCE`
    (`lib/batch-inference.ts`, default off). When enabled: creates `processing_jobs`, `triggerWorker`.
 4. `POST /api/jobs/[id]/worker` — batch engine (also gated). Claims rows, runs `inferLean`,

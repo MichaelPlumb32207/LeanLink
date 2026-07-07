@@ -189,9 +189,48 @@ npx tsx scripts/run-fec-index.ts --upload-id UUID --concurrency 8   # county sca
 #   the run cancelled in arm_runs (visible in the dashboard's current-inning strip).
 ```
 
-Lookups always use the newest **READY** snapshot (`completed_at` set) — a load in progress
-is never matched against. The API sweep (dashboard FEC panel) remains as a fallback for
-freshness/spot checks.
+### 8a. Backfill older cycles (indiv22 / indiv20) to raise Tier 1 hit rate
+
+Each cycle loads as its **own snapshot** (a distinct `--label`), and matching now runs
+against **every** completed `fec_indiv` snapshot at once — so backfilling older cycles is a
+pure additive win. A donor who gave in 2020 but not 2024 becomes matchable; settled voters
+are skipped by the claim predicate on re-match, so re-running only touches the unsettled.
+
+```bash
+# 2022 cycle
+curl -LO https://www.fec.gov/files/bulk-downloads/2022/indiv22.zip
+curl -LO https://www.fec.gov/files/bulk-downloads/2022/cm22.zip
+unzip indiv22.zip && unzip cm22.zip
+npx tsx scripts/import-fec-indiv.ts --file itcont.txt --committees cm.txt --label 2022-fl
+
+# 2020 cycle
+curl -LO https://www.fec.gov/files/bulk-downloads/2020/indiv20.zip
+curl -LO https://www.fec.gov/files/bulk-downloads/2020/cm20.zip
+unzip indiv20.zip && unzip cm20.zip
+npx tsx scripts/import-fec-indiv.ts --file itcont.txt --committees cm.txt --label 2020-fl
+
+# Then re-match — the run now covers 2024-fl + 2022-fl + 2020-fl automatically.
+# Bracket it with the ENH-010 diff to measure the lift (see §8b):
+npx tsx scripts/repass-diff.ts snapshot --county DUV
+npx tsx scripts/run-fec-index.ts --county DUV --concurrency 8
+npx tsx scripts/repass-diff.ts report --county DUV --md duv-fec-backfill.md
+```
+
+Each cycle is a separate ~2 GB download and ~30-min load; run them one at a time (the loader
+is resumable). The CLI prints `FEC index snapshots (N): 2024-fl+2022-fl+2020-fl` at start so
+you can confirm all loaded cycles are in the match set.
+
+### 8b. Measuring a re-pass (ENH-010)
+
+Any re-pass — a backfill, a scorer bump, a pattern edit — can be bracketed with a
+before/after diff so the change ships as an evidence-backed delta, not a silent shift:
+`repass-diff.ts snapshot` before, run the arm, `repass-diff.ts report` after. Read-only,
+no migration, JSON baseline in the CWD. See §8a for the FEC example; the same pattern works
+for `run-free-pass.ts` (Sunbiz / fl_contrib).
+
+Lookups always use **all READY** snapshots (`completed_at` set) — a load in progress is never
+matched against, so a backfill can't corrupt live results mid-load. The API sweep (dashboard
+FEC panel) remains as a fallback for freshness/spot checks.
 
 ## 9. County-scale extract ingest (CLI)
 

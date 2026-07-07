@@ -14,6 +14,12 @@
  * are skipped via the unique sub_id key). Add --fresh to wipe and reload.
  * Track progress any time, from any terminal:
  *   node scripts/fec-indiv-status.mjs
+ *
+ * Backfilling older cycles? Load each under its OWN label (2022-fl, 2020-fl):
+ *   npx tsx scripts/import-fec-indiv.ts --file itcont.txt --committees cm.txt --label 2022-fl
+ * The match path (run-fec-index / dashboard button) searches ALL completed
+ * fec_indiv snapshots at once, so each backfilled cycle raises the hit rate
+ * with no per-cycle "which snapshot?" decision. See docs/SETUP.md §8a.
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';

@@ -10,15 +10,16 @@ import { appendEvidenceEvent, fuseAndPersistVoter } from '@/lib/evidence/ledger'
 import { buildFecIndexEvidenceEvent } from '@/lib/evidence/fec-events';
 import {
   getActiveFecIndivSnapshot,
+  getActiveFecIndivSnapshotSet,
   lookupFecIndexForVoter,
-  type FecIndexSnapshot,
+  type FecIndexSnapshotSet,
 } from '@/lib/fec/local-lookup';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
 import type { LeanPatternSets } from '@/lib/lean-patterns/patterns';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 import type { PoolClient } from 'pg';
 
-export { getActiveFecIndivSnapshot };
+export { getActiveFecIndivSnapshot, getActiveFecIndivSnapshotSet };
 
 export interface FecIndexChunkResult {
   processed: number;
@@ -26,7 +27,7 @@ export interface FecIndexChunkResult {
   confirmed_identity: number;
   leans: number;
   last_row_index: number | null;
-  snapshot: FecIndexSnapshot;
+  snapshots: FecIndexSnapshotSet;
 }
 
 export interface FecIndexVoterRow {
@@ -75,13 +76,13 @@ export async function processFecIndexVoter(
   params: {
     uploadId: string;
     userId: string;
-    snapshot: FecIndexSnapshot;
+    snapshots: FecIndexSnapshotSet;
     voter: FecIndexVoterRow;
     patterns?: LeanPatternSets;
   },
 ): Promise<FecIndexVoterResult> {
   const { voter } = params;
-  const lookup = await lookupFecIndexForVoter(client, params.snapshot.id, voter.raw_data);
+  const lookup = await lookupFecIndexForVoter(client, params.snapshots.ids, voter.raw_data);
   const has_hits = lookup.contributions.length > 0;
 
   const scored = scoreFecLookupForVoter({
@@ -101,7 +102,7 @@ export async function processFecIndexVoter(
       scored,
       has_hits,
       names_tried: lookup.names_tried,
-      snapshot_label: params.snapshot.label,
+      snapshot_label: params.snapshots.label,
     }),
   );
   await fuseAndPersistVoter(client, voter.id, params.uploadId, params.userId);
@@ -118,7 +119,7 @@ export async function runFecIndexChunk(
   params: {
     uploadId: string;
     userId: string;
-    snapshot: FecIndexSnapshot;
+    snapshots: FecIndexSnapshotSet;
     afterRowIndex?: number;
     limit?: number;
     patterns?: LeanPatternSets;
@@ -139,7 +140,7 @@ export async function runFecIndexChunk(
     const result = await processFecIndexVoter(client, {
       uploadId: params.uploadId,
       userId: params.userId,
-      snapshot: params.snapshot,
+      snapshots: params.snapshots,
       voter,
       patterns: params.patterns,
     });
@@ -154,6 +155,6 @@ export async function runFecIndexChunk(
     confirmed_identity,
     leans,
     last_row_index: voters.length ? voters[voters.length - 1].row_index : null,
-    snapshot: params.snapshot,
+    snapshots: params.snapshots,
   };
 }

@@ -25,7 +25,7 @@ import {
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
-import { getActiveFecIndivSnapshot, runFecIndexChunk } from '@/lib/fec/run-index-upload';
+import { getActiveFecIndivSnapshotSet, runFecIndexChunk } from '@/lib/fec/run-index-upload';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { buildHumanJudgmentEvent } from '@/lib/evidence/human-judgment';
 import { appendEvidenceEvent } from '@/lib/evidence/ledger';
@@ -231,14 +231,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         // County-scale runs blow the serverless budget — that's the CLI's job.
         if (rowCount > 5000) return { error: 'too_large' as const, rowCount };
 
-        const snapshot = await getActiveFecIndivSnapshot(client);
-        if (!snapshot) return { error: 'no_snapshot' as const };
+        const snapshots = await getActiveFecIndivSnapshotSet(client);
+        if (!snapshots) return { error: 'no_snapshot' as const };
 
         const patterns = await loadLeanPatterns(client, userEmail);
         const run = await runFecIndexChunk(client, {
           uploadId,
           userId: userEmail,
-          snapshot,
+          snapshots,
           limit: rowCount,
           patterns,
         });

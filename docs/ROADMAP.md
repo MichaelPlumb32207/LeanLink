@@ -38,6 +38,10 @@ started · **Someday** = conditional / only if a trigger fires.
    >5,000-row UI guard, and a live-run dot on the uploads list. Apply 014 before pushing.
 3. **Backfill older FEC cycles** (`indiv22`, `indiv20`) into the bulk index to raise Tier 1 hit
    rate — settled voters are skipped automatically on re-match, so it's a safe additive pass.
+   **Code ready (ENH-014, 2026-07-06):** matching now spans all completed `fec_indiv` snapshots
+   at once, so each cycle loads under its own label and joins the match set automatically.
+   Remaining: the operator download + ~30-min-per-cycle load (SETUP §8a), then a bracketed
+   re-match (`repass-diff.ts`) to measure the lift.
 3. **Manage-uploads UX** — a real delete/**archive** experience (soft `archived_at` on
    `voter_uploads`, hide-without-losing-ledger, ideally bulk), beyond the bare DELETE endpoint.
 4. **Name a pasted list** — a "List name" input on generic intake so pastes stop landing as
