@@ -21,12 +21,19 @@ Ban Assault Weapons Now→Left, NATCA→Left — while correctly leaving **every
 guessing on unrecognized ones. Precedence verified: human > agent > pattern, human-override-locks.
 tsc/lint/build + 34 goldens green.
 
-**Not yet done (operator-gated):** the actual `--apply` + `run-fec-index` re-pass to *book* the
-settles (a deliverable-changing scoring op — owner runs it, bracketed with `repass-diff`; on the
-research Duval upload it's safe/unbilled). And **ENH-018-UI (P3):** surface agent proposals in the
-committee manager for one-click human review (the CLI's propose mode is the interim). **This is the
-answer to "point Grok at committees, not voters"** — cheap, accurate, dodges every identity/privacy
-wall the OSINT arm hit.
+**BOOKED + MEASURED on Duval (2026-07-07):** `classify-committees.ts --apply --limit 400` classified
+all 337 unresolved committees (~$0.05), applied **70 partisan agent labels** (267 correctly left
+Undetermined — CSX/Realtors/all corporate PACs, plus the long tail nailed: IBEW/Teamsters/Teachers
+unions→Left, Green Party→Independent, Solar/Sunrise/TREE→Left, Chronister→Right), then the built-in
+**targeted re-score** (only the 678 confirmed FEC donors, not the 146k county — 3 min) booked the
+settles. **Result: Tier-1 settled 470 → 546 (+76); county waterfall 478 → 554; yield 0.32% → 0.38%
+— a +16% lift in deliverable leans for ~$0.05 of Grok.** `repass-diff` reconciles exactly (+76
+new partisan leans, 0 lost, 1 flip). The +76-of-264-behind-partisan-committees conversion is honest
+— identity gating + conflict rules correctly withheld the rest. `classify-committees --apply` now
+does write-labels → targeted-re-score → report in one shot (set_config session-scoped so RLS writes
+work). **Remaining — ENH-018-UI (P3):** surface agent proposals in the committee manager for
+one-click human review (CLI propose mode is the interim). **This is the answer to "point Grok at
+committees, not voters"** — cheap, accurate, dodges every wall the OSINT arm hit.
 
 ## Where to pick up (continuity note — 2026-07-07, committee classification — Unit A wiring (ENH-018))
 

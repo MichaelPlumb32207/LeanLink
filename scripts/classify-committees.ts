@@ -40,6 +40,8 @@ import { committeeNameNorm } from '@/lib/committee-lean/normalize';
 import { classifyCommittees } from '@/lib/committee-lean/classify';
 import { upsertAgentCommitteeLabel } from '@/lib/committee-lean/store';
 import { getXaiApiKey } from '@/lib/xai/client';
+import { getActiveFecIndivSnapshotSet, processFecIndexVoter } from '@/lib/fec/run-index-upload';
+import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 
 function loadEnvLocal() {
   try {
@@ -124,7 +126,9 @@ async function main() {
   const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
   const client = await pool.connect();
   try {
-    await client.query(`SELECT set_config('app.current_user', $1, true)`, [email]);
+    // Session-scoped (is_local=false) so app.current_user stays set across the
+    // apply writes + per-batch re-score transactions on this dedicated connection.
+    await client.query(`SELECT set_config('app.current_user', $1, false)`, [email]);
     const uploadId = arg('--upload-id');
     const county = arg('--county');
     let resolved = uploadId ?? '';
@@ -213,10 +217,62 @@ async function main() {
       else if (out.skipped_human) skippedHuman += 1;
     }
     console.log(`\nApplied ${applied} agent labels${skippedHuman ? ` · skipped ${skippedHuman} already human-labeled` : ''}.`);
-    console.log('Re-score to settle the recovered donors (bracket with repass-diff):');
-    console.log(`  npx tsx scripts/repass-diff.ts snapshot --upload-id ${resolved}`);
-    console.log(`  npx tsx scripts/run-fec-index.ts --upload-id ${resolved} --concurrency 8`);
-    console.log(`  npx tsx scripts/repass-diff.ts report --upload-id ${resolved} --md committees-diff.md`);
+
+    // Targeted re-score: only CONFIRMED FEC donors can change from a committee
+    // label (non-donors have no committee), so re-score just them — a few
+    // hundred voters, not the whole 146k county. Reuses the exact index scoring
+    // path (re-lookup + score with the fresh labels + re-fuse → settle).
+    const snapshots = await getActiveFecIndivSnapshotSet(client);
+    if (!snapshots) {
+      console.log('No READY fec_indiv snapshot — cannot re-score. Load one, then re-run with --apply.');
+      return;
+    }
+    const freshLabels = await loadResearcherCommitteeLabels(client, email);
+    const donors = await client.query<{ id: string; row_index: number; raw_data: ParsedFlVoterRecord }>(
+      `SELECT DISTINCT vr.id, vr.row_index, vr.raw_data
+       FROM voter_records vr
+       JOIN evidence_events ee ON ee.voter_record_id = vr.id
+       WHERE vr.upload_id = $1 AND ee.arm = 'fec' AND ee.probable_same_person = true
+       ORDER BY vr.row_index`,
+      [resolved],
+    );
+    const settledT1 = async () =>
+      Number(
+        (
+          await client.query<{ n: string }>(
+            `SELECT count(*)::text n FROM voter_lean_fusion WHERE upload_id = $1 AND settled_tier = 1`,
+            [resolved],
+          )
+        ).rows[0].n,
+      );
+    const before = await settledT1();
+    console.log(`Re-scoring ${donors.rows.length} confirmed FEC donors with the new labels…`);
+    let done = 0;
+    for (let i = 0; i < donors.rows.length; i += 10) {
+      const batch = donors.rows.slice(i, i + 10);
+      await client.query('BEGIN');
+      try {
+        for (const v of batch) {
+          await processFecIndexVoter(client, {
+            uploadId: resolved,
+            userId: email,
+            snapshots,
+            voter: v,
+            patterns,
+            researcherLabels: freshLabels,
+          });
+        }
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw e;
+      }
+      done += batch.length;
+      if (done % 100 === 0 || done === donors.rows.length) console.log(`  re-scored ${done}/${donors.rows.length}`);
+    }
+    const after = await settledT1();
+    console.log(`\nTier-1 settled: ${before} → ${after} (+${after - before} recovered by committee labels).`);
+    console.log(`Deliverable-changing on a research upload — bracket with repass-diff next time if you want the full lean/confidence delta.`);
   } finally {
     client.release();
     await pool.end();
