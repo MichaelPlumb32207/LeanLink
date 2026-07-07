@@ -29,8 +29,12 @@ started · **Someday** = conditional / only if a trigger fires.
    — 8 of 146,129 — plus heavy evidence enrichment; identity gating dominates FL person-name
    matches). **Harness ready (ENH-015, 2026-07-06):** `scripts/run-osint-cohort.ts` runs a
    hard-dollar-capped Grok pass over a curated ~100-voter eligible cohort (`--dry-run` previews
-   cost with zero spend). Remaining: the owner-gated paid run + record the measured yield
-   (bracket with `repass-diff`); then move the pitch's Tier-3 example from "assumed" to measured. **Sunbiz Tier 2 re-measurement** is now the near-term step: the address
+   cost with zero spend). **Measured 2026-07-07:** on NPAs → 0 leans; on a *positive control* of
+   known donors + party-registered voters → only **1/10** leaned. Root cause (ENH-016): OSINT was
+   wastefully re-searching FEC/finance DBs that Tiers 1–2 already own — now re-scoped to public
+   political expression. **Open lever (ENH-017):** public follow-graph (Bluesky/X) — measure
+   coverage before investing. Pitch's Tier-3 example should move from "assumed" to "measured
+   near-zero settle; persona-linkage enrichment only" once the follow-graph probe resolves. **Sunbiz Tier 2 re-measurement** is now the near-term step: the address
    gate (ENH-012) shipped 2026-07-06 — re-run the Duval Sunbiz arm and record whether the
    tightened gate recovers any address-backed settles vs the 98,650-noise/0-settle baseline.
    Pitch worked example must move Tier 2 from "assumed settles" to "enrichment arm".

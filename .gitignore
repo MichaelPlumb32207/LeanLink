@@ -75,3 +75,6 @@ data/reference/
 fec-data/
 scripts/debug-fec.ts
 LeanLink - Political lean - on the record.pdf
+
+# ENH-010 re-pass baselines (voter ids + fusion state — never commit)
+repass-baseline-*.json

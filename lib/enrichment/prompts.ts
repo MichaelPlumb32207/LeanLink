@@ -32,11 +32,13 @@ const JSON_SCHEMA = `{
 }`;
 
 const TIER_A_LEAN_SOURCES = `TIER-A LEAN SIGNAL SOURCES (search these even when social profiles are absent):
-- DONATIONS / ACTIVISM: FEC (fec.gov), Florida campaign finance (dos.myflorida.com), OpenSecrets — named contributions to candidates, PACs, or committees; public activism (petitions, rallies) with partisan context.
+- PUBLIC POLITICAL EXPRESSION: the person's own overt public political acts — endorsements, "I voted for / I support" statements, public activism (petitions, rallies, volunteering), self-identified ideology in their public posts, and which political accounts they publicly follow / repost.
 - LOCAL MEDIA: letters to the editor, op-eds, guest columns, named quotes in regional press — only count when the person is clearly the same voter (name + city/county).
 - CIVIC / PROFESSIONAL: myfloridalicense.com, sunbiz.org, nonprofit officer listings, school board / commission / council service — lean only when role or quoted statement has explicit partisan/ideological content.
 
-Record Tier-A hits in identity_matches with platform donation|media|civic. Put explicit ideological content in signals[].`;
+DO NOT search FEC (fec.gov), Florida campaign finance (dos.myflorida.com), or OpenSecrets — political donations are already resolved deterministically upstream by cheaper arms; re-searching them here wastes effort and adds nothing.
+
+Record Tier-A hits in identity_matches with platform media|civic (or the social platform). Put explicit ideological content in signals[].`;
 
 const SHARED_RULES = `STRICT RULES:
 - OSINT only. No commercial data brokers.
@@ -69,8 +71,8 @@ export function buildSystemPrompt(mode: EnrichmentMode): string {
       : mode === 'apify-modular'
         ? 'Apify already executed Google queries and crawled top organic pages. Synthesize ONLY from FETCHED_OSINT_TEXT and STREET_VIEW_CONTEXT below — do not invent URLs or quotes not present in fetched text.'
         : mode === 'modular-targeted'
-          ? 'Use x_search + web_search but ONLY the provided query list. Maximum 4 tool calls total — prioritize: 1 social/x_search, 1 donations, 1 local media, 1 directory or civic.'
-          : 'SOCIAL-FIRST, then Tier-A lean sources (donations, local media, civic filings), then directories.';
+          ? 'Use x_search + web_search but ONLY the provided query list. Maximum 4 tool calls total — prioritize: 1 social/x_search, 1 public political expression, 1 local media, 1 directory or civic.'
+          : 'SOCIAL-FIRST, then Tier-A lean sources (public political expression, local media, civic filings), then directories.';
 
   return `You are LeanLink, a research-only political intelligence assistant for Florida NPA voters.
 
@@ -100,8 +102,8 @@ ${plan.social.map((q, i) => `  S${i + 1}. ${q}`).join('\n') || '  (none)'}
 CONTACT:
 ${plan.contact.map((q, i) => `  C${i + 1}. ${q}`).join('\n') || '  (none)'}
 
-DONATIONS / ACTIVISM (Tier-A lean — FEC, FL finance, activism):
-${plan.donations.map((q, i) => `  Dn${i + 1}. ${q}`).join('\n') || '  (none)'}
+PUBLIC POLITICAL EXPRESSION (Tier-A lean — endorsements, activism, public posts; donations resolved upstream — do NOT search FEC/finance sites):
+${plan.donations.map((q, i) => `  Ex${i + 1}. ${q}`).join('\n') || '  (none)'}
 
 LOCAL MEDIA (Tier-A lean — regional press; ${mediaHint}):
 ${plan.local_media.map((q, i) => `  M${i + 1}. ${q}`).join('\n') || '  (none)'}
@@ -154,7 +156,7 @@ Use x_search for these X username targets first: ${xSearchTargets.length ? xSear
         : `MANDATORY SEARCH ORDER:
 1. x_search: look up X/Twitter accounts for email_insights.username_variants${bundle.email_insights.possible_maiden_or_alias ? ` and maiden/alias "${bundle.email_insights.possible_maiden_or_alias}"` : ''}.
 2. web_search: Facebook, Instagram, LinkedIn profiles using email local-part, phone, and name.
-3. web_search: DONATIONS / ACTIVISM — FEC, Florida campaign finance, OpenSecrets, named contributions and public activism for "${bundle.anchor.name_full}" in ${countyLabel}.
+3. web_search: PUBLIC POLITICAL EXPRESSION — endorsements, "voted for"/"supports" statements, activism (petitions, rallies, volunteering), self-identified ideology, and publicly-followed/reposted political accounts for "${bundle.anchor.name_full}" in ${countyLabel}. Do NOT search FEC / campaign-finance sites — donations are resolved upstream.
 4. web_search: LOCAL MEDIA — letters to the editor, op-eds, guest columns, named quotes in regional press (${regionalMediaContextLabel(bundle.anchor.county_code)}).
 5. web_search: CIVIC / PROFESSIONAL — myfloridalicense.com, sunbiz.org, nonprofit officers, school board / commission service.
 6. web_search: directories (floridaresidentsdirectory.com) to corroborate identity.

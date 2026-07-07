@@ -6,6 +6,38 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-07, T3/OSINT measured + re-scoped (ENH-016))
+
+**Measured Tier-3 OSINT and found it was doing the wrong job.** Two live runs (owner-approved,
+~$1.4 total, hard-capped): (1) `run-osint-cohort.ts` on 5 rich NPAs → **0 leans, 0 trails** (identity
+"probable" 5/5, but every evidence line "no ideological content"); (2) `osint-control-test.ts` — a
+**positive control** on 10 voters with a KNOWN signal (5 settled donors + 5 party-registered
+Calhoun) → **only 1/10 leaned**, and **3/5 documented donors had no trail at all**. Root cause,
+confirmed in the prompt code: a large slice of every grok-full call was web-searching
+`fec.gov`/`dos.myflorida.com`/OpenSecrets — the exact datasets Tiers 1–2 already resolve
+**deterministically**. The OSINT arm was built in the June POC *before* those indexes existed and
+was never re-scoped; it's been paying to re-find what we already have, badly. **Two findings that
+generalize:** (a) OSINT's real competency is **persona linkage (identity)**, not lean — it finds the
+right LinkedIn/FB but ordinary people post no codeable ideology; (b) lean comes from overt public
+acts, and the cheapest tier already captures the common one (donations).
+
+**Re-scope shipped (ENH-016):** `query-builder.ts` → `buildPublicExpressionQueries` (drops the 5
+donation-DB queries; keeps activism; adds endorsement / self-identified-ideology / volunteer);
+`prompts.ts` TIER_A block + user-prompt label + modular step-3 now target "public political
+expression" and explicitly say **do NOT search FEC/finance sites — resolved upstream**. Field name
+`donations` kept for the payload contract. tsc/lint/build + 32 goldens green.
+
+**Ruled out on the record** (owner explored, we held the line): advertiser-targeting data (broker
+channel + "targeting" non-goal + proxy-for-protected-class) and **sock-puppet/agent browsing of
+FB/IG** (fake accounts + automated collection = Meta ToS violation, covert access of private
+citizens, and it breaks the client-facing "public/open-source only" promise). The legit frontier is
+the **public** X/Bluesky follow-graph.
+
+**Next (ENH-017, in progress):** build the public follow-graph lean signal — Bluesky first (official
+public AppView API, no auth), measure coverage on our FL population *before* wiring it into the paid
+arm (coverage is the open question: Bluesky is small/skewed; X has reach but no clean API → stays
+prompt-based). Then re-run `osint-control-test.ts` to see if known-donors' lean-rate moves off 1/10.
+
 ## Where to pick up (continuity note — 2026-07-06, Tier-3 capped OSINT harness READY (ENH-015))
 
 **Tier-3 OSINT measured-cohort harness built — awaiting owner go for the paid run.**

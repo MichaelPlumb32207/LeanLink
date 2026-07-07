@@ -7,7 +7,13 @@ export interface SearchQueryPlan {
   social: string[];
   /** Email, phone, contact cross-reference */
   contact: string[];
-  /** FEC, state campaign finance, activism records — lean signal sources */
+  /**
+   * Public political EXPRESSION (endorsements, activism, self-identified politics)
+   * — the lean signal only OSINT can see. Donations proper (FEC / FL campaign
+   * finance / OpenSecrets) are resolved deterministically upstream by the Tier-1
+   * and Tier-2 arms and are NOT re-searched here. Field name kept for the payload
+   * contract (`search_query_plan.donations`).
+   */
   donations: string[];
   /** Letters, op-eds, named quotes in regional press */
   local_media: string[];
@@ -31,39 +37,39 @@ function searchNamesFromBundle(bundle: EnrichmentBundle): string[] {
   return [...new Set(names.filter(Boolean))].slice(0, 4);
 }
 
-function buildDonationQueries(
+/**
+ * PUBLIC POLITICAL EXPRESSION — the lean signal only OSINT can see: a person's
+ * overt public political acts (endorsements, "I voted for / I support",
+ * activism, self-identified ideology in their own posts).
+ *
+ * Deliberately does NOT re-search FEC / FL campaign finance / OpenSecrets. Those
+ * donation databases are already resolved deterministically by the Tier-1 (FEC
+ * bulk index) and Tier-2 (FL-contrib) arms — re-hunting them here via web search
+ * was slow, unreliable, and pure duplicated spend. The OSINT arm predated those
+ * indexes and was never re-scoped; this is that re-scope (see CLAUDE.md).
+ */
+function buildPublicExpressionQueries(
   bundle: EnrichmentBundle,
   seen: Set<string>,
-  donations: string[],
+  expression: string[],
 ) {
   const { anchor } = bundle;
   const county = flCountyLabel(anchor.county_code);
-
-  for (const name of searchNamesFromBundle(bundle)) {
-    pushUnique(donations, seen, `site:fec.gov "${name}" Florida`);
-    pushUnique(donations, seen, `site:fec.gov "${name}" ${anchor.city}`);
-  }
   const name = anchor.name_full;
   pushUnique(
-    donations,
+    expression,
     seen,
-    `"${name}" Florida campaign contribution OR donor OR "political committee"`,
+    `"${name}" ${anchor.city} Florida (endorses OR endorsement OR "voted for" OR "i support")`,
   );
   pushUnique(
-    donations,
+    expression,
     seen,
-    `site:dos.myflorida.com "${name}" contribution OR committee`,
-  );
-  pushUnique(donations, seen, `site:opensecrets.org "${name}"`);
-  pushUnique(
-    donations,
-    seen,
-    `"${name}" ${county} (ActBlue OR WinRed OR "campaign finance")`,
+    `"${name}" ${anchor.city} Florida (petition OR rally OR protest OR activism OR volunteer)`,
   );
   pushUnique(
-    donations,
+    expression,
     seen,
-    `"${name}" ${anchor.city} Florida (petition OR rally OR protest OR activism)`,
+    `"${name}" ${county} (conservative OR progressive OR Republican OR Democrat OR MAGA OR "resist")`,
   );
 }
 
@@ -130,7 +136,7 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
   const { anchor, contact_on_file, email_insights } = bundle;
   const social: string[] = [];
   const contact: string[] = [];
-  const donations: string[] = [];
+  const public_expression: string[] = [];
   const local_media: string[] = [];
   const civic_professional: string[] = [];
   const directory: string[] = [];
@@ -190,7 +196,7 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
     pushUnique(contact, seen, `"${contact_on_file.phone}" ${anchor.city}`);
   }
 
-  buildDonationQueries(bundle, seen, donations);
+  buildPublicExpressionQueries(bundle, seen, public_expression);
   buildLocalMediaQueries(anchor, seen, local_media);
   buildCivicProfessionalQueries(anchor, seen, civic_professional);
 
@@ -201,7 +207,7 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
   const ordered = [
     ...social,
     ...contact,
-    ...donations,
+    ...public_expression,
     ...local_media,
     ...civic_professional,
     ...directory,
@@ -210,7 +216,9 @@ export function buildSearchQueryPlan(bundle: EnrichmentBundle): SearchQueryPlan 
   return {
     social,
     contact,
-    donations,
+    // Field name `donations` kept for the payload contract; contents are now
+    // public political expression (see the interface + buildPublicExpressionQueries).
+    donations: public_expression,
     local_media,
     civic_professional,
     directory,

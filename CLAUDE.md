@@ -101,6 +101,13 @@ future UI/deliverable-delta attachment; golden (m) pins it.
    **Tier 3 (OSINT) at cohort scale:** `scripts/run-osint-cohort.ts` — the only paid-per-voter
    arm, so it's **hard-dollar-capped** (`--max-usd`, cap binds on `max(reported, processed×est)`,
    sequential; `--dry-run` previews with zero spend). SETUP §10; execution owner-gated.
+   **OSINT is scoped to what only it can see** (ENH-016): the query plan
+   (`buildPublicExpressionQueries`) and prompt target **public political expression**
+   (endorsements, activism, self-ID, public follows) — it must **not** re-search FEC /
+   FL campaign finance / OpenSecrets, which Tiers 1–2 resolve deterministically. Measured T3
+   lean-yield is near-zero even on known donors (`osint-control-test.ts`); treat OSINT as a
+   persona-linkage/enrichment arm, not a settle arm. **No brokers / no covert access** — public
+   sources only (a client-facing promise); sock-puppet/authenticated FB/IG scraping is out.
    **Tier 1 primary path (D-028):** the local FEC bulk index — `match-fec-index` evidence
    action (≤5k voters) or `scripts/run-fec-index.ts` at county scale; the API sweep is the
    fallback. Requires a READY `fec_indiv` snapshot (loader: `scripts/import-fec-indiv.ts`).
