@@ -98,6 +98,9 @@ future UI/deliverable-delta attachment; golden (m) pins it.
    `/api/enrichment/scorecard`, `/api/enrichment/street-view`, `/api/enrichment/fec` (subset), or
    `POST /api/uploads/[id]/fec-sweep` (whole-file FEC batch, free API) — modes in
    `lib/enrichment/modes.ts`; curated rows in `lib/enrichment/suggested-test-rows.ts`.
+   **Tier 3 (OSINT) at cohort scale:** `scripts/run-osint-cohort.ts` — the only paid-per-voter
+   arm, so it's **hard-dollar-capped** (`--max-usd`, cap binds on `max(reported, processed×est)`,
+   sequential; `--dry-run` previews with zero spend). SETUP §10; execution owner-gated.
    **Tier 1 primary path (D-028):** the local FEC bulk index — `match-fec-index` evidence
    action (≤5k voters) or `scripts/run-fec-index.ts` at county scale; the API sweep is the
    fallback. Requires a READY `fec_indiv` snapshot (loader: `scripts/import-fec-indiv.ts`).

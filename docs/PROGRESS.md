@@ -6,6 +6,29 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, Tier-3 capped OSINT harness READY (ENH-015))
+
+**Tier-3 OSINT measured-cohort harness built — awaiting owner go for the paid run.**
+`scripts/run-osint-cohort.ts` is the only arm that spends real money per voter (paid Grok),
+so the spend cap is belt-and-suspenders: `--limit` (voter ceiling, default 100), `--max-usd`
+(hard cap, default $5 — stops **before** any voter that could breach it), `--est-usd`
+(per-voter guard). The cap binds on `max(reported spend, processed × est)`, so an API that
+under-reports cost still can't run past `max-usd / est` voters; the run is **sequential** to
+keep the cap exact. `--dry-run` previews the cohort + projected cost with **zero** Grok calls.
+Two cohorts: `rich` (email/history-bearing eligible voters → Tier-3 *upper-bound* yield, the
+default) and `sample` (deterministic md5 spread → representative of the whole remainder). It
+writes an OSINT evidence event + fuses each voter (settlement/tier-fee only bill if the upload
+carries a billing account — the Duval FL-extract research upload never does, so the run is
+measured-but-unbilled), records arm_runs lifecycle (box score shows it live), and Ctrl-C marks
+it cancelled. **Verified dry-run on Duval:** 100 eligible voters (rich: 100/100 with
+email+history; sample: 21 email / 68 history), cap projection correct ($5 cap → ~$5 max at
+$0.05/voter; $1 cap → ~$1). tsc/lint/build clean. **Owner-gated remainder:** run it live
+(`--county DUV --limit 100 --max-usd 5`, owner-approved single-digit-dollar cap per
+[[build-out-waves]]), bracket with `repass-diff` (ENH-010), and record the measured Tier-3
+yield here + in the pitch (currently "assumed"). **This closes Wave 2 build-out** (all code
+shipped; three measurements remain operator-gated: Sunbiz re-measure done, FEC backfill load,
+Tier-3 run).
+
 ## Where to pick up (continuity note — 2026-07-06, FEC multi-snapshot backfill CODE READY (ENH-014))
 
 **FEC index now matches across ALL loaded cycles — indiv22/indiv20 backfill is code-ready.**

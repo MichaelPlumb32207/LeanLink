@@ -106,6 +106,9 @@ sources. Identity resolution is strong; social/lean coverage still thin on score
 | T9.2 | No confident match | `identity_resolution_status` none/ambiguous; lean Undetermined. |
 | T9.3 | Provenance logged | `audit.sources`, citations / `apify_runs` per mode. |
 | T9.4 | Tier-A hits (donation/media/civic) | Matches use platform `donation|media|civic` with `signals[]`. |
+| T9.5 | Capped cohort dry-run (ENH-015) | `run-osint-cohort.ts --county DUV --limit 100 --dry-run` selects the eligible cohort, prints richness + projected max cost, makes **zero** Grok calls / no spend. Verified: Duval → 100 eligible (rich: 100/100 email+history). |
+| T9.6 | Hard spend cap | Cap binds on `max(reported spend, processed × --est-usd)`; the run stops before a voter that could breach `--max-usd`, and never processes more than `max-usd / est` voters even if the API reports $0 cost. Sequential — no fuzzy overshoot. |
+| T9.7 | Track isolation | Settlement/tier-fee bill only when the upload has a billing account; FL-extract research uploads carry none → measured-but-unbilled (D-027). |
 
 ## UC-10 — POC test subset (Analyze UI) ✅
 **As** the researcher, **I can** define a small row-index subset and run one test against it

@@ -258,6 +258,30 @@ The upload flips to `ready` only when every row is in. Reference run: Duval —
 machine — leave it open for overnight runs; if a run dies anyway, all of these are
 chunk-committed and resume on re-run.
 
+## 10. Tier-3 OSINT measured cohort (paid Grok — capped)
+
+Tier 3 is the only arm that spends real money per voter (paid Grok/Apify OSINT), so it runs
+as a **hard-dollar-capped** cohort to measure yield before it earns a default-pipeline slot.
+
+```bash
+# Preview the cohort + projected cost — ZERO Grok calls, no spend:
+npx tsx scripts/run-osint-cohort.ts --county DUV --limit 100 --dry-run
+
+# Live measured run (real spend — needs XAI_API_KEY):
+npx tsx scripts/run-osint-cohort.ts --county DUV --limit 100 --max-usd 5 --mode grok-full
+```
+
+- `--max-usd D` is a **hard cap** — the run stops before starting any voter that could breach
+  it. The cap binds on `max(reported spend, processed × --est-usd)`, so even an API that
+  under-reports cost can't run past `max-usd / est` voters. Runs **sequentially** to keep the
+  cap exact.
+- `--select rich` (default) picks eligible voters with email/history (Tier-3's **upper-bound**
+  yield on workable records); `--select sample` takes a deterministic md5 spread (representative
+  of the whole remainder, includes thin records).
+- Writes an OSINT evidence event + fuses each voter. Settlement/tier-fee only bill if the upload
+  has a billing account — FL-extract research uploads (Duval/Alachua) never do, so the run is
+  **measured but unbilled**. Bracket it with `scripts/repass-diff.ts` (§8b) to report the delta.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
