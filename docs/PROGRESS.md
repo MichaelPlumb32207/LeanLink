@@ -33,10 +33,24 @@ FB/IG** (fake accounts + automated collection = Meta ToS violation, covert acces
 citizens, and it breaks the client-facing "public/open-source only" promise). The legit frontier is
 the **public** X/Bluesky follow-graph.
 
-**Next (ENH-017, in progress):** build the public follow-graph lean signal — Bluesky first (official
-public AppView API, no auth), measure coverage on our FL population *before* wiring it into the paid
-arm (coverage is the open question: Bluesky is small/skewed; X has reach but no clean API → stays
-prompt-based). Then re-run `osint-control-test.ts` to see if known-donors' lean-rate moves off 1/10.
+**ENH-017 measured — follow-graph scorer shelved (coverage≈0).** Built `lib/bluesky/client.ts`
+(public AppView API, no auth) + `scripts/bluesky-coverage-probe.ts` and probed *before* building the
+scorer. On 30 eligible Duval voters: **33% share a name with a Bluesky account, but 0% are
+confidently linkable** (0 email→handle matches, 0 FL signals). The 9 name-matches were provably other
+people — a UK Labour MP ("Anna Dixon"), a Brown postdoc ("Andrea Bryant"), an NYC White-House alum
+("Luke Farrell"). **The wall is identity-linkage of a private individual to a social account — the
+same wall the OSINT arm hit — not graph mechanics.** Decision: don't build the registry+scorer for
+anonymous NPAs; keep client+probe as reusable per-list instruments (a public-facing client list would
+score higher — the probe is the gate). X stays out (no clean API + same linkage wall).
+
+**The through-line across the whole T3 investigation:** OSINT can *find* people (persona linkage) but
+can't reliably (a) *link* an ordinary private voter to a confident online identity, or (b) find
+*codeable ideology* on the ones it does link — because rank-and-file NPAs neither post politics nor
+are prominent enough to disambiguate. Every avenue (authored posts, donation re-search, follow-graph)
+hit one of those two walls. **Product conclusion: Tier-3 OSINT is a low-yield persona-enrichment arm,
+not a lean-settle arm — the pitch should say so** (it currently "assumes" T3 settles). Total T3
+investigation spend: ~$1.4, all capped. Open owner decision: formally reframe T3 in the pitch
+(enrichment, not settle) vs. keep exploring; the measurement strongly favors reframing.
 
 ## Where to pick up (continuity note — 2026-07-06, Tier-3 capped OSINT harness READY (ENH-015))
 
