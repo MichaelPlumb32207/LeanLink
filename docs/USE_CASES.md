@@ -271,3 +271,17 @@ scoring logic ship as an evidence-backed diff instead of a silent change.
 | UC-19·E2 | Baseline for a different upload than `--upload-id`/`--county` resolves to | Aborts: "Baseline is for upload X, not Y." |
 | UC-19·E3 | Self-diff (report immediately after snapshot, no re-pass) | All deltas zero; population reconciles (Duval: 478 settled = 470 fec + 8 fl_contrib, 524 partisan). |
 | UC-19·E4 | Voter frozen via UC-16 accept | Counted in `frozen_skipped`; never appears in gained/lost leans (fusion early-returns for accepted). |
+
+## UC-20 — Committee classification (recover stuck donors) ✅
+**As** the operator, **I can** classify the unresolved committees confirmed donors gave to, so
+donors to party-less committees (Harris Victory Fund, union PACs, the Lincoln Project) settle —
+using Grok on *committees* (public, finite, knowable), not on private voters.
+
+| ID | Test | Expected |
+|---|---|---|
+| UC-20·H | `classify-committees.ts --county DUV` | Gathers the FEC+FL unresolved census ranked by donor count; Grok classifies; prints partisan proposals (lean/confidence/reason) + the count of donors behind them. No writes without `--apply`. |
+| UC-20·E1 | Bipartisan corporate PAC (CSX Good Government, Realtors, GuideWell) | Returned `Undetermined` and **not** written — no manufactured signal. Unrecognized committees → Undetermined, not guessed. |
+| UC-20·E2 | `--apply` then `run-fec-index` re-pass | Agent labels written (`source='agent'`); the FEC scorer now settles those donors; `repass-diff` reports the gained settles. |
+| UC-20·E3 | Agent vs human precedence | Agent never overwrites a `researcher`/`import` label (`skipped_human`); a human override reclaims `source='researcher'` and locks the committee against the agent (verified in a rolled-back tx). |
+| UC-20·E4 | `--dry-run` | Census + counts only, zero Grok calls, zero spend. |
+| UC-20·E5 | Billed account | CLI warns; default is propose-only (a lean settles + bills its donors, so review precedes `--apply`). |

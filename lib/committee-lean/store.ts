@@ -72,6 +72,9 @@ export async function upsertCommitteeLeanLabel(
        lean = EXCLUDED.lean,
        confidence = EXCLUDED.confidence,
        notes = EXCLUDED.notes,
+       -- Reclaim the row as human on override, so it LOCKS out the agent
+       -- (the agent upsert only touches rows whose source is still 'agent').
+       source = 'researcher',
        updated_at = NOW()
      RETURNING id, committee_name_norm, committee_name, lean, confidence, notes, source, updated_at::text`,
     [
@@ -84,4 +87,50 @@ export async function upsertCommitteeLeanLabel(
     ],
   );
   return res.rows[0];
+}
+
+/**
+ * Write an AGENT (Grok classifier) committee label — source-aware so it NEVER
+ * overwrites a human label. On conflict it updates only when the existing row is
+ * itself agent-sourced; a `researcher`/`import` (human) row wins and is left
+ * untouched (the `DO UPDATE ... WHERE` yields zero rows → skipped_human). A
+ * human can always override + lock a committee via upsertCommitteeLeanLabel.
+ */
+export async function upsertAgentCommitteeLabel(
+  client: PoolClient,
+  params: {
+    user_id: string;
+    committee_name: string;
+    lean: LeanLabel;
+    confidence: number;
+    notes?: string | null;
+  },
+): Promise<{ applied: boolean; skipped_human: boolean; row: CommitteeLeanLabelRow | null }> {
+  const norm = committeeNameNorm(params.committee_name);
+  const res = await client.query<CommitteeLeanLabelRow>(
+    `INSERT INTO committee_lean_labels
+       (user_id, committee_name_norm, committee_name, lean, confidence, notes, source)
+     VALUES ($1, $2, $3, $4, $5, $6, 'agent')
+     ON CONFLICT (user_id, committee_name_norm)
+     DO UPDATE SET
+       committee_name = EXCLUDED.committee_name,
+       lean = EXCLUDED.lean,
+       confidence = EXCLUDED.confidence,
+       notes = EXCLUDED.notes,
+       updated_at = NOW()
+       WHERE committee_lean_labels.source = 'agent'
+     RETURNING id, committee_name_norm, committee_name, lean, confidence, notes, source, updated_at::text`,
+    [
+      params.user_id,
+      norm,
+      params.committee_name.trim(),
+      params.lean,
+      params.confidence,
+      params.notes?.trim() || null,
+    ],
+  );
+  // No returned row means a human label already held the slot and the guarded
+  // UPDATE did nothing (the INSERT lost the conflict). That's a deliberate skip.
+  if (res.rows[0]) return { applied: true, skipped_human: false, row: res.rows[0] };
+  return { applied: false, skipped_human: true, row: null };
 }

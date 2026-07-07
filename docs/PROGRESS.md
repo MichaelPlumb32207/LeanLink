@@ -6,6 +6,28 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-07, committee classifier SHIPPED + measured (ENH-018 Unit B))
+
+**Grok-on-committees works — the constructive payoff of the T3 dig is real and measured.**
+Migration **020** (`'agent'` label source, applied to Neon), source-aware `upsertAgentCommitteeLabel`
+(agent never overwrites a human; human override reclaims `source='researcher'` → **locks** — a bug
+the rolled-back precedence test caught and I fixed), `lib/committee-lean/classify.ts` (batched Grok,
+**no web search**, bipartisan→Undetermined), and `scripts/classify-committees.ts` (census FEC+FL,
+`--dry-run`/propose/`--apply`, billed-account gate). **Measured on Duval:** 337 unresolved committees
+/ 365 donors; the top-25 classify cost **\$0.004** and returned 11 partisan (176 donors) — Harris
+Victory Fund→Left(100), NRA→Right(100), Team Kennedy→Independent, Remove Ron→Left, America First→Right,
+Ban Assault Weapons Now→Left, NATCA→Left — while correctly leaving **every** corporate/bipartisan PAC
+(CSX Good Government, Realtors ×3, GuideWell, UPS, Swisher, Crowley, Fidelity) Undetermined and not
+guessing on unrecognized ones. Precedence verified: human > agent > pattern, human-override-locks.
+tsc/lint/build + 34 goldens green.
+
+**Not yet done (operator-gated):** the actual `--apply` + `run-fec-index` re-pass to *book* the
+settles (a deliverable-changing scoring op — owner runs it, bracketed with `repass-diff`; on the
+research Duval upload it's safe/unbilled). And **ENH-018-UI (P3):** surface agent proposals in the
+committee manager for one-click human review (the CLI's propose mode is the interim). **This is the
+answer to "point Grok at committees, not voters"** — cheap, accurate, dodges every identity/privacy
+wall the OSINT arm hit.
+
 ## Where to pick up (continuity note — 2026-07-07, committee classification — Unit A wiring (ENH-018))
 
 **The constructive payoff of the T3 dig: point Grok at committees, not voters.** Owner spotted a

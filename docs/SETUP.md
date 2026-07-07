@@ -282,6 +282,33 @@ npx tsx scripts/run-osint-cohort.ts --county DUV --limit 100 --max-usd 5 --mode 
   has a billing account — FL-extract research uploads (Duval/Alachua) never do, so the run is
   **measured but unbilled**. Bracket it with `scripts/repass-diff.ts` (§8b) to report the delta.
 
+## 11. Classify unresolved committees (recover stuck donors — ENH-018)
+
+~31% of confirmed FEC donors sit Undetermined because their committee carries no party code
+and matches no pattern (Harris Victory Fund, union PACs, the Lincoln Project). Grok classifies
+the finite committee census cheaply and accurately (one call per committee, batched — it's good
+at *public committees*, unlike anonymous voters). Bipartisan corporate PACs are left Undetermined.
+
+```bash
+# See the unresolved work-list (FEC + FL, ranked by donor count) — free, no Grok:
+npx tsx scripts/classify-committees.ts --county DUV --dry-run
+
+# Classify with Grok and REVIEW proposals — no writes (cheap, ~$0.004/25 committees):
+npx tsx scripts/classify-committees.ts --county DUV --limit 150
+
+# Apply: write agent labels (skips any human-labeled committee), then re-score:
+npx tsx scripts/classify-committees.ts --county DUV --apply
+npx tsx scripts/repass-diff.ts snapshot --county DUV
+npx tsx scripts/run-fec-index.ts --county DUV --concurrency 8   # labels settle the donors
+npx tsx scripts/repass-diff.ts report --county DUV --md committees-diff.md
+```
+
+- **Precedence:** human > agent > pattern. The classifier never overwrites a human label; a human
+  can override + lock any committee in the committee manager.
+- **Billed accounts:** the CLI warns and the default (no `--apply`) is propose-only — review before
+  applying, because a lean settles + bills its donors. On unbilled research uploads `--apply` is safe.
+- Requires migration **020** (adds the `'agent'` label source) and `XAI_API_KEY` for the classify step.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |

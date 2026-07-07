@@ -43,7 +43,8 @@ the partial index behind the unlabeled-committees counter (predicate tests a **n
 officer-zip index (the one the lookup's real query shape uses — DEF-007); `018` adds the
 fl_contributions name-prefix index (text_pattern_ops, DEF-008); `019` adds the
 **lean_patterns registry** (seeded with the exact hardcoded lists — see the patterns
-gotcha below). See `docs/SETUP.md`.
+gotcha below); `020` adds `'agent'` to the `committee_lean_labels.source` CHECK (the Grok
+committee classifier, ENH-018). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -73,6 +74,18 @@ canonical SQL lives in `CLAIM_ELIGIBLE_PREDICATE` (`lib/evidence/arm-runs.ts`), 
 eligible-remaining count; `claimFecSweepRows` still inlines a copy — keep it in sync.
 Researcher acceptance also freezes fusion — `persistFusionForVoter` early-returns for
 accepted voters so their deliverable values never drift.
+
+**Committee labels & the Grok classifier** (ENH-018): committee → lean labels
+(`committee_lean_labels`, name-keyed, **federal + state share one namespace**) beat pattern
+matching in BOTH the FL committee-lean path and the FEC donation-lean path (`inferContributionLean`
+now consults them — that wiring was the gap). Precedence: **human > agent > pattern/party-code**.
+The Grok classifier (`scripts/classify-committees.ts` → `lib/committee-lean/classify.ts`) labels
+the unresolved-committee census (Grok is great at *public committees*, unlike anonymous voters) —
+**bipartisan corporate PACs stay Undetermined** (never manufacture signal). `upsertAgentCommitteeLabel`
+is source-aware: the agent never overwrites a human label; a human override reclaims
+`source='researcher'` and locks the committee. On a billed account the agent *proposes* (default
+mode, no writes); a human confirms before `--apply` settles+bills. Labels apply on the next
+`run-fec-index` re-pass.
 
 **Re-pass as a product op** (ENH-010): a re-score with current logic self-cleans stale
 events (`deleteVoterArmEvents`, DEF-009) and reports a before/after delta. Bracket any
