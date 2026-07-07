@@ -88,6 +88,17 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
                WHERE ee.voter_record_id = vr.id AND ee.arm = 'sunbiz'
              )`;
         }
+
+        // True total for the current filter (not the capped page) — powers the
+        // live "N voters" counter that updates as filters toggle.
+        const countRes = await client.query<{ total: number }>(
+          `SELECT COUNT(*)::int AS total
+           FROM voter_records vr
+           WHERE vr.upload_id = $1 AND vr.user_id = $2${filterSql}`,
+          params,
+        );
+        const total = countRes.rows[0]?.total ?? 0;
+
         params.push(limit);
 
         const res = await client.query(
@@ -116,7 +127,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
            LIMIT $${params.length}`,
           params,
         );
-        return { voters: res.rows };
+        return { voters: res.rows, total, limit };
       }
 
       let voterQuery;

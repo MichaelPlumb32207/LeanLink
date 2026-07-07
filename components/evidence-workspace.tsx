@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
 import { FecSweepPanel } from '@/components/fec-sweep-panel';
@@ -105,25 +105,49 @@ export function EvidenceWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<VoterDetail | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [debouncedName, setDebouncedName] = useState('');
   const [armFilters, setArmFilters] = useState<Set<VoterArmFilter>>(new Set());
+  const [total, setTotal] = useState(0);
+  const [loadingVoters, setLoadingVoters] = useState(false);
+  const voterReqSeq = useRef(0);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncingAction, setSyncingAction] = useState<Tier0Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [committeeManagerOpen, setCommitteeManagerOpen] = useState(false);
 
-  const refreshVoters = useCallback(async () => {
-    const params = new URLSearchParams({ list: '1', limit: '1000' });
-    if (nameFilter.trim()) params.set('name', nameFilter.trim());
-    if (armFilters.has('fec')) params.set('fec', '1');
-    if (armFilters.has('fl_contrib')) params.set('fl_contrib', '1');
-    if (armFilters.has('layer2')) params.set('layer2', '1');
-    if (armFilters.has('sunbiz')) params.set('sunbiz', '1');
-    const res = await fetch(`/api/uploads/${uploadId}/evidence?${params}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? 'Failed to load voters');
-    setVoters(data.voters ?? []);
-  }, [uploadId, nameFilter, armFilters]);
+  // Debounce the name box so we don't fire a server round-trip per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(nameFilter), 300);
+    return () => clearTimeout(t);
+  }, [nameFilter]);
+
+  // Voter-list fetch. A monotonic seq makes it latest-wins: a slow earlier
+  // response can't clobber a newer filter's result. Optional AbortSignal also
+  // cancels the network. Deliberately NOT coupled to the summary poll.
+  const loadVoters = useCallback(
+    async (signal?: AbortSignal) => {
+      const seq = ++voterReqSeq.current;
+      const params = new URLSearchParams({ list: '1', limit: '1000' });
+      if (debouncedName.trim()) params.set('name', debouncedName.trim());
+      if (armFilters.has('fec')) params.set('fec', '1');
+      if (armFilters.has('fl_contrib')) params.set('fl_contrib', '1');
+      if (armFilters.has('layer2')) params.set('layer2', '1');
+      if (armFilters.has('sunbiz')) params.set('sunbiz', '1');
+      setLoadingVoters(true);
+      try {
+        const res = await fetch(`/api/uploads/${uploadId}/evidence?${params}`, signal ? { signal } : {});
+        const data = await res.json();
+        if (seq !== voterReqSeq.current) return; // a newer request superseded us
+        if (!res.ok) throw new Error(data.error ?? 'Failed to load voters');
+        setVoters(data.voters ?? []);
+        setTotal(typeof data.total === 'number' ? data.total : (data.voters?.length ?? 0));
+      } finally {
+        if (seq === voterReqSeq.current) setLoadingVoters(false);
+      }
+    },
+    [uploadId, debouncedName, armFilters],
+  );
 
   const toggleArmFilter = (filter: VoterArmFilter) => {
     setArmFilters((prev) => {
@@ -150,17 +174,26 @@ export function EvidenceWorkspace({
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([refreshSummary(), refreshVoters()]);
+      await Promise.all([refreshSummary(), loadVoters()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [refreshSummary, refreshVoters]);
+  }, [refreshSummary, loadVoters]);
 
+  // Re-fetch the voter list on upload/name/filter change only — abortable and
+  // decoupled from the summary poll, so a 5s box-score tick never reloads the
+  // 1000-row list (that coupling was the "slow / needs a 2nd click" bug).
   useEffect(() => {
-    void refreshAll();
-  }, [refreshAll]);
+    const ac = new AbortController();
+    void loadVoters(ac.signal).catch((e) => {
+      if ((e as Error)?.name !== 'AbortError') {
+        setError(e instanceof Error ? e.message : 'Load failed');
+      }
+    });
+    return () => ac.abort();
+  }, [loadVoters]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -210,7 +243,7 @@ export function EvidenceWorkspace({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Review action failed');
-      await Promise.all([loadDetail(detail.voter.id), refreshVoters(), refreshSummary()]);
+      await Promise.all([loadDetail(detail.voter.id), loadVoters(), refreshSummary()]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Review action failed');
     } finally {
@@ -251,7 +284,7 @@ export function EvidenceWorkspace({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Action failed');
-      await Promise.all([refreshSummary(), refreshVoters()]);
+      await Promise.all([refreshSummary(), loadVoters()]);
       if (selectedId) await loadDetail(selectedId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Action failed');
@@ -551,7 +584,7 @@ export function EvidenceWorkspace({
             placeholder="Filter by name…"
             value={nameFilter}
             onChange={(e) => setNameFilter(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void refreshVoters()}
+            onKeyDown={(e) => e.key === 'Enter' && setDebouncedName(nameFilter)}
             className="mb-2 w-full rounded-lg border bg-black/20 px-3 py-2 text-sm"
           />
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -597,6 +630,14 @@ export function EvidenceWorkspace({
                 Clear
               </button>
             )}
+          </div>
+          <div className="mb-1.5 flex items-center justify-between text-[11px] opacity-60">
+            <span>
+              {total.toLocaleString()} {total === 1 ? 'voter' : 'voters'}
+              {armFilters.size > 0 || debouncedName.trim() ? ' match' : ''}
+              {voters.length < total ? ` · showing first ${voters.length.toLocaleString()}` : ''}
+            </span>
+            {loadingVoters && <span className="animate-pulse">updating…</span>}
           </div>
           <div className="flex-1 overflow-auto">
             <table className="w-full text-left text-xs">
