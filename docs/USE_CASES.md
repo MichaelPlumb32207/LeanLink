@@ -252,4 +252,17 @@ fusion and catch scoring regressions before they touch a county
 | T18.6 | Fixture (h) | Anomaly math: Duval zero-settle shape flags; below-floor and healthy runs stay silent. |
 | T18.7 | Fixtures (i)–(j) | Sunbiz address gate (ENH-012): name+zip+street match → `confirmed`; a name+zip collision at a **different** street caps at `ambiguous` (≤0.54) and its event never clears the identity gate — the 98,650-hit / 0-settle Duval shape can no longer settle. |
 | T18.8 | Fixtures (k)–(l) | fl_contrib identity upgrades (ENH-013): street corroboration lifts a name-only match from `ambiguous` → `probable`; a stale zip match (18 yr) scores below a recent one (recency penalty). |
-| T18.9 | Exit code | Any ✗ → exit 1 (CI-able); `smoke-billing.ts` still passes alongside. |
+| T18.9 | Fixture (m) | Re-pass diff math (ENH-010): a tightened re-pass (scorer_v 2→3) that drops 2 spurious bridge-leans reports `leans_lost=2`/`leans_gained=0`, leaves real + frozen settles untouched, counts the accepted voter as frozen, and lists both losses in `notable`. |
+| T18.10 | Exit code | Any ✗ → exit 1 (CI-able); `smoke-billing.ts` still passes alongside. |
+
+## UC-19 — Re-pass with before/after diff (ENH-010) ✅
+**As** the operator, **I can** bracket a re-score with a delta report so improvements to
+scoring logic ship as an evidence-backed diff instead of a silent change.
+
+| ID | Test | Expected |
+|---|---|---|
+| UC-19·H | `snapshot --county DUV` → run a re-pass → `report --county DUV` | Baseline JSON captured (146,599 voters); report prints settles gained/lost, leans gained/lost/flipped, confidence movement, settled-by-arm, and a notable sample. Read-only; no DB writes; no migration. |
+| UC-19·E1 | `report` before any `snapshot` | Fails cleanly: "Baseline not found — run snapshot before the re-pass first." |
+| UC-19·E2 | Baseline for a different upload than `--upload-id`/`--county` resolves to | Aborts: "Baseline is for upload X, not Y." |
+| UC-19·E3 | Self-diff (report immediately after snapshot, no re-pass) | All deltas zero; population reconciles (Duval: 478 settled = 470 fec + 8 fl_contrib, 524 partisan). |
+| UC-19·E4 | Voter frozen via UC-16 accept | Counted in `frozen_skipped`; never appears in gained/lost leans (fusion early-returns for accepted). |

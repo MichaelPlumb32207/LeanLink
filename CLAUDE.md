@@ -74,6 +74,13 @@ eligible-remaining count; `claimFecSweepRows` still inlines a copy — keep it i
 Researcher acceptance also freezes fusion — `persistFusionForVoter` early-returns for
 accepted voters so their deliverable values never drift.
 
+**Re-pass as a product op** (ENH-010): a re-score with current logic self-cleans stale
+events (`deleteVoterArmEvents`, DEF-009) and reports a before/after delta. Bracket any
+re-pass with `scripts/repass-diff.ts` — `snapshot` before, `report` after (JSON baseline,
+read-only). The math is pure in `lib/evidence/repass-diff.ts`
+(`captureRepassSnapshot`/`diffRepassSnapshots`/`formatRepassDiffMarkdown`), reusable by a
+future UI/deliverable-delta attachment; golden (m) pins it.
+
 **Two input files, both tab-delimited FL DOS extracts, both parsed by hand (no CSV lib):**
 - `lib/fl-voter-registration.ts` — the registration extract: **38 fields, no header**.
   Filtered to NPA + Active voters via `DEFAULT_LEANLINK_FILTER` at upload time.

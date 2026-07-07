@@ -70,8 +70,10 @@ detection into the system and makes adaptation cheaper still. Ledger entries: EN
    labels so tuning is an edit, not a deploy.
 6. **Scorer version stamps on evidence** (part of ENH-008) — `scorer_v` in payloads so logic
    changes can target re-passes at exactly the stale events.
-7. **Re-pass as a product operation** (ENH-010, P2) — "re-score with current logic" as a
-   button/CLI with a before/after diff (settles gained, leans changed, why).
+7. **Re-pass as a product operation** (ENH-010, ✅ done 2026-07-06) — supersede (DEF-009) +
+   before/after diff (`lib/evidence/repass-diff.ts` + `scripts/repass-diff.ts`: `snapshot`
+   before a re-pass, `report` after → settles gained/lost, leans gained/lost/flipped,
+   confidence movement, why). UI button folds into ENH-011's deliverable-delta attachment.
 
 **Deliver**
 8. **Deliverable versioning + delta reports** (ENH-011, P2) — when data/logic improves after

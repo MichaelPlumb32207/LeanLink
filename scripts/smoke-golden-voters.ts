@@ -19,6 +19,7 @@ import { buildFlContribEvidenceEvent } from '@/lib/evidence/fl-contrib-events';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
 import { SCORER_VERSION } from '@/lib/evidence/scorer-version';
 import { computeRunAnomalies } from '@/lib/evidence/run-baselines';
+import { diffRepassSnapshots, type RepassSnapshot, type VoterFusionState } from '@/lib/evidence/repass-diff';
 import type { EvidenceEventInput, EvidenceEventRow } from '@/lib/evidence/types';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
@@ -364,6 +365,64 @@ async function main() {
       priors,
     );
     ok(healthy.length === 0, '(h) healthy run within bands → no flags');
+  }
+
+  // (m) ENH-010 re-pass diff math: the Duval Sunbiz supersede shape (DEF-009) —
+  // a tightened re-pass drops stale leans and adds address-backed settles.
+  {
+    const v = (
+      id: string,
+      row: number,
+      lean: VoterFusionState['lean'],
+      confidence: number,
+      settled_tier: number | null,
+      settled_arm: string | null,
+    ): VoterFusionState => ({
+      voter_record_id: id,
+      row_index: row,
+      lean,
+      confidence,
+      fusion_status: settled_tier != null ? 'fused' : lean === 'Undetermined' ? 'undetermined' : 'provisional',
+      settled_tier,
+      settled_arm,
+      review_status: null,
+      arms: settled_arm ?? '',
+    });
+    const mk = (voters: VoterFusionState[], sv: number): RepassSnapshot => ({
+      upload_id: 'u1',
+      captured_at: '2026-07-06T00:00:00Z',
+      scorer_v: sv,
+      voter_count: voters.length,
+      voters,
+    });
+    // before: two stale bridge-leans (Right) + one real FEC settle + one frozen.
+    const before = mk(
+      [
+        v('a', 1, 'Right', 70, null, null), // stale layer-2 lean, not settled
+        v('b', 2, 'Right', 65, null, null), // stale layer-2 lean, not settled
+        v('c', 3, 'Left', 88, 1, 'fec'), // real settle, unchanged
+        { ...v('d', 4, 'Left', 90, 1, 'fec'), review_status: 'accepted' }, // frozen
+      ],
+      2,
+    );
+    // after v3: a & b lose the spurious lean; a new address-backed Sunbiz settle appears on b? No —
+    // model it as: a→Undetermined (supersede), b→Undetermined, plus e is a fresh confirmed voter.
+    const after = mk(
+      [
+        v('a', 1, 'Undetermined', 0, null, null),
+        v('b', 2, 'Undetermined', 0, null, null),
+        v('c', 3, 'Left', 88, 1, 'fec'),
+        { ...v('d', 4, 'Left', 90, 1, 'fec'), review_status: 'accepted' },
+      ],
+      3,
+    );
+    const d = diffRepassSnapshots(before, after);
+    ok(d.leans_lost === 2 && d.leans_gained === 0, '(m) supersede drops 2 spurious leans, adds none');
+    ok(d.settles_gained === 0 && d.settles_lost === 0, '(m) real + frozen settles untouched');
+    ok(d.frozen_skipped === 1, '(m) accepted voter counted as frozen');
+    ok(d.net_partisan_after === d.net_partisan_before - 2, '(m) net partisan drops by 2');
+    ok(d.before_scorer_v === 2 && d.after_scorer_v === 3, '(m) scorer_v carried through the diff');
+    ok(d.notable.length === 2 && d.notable.every((n) => n.to === 'Undetermined'), '(m) notable lists the two lost leans');
   }
 
   // (g) Registry-seed parity (DB): the DB patterns must classify identically to the fallback.

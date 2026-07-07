@@ -6,6 +6,24 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-06, ENH-010 re-pass diff SHIPPED)
+
+**ENH-010 complete — re-pass is now a product operation with a before/after diff.** The
+supersede half landed early (DEF-009 `deleteVoterArmEvents`); this adds the delta report.
+`lib/evidence/repass-diff.ts` (pure): `captureRepassSnapshot(client, uploadId)` snapshots the
+deliverable-relevant fusion state per voter (lean, confidence, settled_tier/arm, review_status,
+contributing arms); `diffRepassSnapshots(before, after)` computes settles gained/lost + tier
+changes, leans gained/lost/flipped, net partisan, same-direction confidence movement,
+arm-set-changed, frozen-skipped, and a severity-ranked `notable` sample; `formatRepassDiffMarkdown`
+renders it. CLI `scripts/repass-diff.ts` brackets any re-pass: `snapshot --county DUV` before →
+run the re-pass (run-fec-index / run-free-pass) → `report --county DUV` after (JSON baseline in
+CWD, read-only, no migration). **Validated on live Duval:** self-diff reconciles exactly — 478
+settled (470 fec + 8 fl_contrib), 524 partisan, 0 spurious deltas. Golden **(m)** pins the
+DEF-009 supersede shape (tightened re-pass drops 2 spurious bridge-leans, leaves real + frozen
+settles untouched); 32/32 goldens pass, tsc/lint/build clean. UI "re-score" button intentionally
+deferred to ENH-011 (deliverable versioning/delta attachment). **Next in Wave 2:** FEC cycle
+backfill (indiv22/indiv20) → Tier-3 capped cohort.
+
 ## Where to pick up (continuity note — 2026-07-06, box-score STATE = run lifecycle, DEF-010)
 
 **Line-score STATE no longer rests on PARTIAL by design.** Owner flagged that Sunbiz read
