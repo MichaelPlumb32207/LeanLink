@@ -20,7 +20,7 @@ started · **Someday** = conditional / only if a trigger fires.
 | Item | State | Notes |
 |---|---|---|
 | **Client-doc HTML pass** | Partial | Pitch + one-pager recalibrated to **measured** numbers 2026-07-06 (T1 band 0.32–0.51%, T2 evidence-rich framing, county-in-2h turnaround, receipt-level audit) and OnRecord mirrors regenerated. **Still owed:** `evidence-accumulator-pitch.html` body still frames the research POC (banner only) — full billing/waterfall/two-track redraw + Duval/Alachua proof points. |
-| **Pitch yield recalibration** | ✅ Done 2026-07-06 | Worked example now uses the measured T1 band (0.32–0.51%, two counties/187k voters) and measured Tier 2 framing (evidence-rich, settle-light); Tier 3 honestly labeled assumed. |
+| **Pitch yield recalibration** | ✅ Done 2026-07-07 | Worked example uses the measured T1 band (0.32–0.51%, +16% from committee classification), measured Tier 2 (evidence-rich, settle-light), and — new 2026-07-07 — **Tier 3 reframed from "assumed ~1,600 leans" to measured enrichment** (rare direct leans; priced as research). Headline moved from "≈1,700 leans / $2.50 per lean" to "≈140 defensible partisan leans + full intelligence on all 25,000 records / ≈$0.13 per record" — the honest list-intelligence value prop. OnRecord mirror regenerated. |
 | **Retire the FEC API sweep as primary** | In progress | Local bulk index (D-028) is now primary Tier 1; the throttled API sweep stays only as a freshness/spot-check fallback. |
 
 ## Next — committed near-term
