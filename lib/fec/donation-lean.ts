@@ -6,6 +6,8 @@ import {
   scanLeanPatterns,
   type LeanPatternSets,
 } from '@/lib/lean-patterns/patterns';
+import { committeeNameNorm } from '@/lib/committee-lean/normalize';
+import type { ResearcherCommitteeLabel } from '@/lib/committee-lean/infer';
 
 export interface DonationLeanHit {
   lean: LeanLabel;
@@ -39,7 +41,25 @@ interface LeanSignal {
 function inferContributionLean(
   contribution: FecContributionHit,
   patterns: LeanPatternSets,
+  researcherLabels?: Map<string, ResearcherCommitteeLabel>,
 ): LeanSignal | null {
+  // A committee label (human or agent) wins over pattern matching — same
+  // precedence as the FL committee-lean path. This is what lets a confirmed FEC
+  // donor to a committee with no party code (e.g. Harris Victory Fund, The
+  // Lincoln Project) settle once that committee is labeled. Labels are name-
+  // keyed and scope-agnostic (federal + state share the one namespace).
+  const committee = contribution.committee_name;
+  if (committee && researcherLabels?.size) {
+    const label = researcherLabels.get(committeeNameNorm(committee));
+    if (label && label.lean !== 'Undetermined') {
+      return {
+        lean: label.lean,
+        confidence: label.confidence,
+        reason: label.notes?.trim() || 'Committee label',
+      };
+    }
+  }
+
   const text = [contribution.committee_name, contribution.candidate_name]
     .filter(Boolean)
     .join(' ')
@@ -130,7 +150,11 @@ function aggregateLean(hits: DonationLeanHit[]): {
  */
 export function inferLeanFromDonations(
   scoredContributions: ScoredFecContribution[],
-  options?: { minIdentityScore?: number; patterns?: LeanPatternSets },
+  options?: {
+    minIdentityScore?: number;
+    patterns?: LeanPatternSets;
+    researcherLabels?: Map<string, ResearcherCommitteeLabel>;
+  },
 ): DonationLeanResult {
   const minScore = options?.minIdentityScore ?? 0.55;
   const patterns = options?.patterns ?? getFallbackLeanPatterns();
@@ -139,7 +163,7 @@ export function inferLeanFromDonations(
   const hits: DonationLeanHit[] = [];
 
   for (const scored of eligible) {
-    const signal = inferContributionLean(scored.contribution, patterns);
+    const signal = inferContributionLean(scored.contribution, patterns, options?.researcherLabels);
     if (!signal) continue;
 
     const amount = scored.contribution.amount;

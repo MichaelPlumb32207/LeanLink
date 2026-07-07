@@ -23,6 +23,7 @@ import {
   startArmRun,
 } from '@/lib/evidence/arm-runs';
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
+import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { syncAnchorProfilesToLedger } from '@/lib/anchor/sync-ledger';
 import { syncFecSweepToEvidenceLedger } from '@/lib/evidence/sync-fec';
 import { getActiveFecIndivSnapshotSet, runFecIndexChunk } from '@/lib/fec/run-index-upload';
@@ -246,12 +247,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         if (!snapshots) return { error: 'no_snapshot' as const };
 
         const patterns = await loadLeanPatterns(client, userEmail);
+        const researcherLabels = await loadResearcherCommitteeLabels(client, userEmail);
         const run = await runFecIndexChunk(client, {
           uploadId,
           userId: userEmail,
           snapshots,
           limit: rowCount,
           patterns,
+          researcherLabels,
         });
         const summary = await getUploadEvidenceSummary(client, uploadId, userEmail);
         return { run, summary };

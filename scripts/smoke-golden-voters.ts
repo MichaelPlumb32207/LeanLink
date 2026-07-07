@@ -22,6 +22,8 @@ import { computeRunAnomalies } from '@/lib/evidence/run-baselines';
 import { diffRepassSnapshots, type RepassSnapshot, type VoterFusionState } from '@/lib/evidence/repass-diff';
 import type { EvidenceEventInput, EvidenceEventRow } from '@/lib/evidence/types';
 import { scoreFecLookupForVoter } from '@/lib/fec/score-lookup-result';
+import { inferLeanFromDonations } from '@/lib/fec/donation-lean';
+import { committeeNameNorm } from '@/lib/committee-lean/normalize';
 import type { FecContributionHit } from '@/lib/fec/contributor-lookup';
 import { scoreFlContributionsAgainstVoter } from '@/lib/fl-contrib/identity-match';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
@@ -423,6 +425,41 @@ async function main() {
     ok(d.net_partisan_after === d.net_partisan_before - 2, '(m) net partisan drops by 2');
     ok(d.before_scorer_v === 2 && d.after_scorer_v === 3, '(m) scorer_v carried through the diff');
     ok(d.notable.length === 2 && d.notable.every((n) => n.to === 'Undetermined'), '(m) notable lists the two lost leans');
+  }
+
+  // (n) ENH-018: a committee label recovers a FEC lean the party-code/pattern
+  // path can't reach — the Lincoln Project / Harris Victory Fund shape. Same
+  // donor, once with no label (Undetermined) and once with a Left label.
+  {
+    const scored = [
+      {
+        contribution: {
+          receipt_date: '2024-10-07',
+          amount: 300,
+          contributor_name: 'DOE, JANE',
+          contributor_city: 'Jacksonville',
+          contributor_state: 'FL',
+          contributor_zip: '32207',
+          contributor_employer: null,
+          contributor_occupation: null,
+          committee_name: 'HARRIS VICTORY FUND', // no party code, no pattern
+          candidate_name: null,
+          fec_url: null,
+        },
+        identity_score: 0.9,
+        match_reasons: ['zip5_match'],
+        probable_same_person: true,
+      },
+    ];
+    const patterns = getFallbackLeanPatterns();
+    const unlabeled = inferLeanFromDonations(scored, { patterns });
+    ok(unlabeled.lean === 'Undetermined', '(n) unlabeled committee → Undetermined (the missed-signal case)');
+
+    const labels = new Map([
+      [committeeNameNorm('HARRIS VICTORY FUND'), { committee_name_norm: committeeNameNorm('HARRIS VICTORY FUND'), lean: 'Left' as const, confidence: 90, notes: 'Kamala Harris JFC' }],
+    ]);
+    const labeled = inferLeanFromDonations(scored, { patterns, researcherLabels: labels });
+    ok(labeled.lean === 'Left' && labeled.lean_signals_found, '(n) same donor + committee label → Left recovered');
   }
 
   // (g) Registry-seed parity (DB): the DB patterns must classify identically to the fallback.

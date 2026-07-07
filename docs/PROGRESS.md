@@ -6,6 +6,30 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-07, committee classification — Unit A wiring (ENH-018))
+
+**The constructive payoff of the T3 dig: point Grok at committees, not voters.** Owner spotted a
+confirmed FEC donor to THE LINCOLN PROJECT stuck Undetermined. Measured: **208 of 678 confirmed
+Duval FEC donors (31%)** sit Undetermined because their committee carries no party code and matches
+no pattern (Harris Victory Fund 21, Aaron Bean Team, union PACs, Lincoln Project). Grok can't ID
+anonymous voters but *can* classify public committees trivially — so the fix is committee-level.
+**Filters bug (DEF-011) fixed first** (debounce + decouple-from-poll + latest-wins + live totals).
+**Unit A shipped (the wiring):** the FEC Tier-1 scorer now consults `committee_lean_labels`
+(`inferContributionLean` → label beats pattern; threaded through `scoreFecLookupForVoter` /
+`inferLeanFromDonations` / `run-index-upload`, loaded at the CLI + `match-fec-index` API boundaries).
+Previously FEC ignored labels entirely (state-only) — that was the gap. Federal + state share the
+one name-keyed namespace. Golden **(n)** pins it (unlabeled→Undetermined, labeled→Left). So a re-run
+of `run-fec-index` after labeling now settles the recoverable donors. tsc/lint/build + 34 goldens green.
+
+**Design (owner-approved, all 5):** (1) federal+state shared namespace; (2) agent classifies at
+T1/T2 over the committee census, not T3; (3) agent never overwrites a human label; (4) human
+overrides anything and locks it; (5) on billed accounts the agent *proposes*, a human confirms
+before it settles+bills. **Unit B (next):** migration to add `'agent'` to the source CHECK,
+source-aware `upsertAgentCommitteeLabel`, the Grok committee classifier over the unresolved census
+(**bipartisan corporate PACs → Undetermined, don't manufacture signal**: CSX Good Government 41,
+Realtors, Microsoft), and the billed-account review gate. Then measure recovered settles on Duval
+via `repass-diff`.
+
 ## Where to pick up (continuity note — 2026-07-07, T3/OSINT measured + re-scoped (ENH-016))
 
 **Measured Tier-3 OSINT and found it was doing the wrong job.** Two live runs (owner-approved,

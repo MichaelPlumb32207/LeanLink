@@ -39,6 +39,7 @@ import {
   startArmRun,
 } from '@/lib/evidence/arm-runs';
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
+import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { keepAwakeWhileRunning } from '@/lib/cli/keep-awake';
 
 function loadEnvLocal() {
@@ -133,10 +134,11 @@ async function main() {
     await client.query('BEGIN');
     await client.query(`SELECT set_config('app.current_user', $1, true)`, [userEmail]);
     const patterns = await loadLeanPatterns(client, userEmail);
+    const researcherLabels = await loadResearcherCommitteeLabels(client, userEmail);
     console.log(
       `Lean patterns: ${patterns.meta.rowCount} rows (${patterns.meta.source}` +
         (patterns.meta.invalidCount ? `, ${patterns.meta.invalidCount} invalid skipped` : '') +
-        ')',
+        `) · committee labels: ${researcherLabels.size}`,
     );
     const totalCount = await countEligibleVoters(client, resolvedUploadId!, userEmail);
     const runId = await startArmRun(client, {
@@ -218,6 +220,7 @@ async function main() {
                     snapshots,
                     voter,
                     patterns,
+                    researcherLabels,
                   });
                   totals.processed += 1;
                   if (r.with_hit) totals.with_hits += 1;
