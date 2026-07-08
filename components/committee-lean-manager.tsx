@@ -26,10 +26,14 @@ export function CommitteeLeanManager({
   uploadId,
   open,
   onClose,
+  onStarted,
 }: {
   uploadId: string | null;
   open: boolean;
   onClose: () => void;
+  /** Fired when a background re-fusion is kicked off, so the page refreshes the
+   *  summary and the run appears in the box score without waiting for a poll. */
+  onStarted?: () => void;
 }) {
   const [uncertain, setUncertain] = useState<CommitteeRow[]>([]);
   const [labeled, setLabeled] = useState<CommitteeRow[]>([]);
@@ -181,18 +185,18 @@ export function CommitteeLeanManager({
         body: JSON.stringify({ action: 'refuse_all', upload_id: uploadId }),
       });
       const data = await res.json();
-      if (res.status === 413 && data.error === 'too_large') {
-        setPending(data.pending ?? null);
-        setError(data.hint ?? 'Too many pending voters — use the CLI to re-fuse in bulk.');
-        return;
-      }
       if (!res.ok) throw new Error(data.error ?? 'Re-fuse failed');
-      setUncertain(data.queue?.uncertain ?? []);
-      setLabeled(data.queue?.labeled ?? []);
-      setPending(data.pending ?? null);
-      const n = data.refusion?.voters_refused ?? 0;
-      const m = data.refusion?.committees_processed ?? 0;
-      setSaveNotice(`Re-fused ${n} voter${n === 1 ? '' : 's'} across ${m} committee${m === 1 ? '' : 's'}.`);
+      if (data.started) {
+        const n = data.voters_pending ?? 0;
+        setSaveNotice(
+          `Re-fusion started — booking ${n} voter${n === 1 ? '' : 's'} in the background. Watch progress in the box score above.`,
+        );
+        onStarted?.();
+      } else if (data.alreadyRunning) {
+        setSaveNotice('Re-fusion is already running — watch its progress in the box score above.');
+      } else {
+        setSaveNotice('Nothing pending to re-fuse.');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Re-fuse failed');
     } finally {

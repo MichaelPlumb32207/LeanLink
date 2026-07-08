@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { listUncertainCommittees, countPendingRefusion } from '@/lib/committee-lean/queue';
+import { refusionFlContribForCommittee } from '@/lib/committee-lean/refusion';
 import {
-  refusionFlContribForCommittee,
-  refusionAllPendingForUpload,
-} from '@/lib/committee-lean/refusion';
+  REFUSE_ARM,
+  REFUSE_RUNNER,
+  triggerRefuseWorker,
+} from '@/lib/committee-lean/refuse-runner';
+import { startArmRun } from '@/lib/evidence/arm-runs';
 import { upsertCommitteeLeanLabel, deleteCommitteeLeanLabel } from '@/lib/committee-lean/store';
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { withUserDb } from '@/lib/db';
@@ -12,12 +15,9 @@ import type { LeanLabel } from '@/lib/enrichment/types';
 
 const LEAN_OPTIONS: LeanLabel[] = ['Left', 'Right', 'Independent', 'Undetermined'];
 
-// Re-fusion re-matches FL contributions per voter (the 14.2M-row lookup), so the
-// bulk "Re-fuse now" is ~0.5–1s/voter. Give it room, but guard large backlogs to
-// the CLI (mirrors the free-pass >5,000 → CLI pattern). Normal pending is ~0
-// because manual labeling + `classify-committees --apply` re-fuse inline.
+// The route just kicks off work; the heavy per-voter re-fusion runs in the
+// background worker (refuse-worker route), tracked live in the box score (D-039).
 export const maxDuration = 120;
-const REFUSE_ALL_MAX_VOTERS = 150;
 
 export async function GET(request: Request) {
   try {
@@ -61,28 +61,36 @@ export async function POST(request: Request) {
     };
 
     // Bulk "Re-fuse now" — book every labeled-but-unfused voter for this upload.
+    // Kicks off a background arm_run (no size cap); progress shows in the box
+    // score, same as any other arm. The button returns immediately (D-039).
     if (body.action === 'refuse_all') {
-      const result = await withUserDb(userEmail, async (client) => {
-        const before = await countPendingRefusion(client, userEmail, body.upload_id ?? null);
-        if (before.voters_pending > REFUSE_ALL_MAX_VOTERS) {
-          return {
-            error: 'too_large' as const,
-            pending: before,
-            hint: `${before.voters_pending} voters pending — over the ${REFUSE_ALL_MAX_VOTERS} inline limit. Run: npx tsx scripts/classify-committees.ts --county <XXX> --apply (re-fuses in bulk), or label committees incrementally.`,
-          };
-        }
-        const refusion = await refusionAllPendingForUpload(client, {
-          user_id: userEmail,
-          upload_id: body.upload_id ?? null,
-        });
-        const queue = await listUncertainCommittees(client, userEmail, body.upload_id ?? null);
-        const pending = await countPendingRefusion(client, userEmail, body.upload_id ?? null);
-        return { refusion, queue, pending };
-      });
-      if ('error' in result) {
-        return NextResponse.json(result, { status: 413 });
+      if (!body.upload_id) {
+        return NextResponse.json({ error: 'upload_id is required' }, { status: 400 });
       }
-      return NextResponse.json(result);
+      const uploadId = body.upload_id;
+      const kickoff = await withUserDb(userEmail, async (client) => {
+        const before = await countPendingRefusion(client, userEmail, uploadId);
+        if (before.voters_pending === 0) {
+          return { started: false as const, alreadyRunning: false, voters_pending: 0 };
+        }
+        const runId = await startArmRun(client, {
+          uploadId,
+          userId: userEmail,
+          arm: REFUSE_ARM,
+          runner: REFUSE_RUNNER,
+          totalCount: before.voters_pending,
+        });
+        return {
+          started: runId != null,
+          runId,
+          alreadyRunning: runId == null, // startArmRun returns null when one is active
+          voters_pending: before.voters_pending,
+        };
+      });
+      if (kickoff.started && kickoff.runId) {
+        void triggerRefuseWorker(kickoff.runId);
+      }
+      return NextResponse.json(kickoff);
     }
 
     if (!body.committee_name?.trim()) {

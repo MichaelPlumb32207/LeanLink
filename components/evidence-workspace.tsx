@@ -418,6 +418,7 @@ export function EvidenceWorkspace({
         uploadId={uploadId}
         open={committeeManagerOpen}
         onClose={() => setCommitteeManagerOpen(false)}
+        onStarted={() => void refreshSummary()}
       />
 
       {(error ?? actionError) && (

@@ -128,15 +128,15 @@ export async function refusionFlContribForCommittee(
 }
 
 /**
- * Re-fuse every voter behind a labeled committee whose fusion is still
- * Undetermined and eligible (the "Re-fuse now" bulk action). Selects the
- * labeled committees that actually have pending voters, then loops the vetted
- * per-committee re-fuse over each. Bounded to committees with pending work.
+ * The labeled committees that still have pending (Undetermined + eligible) voters
+ * behind them — the work-list for the "Re-fuse now" bulk action. Captured once
+ * and processed single-pass (a genuinely-conflicted voter can stay Undetermined
+ * after re-fusion, so re-querying mid-run would loop on it).
  */
-export async function refusionAllPendingForUpload(
+export async function listPendingRefusionCommittees(
   client: PoolClient,
   params: { user_id: string; upload_id?: string | null },
-): Promise<{ voters_refused: number; committees_processed: number }> {
+): Promise<string[]> {
   const qp: string[] = [params.user_id];
   let uploadFilter = '';
   if (params.upload_id) {
@@ -160,15 +160,30 @@ export async function refusionAllPendingForUpload(
        AND ${CLAIM_ELIGIBLE_PREDICATE}`,
     qp,
   );
+  return rows.map((r) => r.committee_name);
+}
+
+/**
+ * Re-fuse every voter behind a labeled committee whose fusion is still
+ * Undetermined and eligible (the "Re-fuse now" bulk action) — single-pass over
+ * the captured work-list. Used inline by manual saves + `classify --apply`; the
+ * background worker (refuse-worker route) drives the same per-committee re-fuse
+ * with heartbeats for larger backlogs.
+ */
+export async function refusionAllPendingForUpload(
+  client: PoolClient,
+  params: { user_id: string; upload_id?: string | null },
+): Promise<{ voters_refused: number; committees_processed: number }> {
+  const committees = await listPendingRefusionCommittees(client, params);
 
   let voters_refused = 0;
-  for (const r of rows) {
+  for (const committee_name of committees) {
     const out = await refusionFlContribForCommittee(client, {
       user_id: params.user_id,
-      committee_name: r.committee_name,
+      committee_name,
       upload_id: params.upload_id ?? null,
     });
     voters_refused += out.voters_refused;
   }
-  return { voters_refused, committees_processed: rows.length };
+  return { voters_refused, committees_processed: committees.length };
 }

@@ -6,6 +6,24 @@ current as design shifts.
 
 ---
 
+## D-039 · "Re-fuse now" is a background job — no size cap, no CLI, live in the box score
+**Decision (2026-07-08, owner — found in prod validation):** Clicking "Re-fuse now" on a backlog
+over 150 voters hit an inline cap and showed a message pointing at
+`classify-committees.ts --apply` — which fires **Grok on the whole unlabeled census** (real cost +
+unreviewed agent labels) as a side effect, when all the user wants is to re-fuse *already-labeled*
+committees. Two problems: a legit serverless-time cap (per-voter re-fusion ~0.75s × 249 ≈ 187s >
+the 120s route budget) and a **misleading, spend-y CLI hint**. Fix: make it a **background arm_run**
+like every other long arm (the app's own live-progress pattern). The `refuse_all` route now creates
+a `committee_refuse` arm_run and fire-and-forgets `triggerRefuseWorker`; the worker
+(`refuse-worker/[runId]`, `maxDuration=800`) processes the pending committees single-pass with
+per-committee commits + heartbeats (progress in the box score), self-chaining past the budget via
+`arm_runs.meta.processed_committees` (resume-safe; also stops a genuinely-conflicted committee — one
+that stays Undetermined after re-fusion — from looping). Removed the 150 cap and the CLI hint
+entirely; the button just works at any size, Grok-free. New: `lib/committee-lean/refuse-runner.ts`,
+`app/api/committee-lean/refuse-worker/[runId]/route.ts`, `listPendingRefusionCommittees`. No
+migration (reuses `arm_runs`, migration 014). Not an ENH-019 regression — pre-existing ENH-018-UI
+behavior surfaced during the D-036/037/038 prod validation.
+
 ## D-038 · Innings are scoring arms only; identity/context arms nest or footnote
 **Decision (2026-07-08, owner):** In the box-score metaphor an inning is an *at-bat* — a chance
 to put a lean on the board. Arms that can never score don't get an inning row (you wouldn't play

@@ -90,8 +90,14 @@ Grok reasoning and supports edit/delete (ENH-018-UI). **Applying a label only re
 after re-fusion:** manual saves and DELETE re-fuse inline (`refusionFlContribForCommittee`);
 `classify --apply` re-fuses both arms (FEC re-score + `refusionAllPendingForUpload` for FL). A
 labeled-but-unfused backlog surfaces as the box-score `refuse_committees` opportunity /
-"Re-fuse now" (`countPendingRefusion`) — bulk re-fuse is per-voter FL re-matching (~0.5–1s each),
-so it's guarded at 150 voters inline (over that → CLI).
+"Re-fuse now" (`countPendingRefusion`) — bulk re-fuse is per-voter FL re-matching (~0.5–1s each).
+**"Re-fuse now" runs as a background arm_run (D-039):** the `refuse_all` route creates a
+`committee_refuse` arm_run (no size cap) + fires `triggerRefuseWorker`; the worker
+(`app/api/committee-lean/refuse-worker/[runId]`, `maxDuration=800`) processes the pending
+committees single-pass (`listPendingRefusionCommittees` → `refusionFlContribForCommittee`),
+committing + heartbeating per committee so progress shows live in the box score, self-chaining
+past the budget (processed committees tracked in `arm_runs.meta` — resume-safe + won't loop on a
+genuinely-conflicted committee). The old 150-voter inline cap + CLI hint are gone.
 
 **Re-pass as a product op** (ENH-010): a re-score with current logic self-cleans stale
 events (`deleteVoterArmEvents`, DEF-009) and reports a before/after delta. Bracket any

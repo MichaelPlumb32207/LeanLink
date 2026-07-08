@@ -6,6 +6,21 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, "Re-fuse now" is a background job (D-039))
+
+**Prod validation of the D-036/037/038 push found a real friction: "Re-fuse now" on 249 pending
+(>150) hit the inline cap and pointed the user at `classify --apply` — which spends Grok on the
+unlabeled census as a side effect.** Fixed by making bulk re-fuse a **background arm_run** (owner
+chose this over a CLI stopgap): `refuse_all` route creates a `committee_refuse` arm_run + fires
+`triggerRefuseWorker`; worker (`app/api/committee-lean/refuse-worker/[runId]`, maxDuration 800)
+processes pending committees single-pass with per-committee commits + heartbeats, self-chaining via
+`arm_runs.meta.processed_committees`. Progress shows live in the box score (RUN_ARM_LABELS gets
+`committee_refuse` → "Committee re-fusion"); the manager's button returns immediately with "started
+— watch the box score" and fires `onStarted` → `refreshSummary`. Removed the 150 cap + CLI hint.
+New: `lib/committee-lean/refuse-runner.ts`, the worker route, `listPendingRefusionCommittees`.
+Rationale = **D-039**. No migration (reuses arm_runs). Gated green; **not yet pushed** —
+owner-approved, ready to push + validate in prod (the 249 Duval pending is the live test).
+
 ## Where to pick up (continuity note — 2026-07-08, innings = scoring arms only (D-038) + click-to-filter)
 
 **Box-score reclassified so the baseball metaphor is honest (owner insight): an inning is an

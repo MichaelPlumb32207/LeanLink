@@ -17,6 +17,7 @@ const RUN_ARM_LABELS: Record<string, string> = {
   fl_contrib: 'FL contrib',
   sunbiz: 'Sunbiz',
   osint: 'OSINT',
+  committee_refuse: 'Committee re-fusion',
 };
 
 const CLI_RUNNERS = new Set(['fec_index_cli', 'free_pass_cli']);
