@@ -175,11 +175,16 @@ number sourced off anything but `buildBoxScore`/`summary`. **Scoreboard single-s
 (D-036):** one home per number, one term per concept — the line-score row owns the per-arm funnel
 stats (the panel does NOT restate them), the top bar owns the aggregate, run displays use the
 board's vocabulary (**ID hits** / **lean signals** / **raw candidates**, never
-confirmed/hits/leans), and `Conflicted`/`Accepted` render on the top bar only when > 0. Phase 2
-adds `lib/guidance.ts` (a guide rail keyed off inning **state**) + `scripts/smoke-guidance.ts` and
-retires `components/pipeline-scoreboard.tsx`/`lib/pipeline-status.ts`/`components/pipeline-step.tsx`.
-The live-API FEC sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot
-into Neon (`scripts/import-fec-indiv.ts`).
+confirmed/hits/leans), and `Conflicted`/`Accepted` render on the top bar only when > 0.
+**No guide rail (D-037):** a TurboTax-style guide rail was built and screen-read, then removed —
+its linear spine duplicated the line score and its "NEXT UP" banner duplicated the ON BASE strip
+(a D-036 violation). Navigation lives in the surfaces that already exist: **the line score is the
+progress view, the ON BASE strip is the next-cheap-win prompt, the arm panels are the actions.**
+The old **pipeline cards are also retired** — `components/pipeline-scoreboard.tsx`,
+`lib/pipeline-status.ts`, `components/pipeline-step.tsx` deleted, steps-1–5 buttons gone (their
+actions live in the arm panels). Don't re-add a linear pipeline/wizard surface. The live-API FEC
+sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot into Neon
+(`scripts/import-fec-indiv.ts`).
 
 ## Conventions & gotchas
 

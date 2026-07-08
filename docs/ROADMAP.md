@@ -52,14 +52,16 @@ started · **Someday** = conditional / only if a trigger fires.
    `voter_uploads`, hide-without-losing-ledger, ideally bulk), beyond the bare DELETE endpoint.
 4. **Name a pasted list** — a "List name" input on generic intake so pastes stop landing as
    `filename = 'pasted-list'` (route already accepts `filename`); improves inventory + deliverable naming.
-5. **Guided evidence workbench (ENH-019)** — **Phase 1 shipped 2026-07-08** (reviewed by Opus,
-   owner chose all three phases): clickable line-score innings now expand into per-arm detail
-   panels (funnel explained, run history, that arm's actions absorbed from the steps-1–5 list).
-   Full build spec: [`plans/ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md).
-   **Still to come:** a TurboTax-style guide rail replaces the 5 pipeline cards — done stages
-   show measured results, one recommended next move at a time (committee opportunities interrupt
-   the tier cascade as cheap wins) — then review/deliver stages + polish.
-   Presentation-only: no migrations, no new routes, single polling loop preserved (D-029).
+5. **Guided evidence workbench (ENH-019)** — **Phase 1 + the D-036 scoreboard cleanup shipped
+   2026-07-08** (reviewed by Opus): clickable line-score innings expand into per-arm detail panels;
+   the box score enforces single-source discipline (funnel removed, vocab unified, Conflicted/
+   Accepted non-zero-only). **Phase 2's guide rail was built and ditched on the owner's screen-read
+   (D-037)** — it duplicated the line score + ON BASE strip and its linear metaphor mis-signalled;
+   the pipeline cards it would have replaced are retired anyway (actions live in the arm panels).
+   **Still to come — Phase 3:** Review stage (wire the conflict filter, move the waterfall controls
+   in) + Deliver stage recap + mobile/theme/keyboard polish. Full build spec:
+   [`plans/ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md) (Phase 2 section
+   superseded by D-037). Presentation-only: no migrations, no new routes, single polling loop (D-029).
    Feeds the end-to-end client walkthrough.
 
 ## Resilience — recognize · adapt · deliver (adopted 2026-07-06, owner)

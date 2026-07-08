@@ -4,18 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArmDetailPanel } from '@/components/arm-detail-panel';
 import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
-import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
 import { LineScore } from '@/components/box-score';
-import { PipelineFlowTrack } from '@/components/pipeline-scoreboard';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { confirmLongRerun, useEvidenceActions } from '@/components/use-evidence-actions';
-import { ballotFavorsLabel } from '@/lib/ballot-favors';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
-import {
-  buildPipelineSteps,
-  suggestNextStep,
-  type PipelineStepState,
-} from '@/lib/pipeline-status';
 
 type VoterListRow = {
   id: string;
@@ -86,8 +78,6 @@ type EvidenceUploadMeta = {
   row_count: number;
   ballot_favors?: string | null;
 };
-
-type Tier0Action = 'match-fl-contrib' | 'match-sunbiz-entity' | 'match-tier0-all' | 'match-fec-index';
 
 export function EvidenceWorkspace({
   uploadId,
@@ -289,69 +279,14 @@ export function EvidenceWorkspace({
   // Any long-running action (evidence arm OR review/re-enroll) disables the rest.
   const anyBusy = syncing || actionBusy;
 
-  const pipelineSteps = useMemo(
-    () =>
-      summary
-        ? buildPipelineSteps(summary, { tier0_running: syncing })
-        : buildPipelineSteps({
-            upload_id: uploadId,
-            voter_count: upload?.row_count ?? 0,
-            arms: {},
-            fusion: {
-              fused_count: 0,
-              provisional_count: 0,
-              conflicted_count: 0,
-              undetermined_count: 0,
-              by_lean: {},
-            },
-            settled: { by_tier: {}, by_arm: {}, total: 0 },
-            review: { accepted_count: 0, re_enrolled_count: 0 },
-            waterfall: {
-              eligible_remaining: upload?.row_count ?? 0,
-              eligible_by_tier: {},
-              projected: null,
-            },
-            billing: null,
-            fec_sweep: null,
-            runs: { active: [], recent: [] },
-            committees: {
-              unlabeled_count: 0,
-              voters_affected: 0,
-              pending_refusion_voters: 0,
-              pending_refusion_committees: 0,
-            },
-          }),
-    [summary, syncing, uploadId, upload?.row_count],
-  );
-
-  const suggestedStep = useMemo(() => suggestNextStep(pipelineSteps), [pipelineSteps]);
-
-  const runTier0Action = async (action: Tier0Action, stepId: 4 | 5, stepTitle: string) => {
-    const step = pipelineSteps.find((s) => s.id === stepId);
-    if (step?.state === 'locked') return;
-    if (step?.state === 'complete' && !confirmLongRerun(stepTitle)) return;
-    await runAction(action);
-  };
-
-  const tier0ButtonClass = (stepState: PipelineStepState, stepId: 4 | 5) => {
-    const suggested = suggestedStep === stepId;
-    const base =
-      'rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50';
-    if (stepState === 'locked') return `${base} border-white/10 opacity-40 cursor-not-allowed`;
-    if (stepState === 'complete' && !suggested) {
-      return `${base} border-emerald-400/40 bg-emerald-500/10 opacity-85`;
-    }
-    if (suggested) return `${base} border-amber-400/70 bg-amber-500/20 ring-1 ring-amber-400/50`;
-    return `${base} border-amber-400/50 bg-amber-500/10`;
-  };
-
   return (
     <section className="panel rounded-2xl p-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Evidence accumulator</h2>
           <p className="mt-1 text-sm opacity-75">
-            Run each enrichment step, then review fused lean and evidence per voter below.
+            Click any inning to run its arm and see its detail; review fused lean per voter below.
+            {upload?.filename ? ` · ${upload.filename}` : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -374,15 +309,6 @@ export function EvidenceWorkspace({
       </div>
 
       <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide opacity-60">Pipeline</h3>
-          {suggestedStep != null && (
-            <p className="text-xs text-amber-200/90">
-              Next: step {suggestedStep} — long runs require confirmation if already complete
-            </p>
-          )}
-        </div>
-        <PipelineFlowTrack steps={pipelineSteps} suggestedStep={suggestedStep} />
         {summary && (
           <LineScore
             summary={summary}
@@ -410,10 +336,11 @@ export function EvidenceWorkspace({
           />
         )}
         {summary && (
-          <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs space-y-2">
-            <span className="font-semibold uppercase tracking-wide opacity-60">
-              Waterfall controls
-            </span>
+          <details className="rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs">
+            <summary className="cursor-pointer font-semibold uppercase tracking-wide opacity-60">
+              Waterfall controls (advanced)
+            </summary>
+            <div className="mt-2 space-y-2">
             {summary.waterfall.projected && (
               <p className="opacity-75">
                 Max exposure if every remaining voter settles at the next arm: Tier 1 (FEC) $
@@ -468,110 +395,9 @@ export function EvidenceWorkspace({
                 </button>
               )}
             </div>
-          </div>
+            </div>
+          </details>
         )}
-        <div className="grid gap-3 text-sm">
-          <PipelineStepRow step={1}>
-            <p className="text-xs opacity-85">
-              <strong>Upload file</strong> — registration extract (+ optional history)
-              {upload ? ` · ${upload.filename}` : ''}
-            </p>
-          </PipelineStepRow>
-          <PipelineStepRow step={2}>
-            <p className="text-xs opacity-85">
-              <strong>Extract NPAs</strong> — NPA + Active at ingest
-              {upload ? ` · ${upload.row_count} voters` : ''}
-              {upload?.ballot_favors
-                ? ` · scenario ${ballotFavorsLabel(upload.ballot_favors)}`
-                : ''}
-            </p>
-          </PipelineStepRow>
-          <PipelineStepRow step={3}>
-            <p className="text-xs opacity-85">
-              <strong>Federal FEC match</strong> — expand the FEC inning in the line score above to
-              run it against the local FEC bulk index.
-            </p>
-          </PipelineStepRow>
-          <div className="flex flex-wrap gap-2 pt-1 pl-[calc(1.35rem+0.625rem)]">
-            {(() => {
-              const step4 = pipelineSteps.find((s) => s.id === 4)!;
-              const step4Complete = step4.state === 'complete';
-              return (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void runTier0Action('match-fl-contrib', 4, 'FL contributors (person)')
-                  }
-                  disabled={anyBusy || step4.state === 'locked'}
-                  title={
-                    step4.state === 'locked'
-                      ? 'Import FEC into the ledger first (step 3)'
-                      : 'FL DOS bulk index — person-name contributions + household anchor'
-                  }
-                  className={tier0ButtonClass(step4.state, 4)}
-                >
-                  {busyAction === 'match-fl-contrib' ? (
-                    'Running…'
-                  ) : step4Complete ? (
-                    <>
-                      <PipelineStepButtonLabel step={4} label="Complete ✓ · Re-run FL contributors" />
-                    </>
-                  ) : (
-                    <PipelineStepButtonLabel step={4} label="Match FL contributors (person)" />
-                  )}
-                </button>
-              );
-            })()}
-            {(() => {
-              const step5 = pipelineSteps.find((s) => s.id === 5)!;
-              const step5Complete = step5.state === 'complete';
-              return (
-                <button
-                  type="button"
-                  onClick={() =>
-                    void runTier0Action('match-sunbiz-entity', 5, 'Sunbiz → FL entity')
-                  }
-                  disabled={anyBusy || step5.state === 'locked'}
-                  title={
-                    step5.state === 'locked'
-                      ? 'Complete step 4 (FL contributors) first'
-                      : 'Sunbiz officer match, then entity FL contributions (layer 2)'
-                  }
-                  className={tier0ButtonClass(step5.state, 5)}
-                >
-                  {busyAction === 'match-sunbiz-entity' ? (
-                    'Running…'
-                  ) : step5Complete ? (
-                    <PipelineStepButtonLabel
-                      step={5}
-                      label="Complete ✓ · Re-run Sunbiz → FL entity"
-                    />
-                  ) : (
-                    <PipelineStepButtonLabel step={5} label="Sunbiz → FL entity contributions" />
-                  )}
-                </button>
-              );
-            })()}
-            <button
-              type="button"
-              onClick={() => void runAction('match-fec-index')}
-              disabled={anyBusy}
-              title="Tier 1 via the local FEC bulk index (no API, no throttle). Uploads over 5,000 voters: use scripts/run-fec-index.ts instead."
-              className="rounded-lg border border-emerald-300/50 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {busyAction === 'match-fec-index' ? 'Running…' : 'Match FEC (local index)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setCommitteeManagerOpen(true)}
-              className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
-            >
-              Committee lean labels
-            </button>
-          </div>
-          {/* Unlabeled-committee counts render once, in the line score's
-              "On base" strip (BoxScoreOpportunity) — not here. */}
-        </div>
       </div>
 
       <CommitteeLeanManager

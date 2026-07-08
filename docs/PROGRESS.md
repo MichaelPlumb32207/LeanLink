@@ -6,6 +6,29 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, ENH-019 Phase 2 guide rail built then DITCHED (D-037))
+
+**A TurboTax guide rail was built, screen-read on the live Duval board, and removed — never
+pushed.** The owner's read nailed it: the linear spine duplicated the line score (same arms as
+chips, even mislabeled) and the "NEXT UP" banner duplicated the ON BASE strip (both showed "249
+voters behind labeled committees" — a D-036 violation I'd introduced by adding the rail without
+retiring ON BASE). Worse, the linear metaphor made the highest-value committee re-fusion read as a
+*regression* — "NEXT UP · Committees" after every arm was COMPLETE looked like being sent
+backward, when the logic just meant "best next click." Metaphor fought logic. Full rationale in
+**D-037**.
+
+**Removed** `components/guide-rail.tsx`, `lib/guidance.ts`, `scripts/smoke-guidance.ts`. The
+workspace is now **line score (clickable innings → arm panels) + ON BASE strip (committee
+opportunities + Re-fuse/Label) + waterfall controls (`<details>` advanced) + voter pane** — the
+line score IS the progress view, the ON BASE strip IS the next-cheap-win prompt, the arm panels
+ARE the actions. No linear pipeline/wizard surface (don't re-add one). The old pipeline cards +
+steps-1–5 buttons stay retired (their actions live in the arm panels since Phase 1). The D-036
+scoreboard cleanup is unaffected and already pushed.
+
+**Lesson:** a guidance layer only earns its place if it says something the scoreboard doesn't — on
+a non-linear flow for a single power-user, it didn't. **Next:** Phase 3 — Review stage (wire the
+conflict filter, move the waterfall controls in) + Deliver recap + mobile/theme/keyboard polish.
+
 ## Where to pick up (continuity note — 2026-07-08, scoreboard single-source cleanup (D-036) — shipped on top of Phase 1)
 
 **Phase 1 is pushed to main; this cleanup is the follow-up commit.** Owner walked the live Duval

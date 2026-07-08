@@ -291,9 +291,10 @@ using Grok on *committees* (public, finite, knowable), not on private voters.
 
 ## UC-21 — Guided workbench navigation (ENH-019) 🟡
 **As** the operator, **I can** click any inning in the line score to expand that arm's details
-and run its actions in place — no hunting through a scattered button list — and (Phase 2) let a
-guide rail propose the single next move. (Phase 1 shipped 2026-07-08: clickable innings + arm
-detail panels. Phase 2 = guide rail; Phase 3 = review/deliver stages.)
+and run its actions in place — no hunting through a scattered button list. (Phase 1 shipped
+2026-07-08: clickable innings + arm detail panels, plus the D-036 scoreboard cleanup. Phase 2's
+guide rail was built and **removed** on the owner's screen-read — D-037; navigation lives in the
+line score + ON BASE strip + arm panels, no linear spine. Phase 3 = review/deliver stages.)
 
 | ID | Test | Expected |
 |---|---|---|
@@ -307,3 +308,4 @@ detail panels. Phase 2 = guide rail; Phase 3 = review/deliver stages.)
 | UC-21·E7 | Old step buttons still work | Steps-1–5 buttons remain this phase and share the one `use-evidence-actions` hook (same endpoints, same 5,000/complete-rerun guards, same confirm prompt). |
 | UC-21·E8 | Game log = schedule, not a second line score (D-036) | A finished run reads "✓ completed · walked N rows · cli · date" + **one** off-board diagnostic ("N raw candidates before the identity gate"); it never repeats the row's ID hits / lean signals. Run vocab matches the board: **ID hits** (not "confirmed"), **lean signals** (not "leans"), **raw candidates** (not "hits"). |
 | UC-21·E9 | Conflicted / Accepted are non-zero-only (D-036) | The top bar shows `Conflicted` and `Accepted` **only when > 0** (both hidden on a fresh/auto-settled upload). Records-in · leans-settled · still-in-research are always shown. Committee counts render once, in the ON BASE strip — the fl_contrib panel shows only the "Label committees" action, no count. |
+| UC-21·E10 | No guide rail / no pipeline cards (D-037) | The workspace has **no** linear pipeline spine or step cards — a guide rail was tried and removed on the owner's screen-read (it duplicated the line score + ON BASE strip; the linear metaphor mis-signalled). Navigation is: the **line score** (progress + clickable innings), the **ON BASE strip** (committee opportunities + Re-fuse/Label), and the **arm panels** (actions). Every arm/committee/deliver action stays reachable without the rail. |

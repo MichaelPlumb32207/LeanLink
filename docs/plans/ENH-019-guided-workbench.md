@@ -1,6 +1,12 @@
 # ENH-019 — Guided Evidence Workbench (build plan)
 
-**Status:** PLANNED 2026-07-08 · not started · authored by Claude (Fable) for hand-off to a
+> **STATUS UPDATE 2026-07-08:** Phase 1 (clickable innings + arm panels) shipped, plus the D-036
+> scoreboard single-source cleanup. **Phase 2 (the guide rail, §3–§4.2 below) was built and then
+> removed on the owner's screen-read — see D-037.** It duplicated the line score + ON BASE strip
+> and its linear metaphor mis-signalled. Do NOT re-implement the guide rail; the §4.1 arm panels
+> and §4.3 Review/Deliver work still stand. This spec is kept as the historical build record.
+
+**Status:** PLANNED 2026-07-08 · authored by Claude (Fable) for hand-off to a
 smaller builder model. Owner: Michael.
 **Read first:** root `CLAUDE.md`, `docs/CLAUDE.md` (architecture + gotchas), this file.
 **Prime directive for the builder:** this is a *presentation* refactor. You will not touch

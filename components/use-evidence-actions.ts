@@ -16,8 +16,8 @@ export type EvidenceActionId =
 
 /**
  * Confirm a re-run of an arm that already completed on this upload. Lives here
- * (not in the Phase-2-doomed pipeline-status.ts) so the guard survives that
- * deletion — ENH-019 amendment 4.
+ * (the old pipeline-status.ts was deleted in ENH-019 Phase 2) so the guard
+ * survives — ENH-019 amendment 4.
  */
 export function confirmLongRerun(label: string): boolean {
   return window.confirm(

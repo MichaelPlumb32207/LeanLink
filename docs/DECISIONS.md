@@ -6,6 +6,29 @@ current as design shifts.
 
 ---
 
+## D-037 · No guide rail — navigation lives in the line score + ON BASE strip, not a linear spine
+**Decision (2026-07-08, owner screen-read):** ENH-019 Phase 2 built a TurboTax-style guide rail
+(a horizontal stage spine + a "NEXT UP" banner, from a pure `lib/guidance.ts`). On the live Duval
+board the owner rejected it and it was removed **before any push**. Why it failed:
+- **The spine duplicated the line score** — same arms (FEC/FL/Sunbiz/OSINT) as chips instead of
+  rows, even mislabeled ("FEC federal" vs the row's "FEC donations"). A worse copy of the innings.
+- **The banner duplicated the ON BASE strip** — both showed the same "249 voters behind labeled
+  committees" number. A direct D-036 (single-source) violation.
+- **The linear metaphor mis-signalled.** The spine reads left-to-right as sequential progress, but
+  the flow isn't linear — it's "run the tier cascade, then chase opportunities." So a committee
+  re-fusion (the highest-value *available* action) surfaced as "NEXT UP · Committees" after every
+  arm was COMPLETE, which read as a *regression* ("why send me back?") even though it was the best
+  next click. Metaphor (linear pipeline) fought logic (priority-based next action).
+
+**Resolution:** navigation is the surfaces that already exist — **the line score is the progress
+view, the ON BASE strip is the next-cheap-win prompt (with its own Re-fuse/Label actions), the arm
+panels are the actions.** No linear pipeline/wizard surface. The pipeline cards it was meant to
+replace are *also* retired (their actions moved into the arm panels in Phase 1). Removed
+`components/guide-rail.tsx`, `lib/guidance.ts`, `scripts/smoke-guidance.ts`. Supersedes the
+ENH-019 plan's Phase 2 (the guide rail); Phase 3 (Review/Deliver + polish) still stands. Lesson:
+a guidance layer only earns its place if it says something the scoreboard doesn't — for a
+power-user, single-operator tool over a non-linear flow, it didn't.
+
 ## D-036 · Scoreboard single-source discipline — one home per number, one term per concept
 **Decision (2026-07-08, owner):** The box score is a *scoreboard*, and a scoreboard never
 re-reports the same statistic in two places or renames it — the only allowed repetition is
