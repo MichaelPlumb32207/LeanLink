@@ -6,6 +6,7 @@
  * numbers come from UploadEvidenceSummary via buildBoxScore; actions stay with
  * the pipeline controls in the evidence workspace.
  */
+import { Fragment, type ReactNode } from 'react';
 import { buildBoxScore, type BoxScoreInning } from '@/lib/box-score';
 import type { ArmRunSummary, UploadEvidenceSummary } from '@/lib/evidence/types';
 
@@ -133,7 +134,7 @@ export function CurrentInning({ runs }: { runs: ArmRunSummary[] }) {
   );
 }
 
-function RunStrip({ run }: { run: ArmRunSummary }) {
+export function RunStrip({ run }: { run: ArmRunSummary }) {
   const total = run.total_count;
   const pct = total > 0 ? Math.max(2, Math.round((run.processed_count / total) * 100)) : 2;
 
@@ -196,13 +197,23 @@ function RunStrip({ run }: { run: ArmRunSummary }) {
 export function LineScore({
   summary,
   onOpportunityAction,
+  selectedArm,
+  onSelectArm,
+  renderDetail,
 }: {
   summary: UploadEvidenceSummary;
   /** Maps an opportunity id to a UI action (e.g. open the committee manager). */
   onOpportunityAction?: (id: string) => void;
+  /** Currently expanded arm row (one at a time). */
+  selectedArm?: string | null;
+  /** Toggle selection; enables the clickable-row affordance when provided. */
+  onSelectArm?: (arm: string | null) => void;
+  /** Renders the expanded detail body beneath the selected row. */
+  renderDetail?: (arm: string) => ReactNode;
 }) {
   const { innings, supporting, opportunities } = buildBoxScore(summary);
   const dash = <span className="opacity-40">—</span>;
+  const selectable = !!onSelectArm;
   return (
     <div className="rounded-lg border border-white/10 bg-black/25 p-3">
       <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-wide opacity-60">
@@ -223,36 +234,74 @@ export function LineScore({
             </tr>
           </thead>
           <tbody>
-            {innings.map((inning) => (
-              <tr key={inning.arm} className="border-t border-white/10">
-                <td className="py-1.5 pr-2 tabular-nums opacity-70">T{inning.tier}</td>
-                <td className="py-1.5 pr-2 font-medium">{inning.label}</td>
-                <td className="py-1.5 pr-2 text-right tabular-nums">
-                  {nf.format(inning.eligible_in)}
-                </td>
-                <td className="py-1.5 pr-2 text-right tabular-nums">
-                  {inning.state === 'not_run' ? dash : nf.format(inning.attempted)}
-                </td>
-                <td className="py-1.5 pr-2 text-right tabular-nums">
-                  {inning.state === 'not_run' ? dash : nf.format(inning.identity_hits)}
-                </td>
-                <td className="py-1.5 pr-2 text-right tabular-nums">
-                  {inning.state === 'not_run' ? dash : nf.format(inning.lean_signals)}
-                </td>
-                <td className="py-1.5 pr-2 text-right tabular-nums text-emerald-300">
-                  {inning.state === 'not_run' && inning.settled_here === 0
-                    ? dash
-                    : nf.format(inning.settled_here)}
-                </td>
-                <td className="py-1.5">
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${INNING_STATE_STYLES[inning.state]}`}
+            {innings.map((inning) => {
+              const selected = selectable && selectedArm === inning.arm;
+              const toggle = () => onSelectArm?.(selected ? null : inning.arm);
+              return (
+                <Fragment key={inning.arm}>
+                  <tr
+                    className={`border-t border-white/10 ${
+                      selectable ? 'cursor-pointer hover:bg-white/5' : ''
+                    } ${selected ? 'bg-white/5' : ''}`}
+                    {...(selectable
+                      ? {
+                          role: 'button',
+                          tabIndex: 0,
+                          'aria-expanded': selected,
+                          onClick: toggle,
+                          onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggle();
+                            }
+                          },
+                        }
+                      : {})}
                   >
-                    {INNING_STATE_LABELS[inning.state]}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                    <td className="py-1.5 pr-2 tabular-nums opacity-70">T{inning.tier}</td>
+                    <td className="py-1.5 pr-2 font-medium">
+                      {selectable && (
+                        <span className="mr-1 inline-block w-3 opacity-60" aria-hidden>
+                          {selected ? '▾' : '▸'}
+                        </span>
+                      )}
+                      {inning.label}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">
+                      {nf.format(inning.eligible_in)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">
+                      {inning.state === 'not_run' ? dash : nf.format(inning.attempted)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">
+                      {inning.state === 'not_run' ? dash : nf.format(inning.identity_hits)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">
+                      {inning.state === 'not_run' ? dash : nf.format(inning.lean_signals)}
+                    </td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums text-emerald-300">
+                      {inning.state === 'not_run' && inning.settled_here === 0
+                        ? dash
+                        : nf.format(inning.settled_here)}
+                    </td>
+                    <td className="py-1.5">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${INNING_STATE_STYLES[inning.state]}`}
+                      >
+                        {INNING_STATE_LABELS[inning.state]}
+                      </span>
+                    </td>
+                  </tr>
+                  {selected && renderDetail && (
+                    <tr>
+                      <td colSpan={8} className="p-0">
+                        {renderDetail(inning.arm)}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -166,6 +166,15 @@ The line-score **STATE** badge is derived from the arm's **run lifecycle**
 for a hit-only arm like Sunbiz whose event count is far below the eligible pool (DEF-010);
 PARTIAL means a genuinely interrupted (cancelled/failed) run. PROCESSED shows
 `max(run.processed_count, voters_touched)`.
+**Guided workbench (ENH-019, in progress):** line-score rows are clickable and expand into
+`components/arm-detail-panel.tsx` — role/explainer from the pure registry
+`lib/evidence/arm-details.ts`, a funnel sentence off the `BoxScoreInning`, the arm's run
+history (reuses `RunStrip`), and the arm's actions. Every evidence-action POST goes through the
+one shared hook `components/use-evidence-actions.ts` (which also owns `confirmLongRerun`); the
+`FecSweepPanel` fallback lives inside the FEC panel. The panels are **pure renders** — no new
+fetch/poll, no summary number sourced off anything but `buildBoxScore`/`summary`. Phase 2 adds
+`lib/guidance.ts` (a guide rail keyed off inning **state**) + `scripts/smoke-guidance.ts` and
+retires `components/pipeline-scoreboard.tsx`/`lib/pipeline-status.ts`/`components/pipeline-step.tsx`.
 
 ## Conventions & gotchas
 

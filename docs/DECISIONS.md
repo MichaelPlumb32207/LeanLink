@@ -6,6 +6,22 @@ current as design shifts.
 
 ---
 
+## D-035 · No live FEC API sweep in prod — freshness comes from a bulk-snapshot reload
+**Decision (2026-07-08, owner):** Remove the per-voter **FEC live-API sweep** from the UI
+entirely (deleted `components/fec-sweep-panel.tsx` and its ENH-019 FEC-panel disclosure). The
+authoritative Tier-1 path is the **local FEC bulk index** (D-028); when the data needs to be
+fresher, the right move is to **load a newer FEC bulk snapshot into Neon** (`scripts/import-fec-indiv.ts`,
+SETUP §8a) — matching spans all completed `fec_indiv` snapshots, so a newer cycle is a pure
+additive hit-rate lift. The live API sweep was slow, rate-limited, and never a production path;
+keeping a button that sweeps 146k voters against `api.open.fec.gov` invited an expensive,
+redundant run. **Open question (not yet decided):** whether to add an in-app *reference-data*
+surface — read-only "what snapshots are loaded / how fresh" is a low-risk win; a *trigger-a-reload*
+button is not (multi-GB download + load can't run in Vercel serverless, and a partial load would
+poison matches), so a reload stays owner-gated CLI maintenance, same posture as OSINT and
+county-scale runs. The FEC-sweep **backend** (route/worker/`fec_sweep_jobs`) is left in place but
+UI-unreachable; fully retiring it is a separate backlog item. Overrides the D-028 note that
+positioned the API sweep as the in-app fallback.
+
 ## D-034 · Point Grok at committees, not voters — the Tier-1/2 yield lever
 **Decision (2026-07-07):** The constructive inverse of D-033. Grok is unreliable on anonymous
 private voters but **excellent at classifying public political committees** (prominent, finite,

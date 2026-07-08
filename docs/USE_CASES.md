@@ -288,3 +288,20 @@ using Grok on *committees* (public, finite, knowable), not on private voters.
 | UC-20·E6 | Committee manager — review agent labels (ENH-018-UI) | The "Labeled" section shows each label's **source badge** (Grok/Researcher), confidence, and Grok's reasoning; no loading flash (empty state gated behind `!loading`). |
 | UC-20·E7 | Edit / delete a label | Edit an agent label's lean → re-fuses affected voters + reclaims `source='researcher'` (locks out the agent, skipped by a later `classify --apply`). Delete → reverts affected voters to pattern-lean/Undetermined. |
 | UC-20·E8 | Re-fuse pending | A labeled-but-unfused population shows a "{N} voters behind {M} committees await re-fusion" strip (manager + box-score "on base"); **Re-fuse now** books them (`refusionAllPendingForUpload`). Guarded at 150 voters inline (>that → CLI hint). Verified on Duval: 304 pending → 344 re-fused, Tier-2 settles 8→10. |
+
+## UC-21 — Guided workbench navigation (ENH-019) 🟡
+**As** the operator, **I can** click any inning in the line score to expand that arm's details
+and run its actions in place — no hunting through a scattered button list — and (Phase 2) let a
+guide rail propose the single next move. (Phase 1 shipped 2026-07-08: clickable innings + arm
+detail panels. Phase 2 = guide rail; Phase 3 = review/deliver stages.)
+
+| ID | Test | Expected |
+|---|---|---|
+| UC-21·H | Click each core inning row (party, FEC, FL contrib, Sunbiz, OSINT) | Row toggles a detail panel (one open at a time; click again collapses): role + honest explainer, a funnel sentence (eligible → processed → identified → lean signals → settled) off the same `BoxScoreInning`, this arm's run history, and the arm's actions. Numbers match the line score exactly (single `buildBoxScore` source). |
+| UC-21·E1 | Keyboard operation | Rows are `role="button"`, `tabIndex=0`, `aria-expanded`; Enter/Space toggles the panel; ▸/▾ affordance flips. |
+| UC-21·E2 | FEC panel | Shows the local-index **Match FEC** button (D-028 primary) + a freshness note pointing at the bulk-snapshot reload (`import-fec-indiv.ts`). The live-API sweep is **not** offered in the UI (D-035, owner: never run a per-voter API sweep in prod). |
+| UC-21·E3 | Sunbiz (hit-only) panel | Funnel carries the "hit-only arm — low event count is expected, not a failure" caveat (DEF-010 framing); STATE badge unchanged. |
+| UC-21·E4 | OSINT panel | Informational only — shows the `run-osint-cohort.ts --dry-run` command + "owner-approved with --max-usd" note; **no run button** (posture held). |
+| UC-21·E5 | Over-cap arm | When eligible > 5,000 (FEC uses total rows; free-pass uses eligible-remaining), the panel renders the `run-*.ts --upload-id … --concurrency 8` CLI hint instead of the inline button (mirrors the server guard). |
+| UC-21·E6 | One polling loop preserved | Expanding panels adds no fetch/poll; the page-level `useEvidenceSummary` remains the only interval loop; a live run shows `RunStrip` in the panel with no CTA. |
+| UC-21·E7 | Old step buttons still work | Steps-1–5 buttons remain this phase and share the one `use-evidence-actions` hook (same endpoints, same 5,000/complete-rerun guards, same confirm prompt). |

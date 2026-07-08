@@ -6,18 +6,43 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
-## Where to pick up (continuity note — 2026-07-08, ENH-019 guided-workbench plan authored)
+## Where to pick up (continuity note — 2026-07-08, ENH-019 Phase 1 shipped — clickable innings + arm panels)
 
-**Plan only, no code yet.** Owner asked for a streamlined presentation of the evidence UI:
-keep the scoreboard + innings, make each inning row click-to-expand into that arm's
-details/actions, and add a TurboTax-style guide rail ("what you've done → where you are →
-one next move"). Full build spec — written for hand-off to a smaller builder model — lives at
-[`plans/ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md) (backlog ENH-019,
-roadmap Next #5). Three shippable phases: arm detail panels → guide rail (replaces the 5
-pipeline cards; pure `lib/guidance.ts` + `smoke-guidance.ts` fixtures) → review/deliver
-stages. Hard rails carried over: single polling loop (D-029), render-once numbers, STATE
-from run lifecycle (DEF-010), no OSINT run button, all inline guards kept, no
-migrations/routes. The builder should start at the plan's §2 file map and ship Phase 1 alone.
+**Phase 1 of the guided workbench is built, gated (tsc/lint/build + golden green), and
+awaiting an owner screen-read before push.** Claude (Opus) reviewed Fable's plan against the
+codebase first — it verified accurate; a 5-item amendment sheet lives at
+`~/.claude/plans/gm-claude-i-had-glowing-floyd.md` (owner chose "commit to all three phases").
+What landed:
+- **Line-score rows are now clickable** (`components/box-score.tsx` `LineScore` gained
+  `selectedArm`/`onSelectArm`/`renderDetail`; rows are `role="button"`, `aria-expanded`,
+  Enter/Space operable, ▸/▾ affordance, one open at a time).
+- **`components/arm-detail-panel.tsx`** (new) renders per-arm: role + honest explainer (from
+  new pure registry **`lib/evidence/arm-details.ts`**), a funnel sentence off the
+  `BoxScoreInning`, this arm's run history (`RunStrip` reused for active + a compact recent-run
+  line), and the arm's actions. The FEC API sweep (`FecSweepPanel`) moved **into** the FEC
+  panel under a "Fallback: FEC API sweep" disclosure; OSINT shows its CLI command + verdict and
+  **no run button** (unchanged posture); over-cap arms show the `run-*.ts` CLI hint instead of
+  the button.
+- **`components/use-evidence-actions.ts`** (new hook) is now the single evidence-action POST
+  path — old steps-1–5 buttons and the new panels share it; `confirmLongRerun` moved here
+  (amendment 4) ahead of Phase 2's `pipeline-status.ts` deletion. `FecSweepPanel` de-wrapped
+  from `pipeline-step` (amendment 3) so that file deletes cleanly in Phase 2.
+
+Hard rails held: one polling loop (page-level `useEvidenceSummary`), render-once numbers (all
+from `buildBoxScore`/`summary`), STATE still run-lifecycle (DEF-010), no new routes/migrations.
+The old step buttons remain this phase (both paths share the hook).
+
+**Owner screen-read on the live Duval box score (2026-07-08) → one product decision (D-035):**
+the FEC live-API sweep is **removed from the UI** (deleted `components/fec-sweep-panel.tsx`; the
+FEC panel now shows only the local-index action + a freshness note pointing at
+`import-fec-indiv.ts`). Owner: never run a per-voter API sweep in prod; freshness = reload a newer
+FEC bulk snapshot into Neon. Backend (route/worker/`fec_sweep_jobs`) left in place but
+UI-unreachable — see ENH-020 for the open "reference-data status vs full retirement" question.
+Also tightened the over-cap copy: the FEC row says "N **rows**" (it re-scores everything), the
+free-pass arms say "N **eligible**."
+
+**Next:** Phase 2 — `lib/guidance.ts` (key off inning `state`, NOT the `·0.5` heuristic) +
+`scripts/smoke-guidance.ts` + `components/guide-rail.tsx`, then delete the pipeline-cards trio.
 
 ## Where to pick up (continuity note — 2026-07-07, Committee Manager v2 + re-fusion visibility (ENH-018-UI))
 

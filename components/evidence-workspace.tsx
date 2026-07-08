@@ -1,18 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArmDetailPanel } from '@/components/arm-detail-panel';
 import { CommitteeLeanManager } from '@/components/committee-lean-manager';
 import { CommitteeQuickLabel } from '@/components/committee-quick-label';
-import { FecSweepPanel } from '@/components/fec-sweep-panel';
 import { PipelineStepButtonLabel, PipelineStepRow } from '@/components/pipeline-step';
 import { LineScore } from '@/components/box-score';
 import { PipelineFlowTrack } from '@/components/pipeline-scoreboard';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
+import { confirmLongRerun, useEvidenceActions } from '@/components/use-evidence-actions';
 import { ballotFavorsLabel } from '@/lib/ballot-favors';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
 import {
   buildPipelineSteps,
-  confirmLongRerun,
   suggestNextStep,
   type PipelineStepState,
 } from '@/lib/pipeline-status';
@@ -112,9 +112,9 @@ export function EvidenceWorkspace({
   const voterReqSeq = useRef(0);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [syncingAction, setSyncingAction] = useState<Tier0Action | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [committeeManagerOpen, setCommitteeManagerOpen] = useState(false);
+  const [selectedArm, setSelectedArm] = useState<string | null>(null);
 
   // Debounce the name box so we don't fire a server round-trip per keystroke.
   useEffect(() => {
@@ -272,27 +272,22 @@ export function EvidenceWorkspace({
     }
   };
 
-  const runEvidenceAction = async (action: Tier0Action) => {
-    setSyncing(true);
-    setSyncingAction(action);
-    setError(null);
-    try {
-      const res = await fetch(`/api/uploads/${uploadId}/evidence`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Action failed');
-      await Promise.all([refreshSummary(), loadVoters()]);
-      if (selectedId) await loadDetail(selectedId);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Action failed');
-    } finally {
-      setSyncing(false);
-      setSyncingAction(null);
-    }
-  };
+  // Single evidence-action code path shared by the old step buttons and the new
+  // arm detail panels (ENH-019 Phase 1). onAfter mirrors the old runEvidenceAction.
+  const afterAction = useCallback(async () => {
+    await Promise.all([refreshSummary(), loadVoters()]);
+    if (selectedId) await loadDetail(selectedId);
+  }, [refreshSummary, loadVoters, selectedId, loadDetail]);
+
+  const {
+    runAction,
+    busyAction,
+    busy: actionBusy,
+    error: actionError,
+  } = useEvidenceActions(uploadId, afterAction);
+
+  // Any long-running action (evidence arm OR review/re-enroll) disables the rest.
+  const anyBusy = syncing || actionBusy;
 
   const pipelineSteps = useMemo(
     () =>
@@ -331,13 +326,11 @@ export function EvidenceWorkspace({
 
   const suggestedStep = useMemo(() => suggestNextStep(pipelineSteps), [pipelineSteps]);
 
-  const fecImported = (summary?.arms.fec?.event_count ?? 0) > 0;
-
   const runTier0Action = async (action: Tier0Action, stepId: 4 | 5, stepTitle: string) => {
     const step = pipelineSteps.find((s) => s.id === stepId);
     if (step?.state === 'locked') return;
     if (step?.state === 'complete' && !confirmLongRerun(stepTitle)) return;
-    await runEvidenceAction(action);
+    await runAction(action);
   };
 
   const tier0ButtonClass = (stepState: PipelineStepState, stepId: 4 | 5) => {
@@ -393,6 +386,20 @@ export function EvidenceWorkspace({
         {summary && (
           <LineScore
             summary={summary}
+            selectedArm={selectedArm}
+            onSelectArm={setSelectedArm}
+            renderDetail={(arm) => (
+              <ArmDetailPanel
+                arm={arm}
+                summary={summary}
+                uploadId={uploadId}
+                runAction={runAction}
+                busyAction={busyAction}
+                busy={anyBusy}
+                confirmLongRerun={confirmLongRerun}
+                onOpenCommitteeManager={() => setCommitteeManagerOpen(true)}
+              />
+            )}
             onOpportunityAction={(id) => {
               // Both open the committee manager — it hosts the label queue AND the
               // "Re-fuse now" action for the labeled-but-unfused pending strip.
@@ -419,7 +426,7 @@ export function EvidenceWorkspace({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={syncing}
+                disabled={anyBusy}
                 onClick={() =>
                   void reEnrollCohort(
                     { maxConfidence: 70 },
@@ -433,7 +440,7 @@ export function EvidenceWorkspace({
               </button>
               <button
                 type="button"
-                disabled={syncing}
+                disabled={anyBusy}
                 onClick={() =>
                   void reEnrollCohort(
                     { tierLte: 1 },
@@ -448,7 +455,7 @@ export function EvidenceWorkspace({
               {summary.review.re_enrolled_count > 0 && (
                 <button
                   type="button"
-                  disabled={syncing}
+                  disabled={anyBusy}
                   onClick={() =>
                     void reEnrollCohort(
                       { action: 'withdraw' },
@@ -479,16 +486,12 @@ export function EvidenceWorkspace({
                 : ''}
             </p>
           </PipelineStepRow>
-          {upload && (
-            <FecSweepPanel
-              uploadId={uploadId}
-              voterCount={upload.row_count}
-              onImported={() => void refreshAll()}
-              stepState={pipelineSteps.find((s) => s.id === 3)?.state ?? 'ready'}
-              suggested={suggestedStep === 3}
-              fecImported={fecImported}
-            />
-          )}
+          <PipelineStepRow step={3}>
+            <p className="text-xs opacity-85">
+              <strong>Federal FEC match</strong> — expand the FEC inning in the line score above to
+              run it against the local FEC bulk index.
+            </p>
+          </PipelineStepRow>
           <div className="flex flex-wrap gap-2 pt-1 pl-[calc(1.35rem+0.625rem)]">
             {(() => {
               const step4 = pipelineSteps.find((s) => s.id === 4)!;
@@ -499,7 +502,7 @@ export function EvidenceWorkspace({
                   onClick={() =>
                     void runTier0Action('match-fl-contrib', 4, 'FL contributors (person)')
                   }
-                  disabled={syncing || step4.state === 'locked'}
+                  disabled={anyBusy || step4.state === 'locked'}
                   title={
                     step4.state === 'locked'
                       ? 'Import FEC into the ledger first (step 3)'
@@ -507,7 +510,7 @@ export function EvidenceWorkspace({
                   }
                   className={tier0ButtonClass(step4.state, 4)}
                 >
-                  {syncingAction === 'match-fl-contrib' ? (
+                  {busyAction === 'match-fl-contrib' ? (
                     'Running…'
                   ) : step4Complete ? (
                     <>
@@ -528,7 +531,7 @@ export function EvidenceWorkspace({
                   onClick={() =>
                     void runTier0Action('match-sunbiz-entity', 5, 'Sunbiz → FL entity')
                   }
-                  disabled={syncing || step5.state === 'locked'}
+                  disabled={anyBusy || step5.state === 'locked'}
                   title={
                     step5.state === 'locked'
                       ? 'Complete step 4 (FL contributors) first'
@@ -536,7 +539,7 @@ export function EvidenceWorkspace({
                   }
                   className={tier0ButtonClass(step5.state, 5)}
                 >
-                  {syncingAction === 'match-sunbiz-entity' ? (
+                  {busyAction === 'match-sunbiz-entity' ? (
                     'Running…'
                   ) : step5Complete ? (
                     <PipelineStepButtonLabel
@@ -551,12 +554,12 @@ export function EvidenceWorkspace({
             })()}
             <button
               type="button"
-              onClick={() => void runEvidenceAction('match-fec-index')}
-              disabled={syncing}
+              onClick={() => void runAction('match-fec-index')}
+              disabled={anyBusy}
               title="Tier 1 via the local FEC bulk index (no API, no throttle). Uploads over 5,000 voters: use scripts/run-fec-index.ts instead."
               className="rounded-lg border border-emerald-300/50 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
             >
-              {syncingAction === 'match-fec-index' ? 'Running…' : 'Match FEC (local index)'}
+              {busyAction === 'match-fec-index' ? 'Running…' : 'Match FEC (local index)'}
             </button>
             <button
               type="button"
@@ -577,9 +580,9 @@ export function EvidenceWorkspace({
         onClose={() => setCommitteeManagerOpen(false)}
       />
 
-      {error && (
+      {(error ?? actionError) && (
         <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-100">
-          {error}
+          {error ?? actionError}
         </p>
       )}
 
@@ -787,7 +790,7 @@ export function EvidenceWorkspace({
                           {!accepted && detail.fusion.lean !== 'Undetermined' && (
                             <button
                               type="button"
-                              disabled={syncing}
+                              disabled={anyBusy}
                               onClick={() => void reviewVoter('accept')}
                               title="Affirm this lean as final: freezes the deliverable values and closes research for this voter"
                               className="rounded-lg border border-emerald-400/60 bg-emerald-500/15 px-3 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50"
@@ -798,7 +801,7 @@ export function EvidenceWorkspace({
                           {accepted && (
                             <button
                               type="button"
-                              disabled={syncing}
+                              disabled={anyBusy}
                               onClick={() => void reviewVoter('reopen')}
                               title="Clear the acceptance: fusion resumes and the voter can re-enter arms"
                               className="rounded-lg border border-white/20 px-3 py-1 text-xs hover:opacity-90 disabled:opacity-50"
@@ -809,7 +812,7 @@ export function EvidenceWorkspace({
                           {!accepted && persisted?.settled_tier != null && !reEnrolled && (
                             <button
                               type="button"
-                              disabled={syncing}
+                              disabled={anyBusy}
                               onClick={() => void reviewVoter('re_enroll')}
                               title="Push this settled voter back into later arms (billing unaffected)"
                               className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 text-xs hover:opacity-90 disabled:opacity-50"
