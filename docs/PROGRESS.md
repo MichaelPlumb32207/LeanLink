@@ -6,6 +6,19 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, ENH-019 guided-workbench plan authored)
+
+**Plan only, no code yet.** Owner asked for a streamlined presentation of the evidence UI:
+keep the scoreboard + innings, make each inning row click-to-expand into that arm's
+details/actions, and add a TurboTax-style guide rail ("what you've done → where you are →
+one next move"). Full build spec — written for hand-off to a smaller builder model — lives at
+[`plans/ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md) (backlog ENH-019,
+roadmap Next #5). Three shippable phases: arm detail panels → guide rail (replaces the 5
+pipeline cards; pure `lib/guidance.ts` + `smoke-guidance.ts` fixtures) → review/deliver
+stages. Hard rails carried over: single polling loop (D-029), render-once numbers, STATE
+from run lifecycle (DEF-010), no OSINT run button, all inline guards kept, no
+migrations/routes. The builder should start at the plan's §2 file map and ship Phase 1 alone.
+
 ## Where to pick up (continuity note — 2026-07-07, Committee Manager v2 + re-fusion visibility (ENH-018-UI))
 
 **Committee manager is now a real review/override surface + the re-fusion limbo is visible and

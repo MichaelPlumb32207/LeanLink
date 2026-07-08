@@ -52,6 +52,14 @@ started · **Someday** = conditional / only if a trigger fires.
    `voter_uploads`, hide-without-losing-ledger, ideally bulk), beyond the bare DELETE endpoint.
 4. **Name a pasted list** — a "List name" input on generic intake so pastes stop landing as
    `filename = 'pasted-list'` (route already accepts `filename`); improves inventory + deliverable naming.
+5. **Guided evidence workbench (ENH-019)** — planned 2026-07-08, full build spec ready for a
+   smaller builder model: [`plans/ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md).
+   Clickable line-score innings expand into per-arm detail panels (funnel explained, run
+   history, that arm's actions absorbed from the steps-1–5 list), and a TurboTax-style guide
+   rail replaces the 5 pipeline cards — done stages show measured results, one recommended
+   next move at a time (committee opportunities interrupt the tier cascade as cheap wins).
+   Presentation-only: no migrations, no new routes, single polling loop preserved (D-029).
+   Feeds the end-to-end client walkthrough.
 
 ## Resilience — recognize · adapt · deliver (adopted 2026-07-06, owner)
 
