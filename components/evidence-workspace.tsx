@@ -279,6 +279,20 @@ export function EvidenceWorkspace({
   // Any long-running action (evidence arm OR review/re-enroll) disables the rest.
   const anyBusy = syncing || actionBusy;
 
+  // Clicking an inning both expands its panel AND filters the voter list to that
+  // arm's hits — reuses the existing armFilters machinery (no new query). OSINT
+  // has no list filter; collapsing clears the filter.
+  const ARM_LIST_FILTER: Record<string, VoterArmFilter | undefined> = {
+    fec: 'fec',
+    fl_contrib: 'fl_contrib',
+    sunbiz: 'sunbiz',
+  };
+  const handleSelectArm = (arm: string | null) => {
+    setSelectedArm(arm);
+    const filter = arm ? ARM_LIST_FILTER[arm] : undefined;
+    setArmFilters(filter ? new Set([filter]) : new Set());
+  };
+
   return (
     <section className="panel rounded-2xl p-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -313,7 +327,7 @@ export function EvidenceWorkspace({
           <LineScore
             summary={summary}
             selectedArm={selectedArm}
-            onSelectArm={setSelectedArm}
+            onSelectArm={handleSelectArm}
             renderDetail={(arm) => (
               <ArmDetailPanel
                 arm={arm}

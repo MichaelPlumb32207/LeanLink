@@ -163,9 +163,14 @@ current-inning strip; every runner writes start/heartbeat/finish via
 `lib/evidence/arm-runs.ts` (one ACTIVE run per upload+arm; stale runs reaped at 10 min).
 The line-score **STATE** badge is derived from the arm's **run lifecycle**
 (`summary.runs.recent[].status`), NOT event coverage — a `completed` run reads COMPLETE even
-for a hit-only arm like Sunbiz whose event count is far below the eligible pool (DEF-010);
-PARTIAL means a genuinely interrupted (cancelled/failed) run. PROCESSED shows
-`max(run.processed_count, voters_touched)`.
+for a hit-only arm whose event count is far below the eligible pool (DEF-010); PARTIAL means a
+genuinely interrupted (cancelled/failed) run. PROCESSED shows `max(run.processed_count,
+voters_touched)`. **Innings are scoring arms only (D-038):** `CORE_INNINGS =
+['fec','fl_contrib','osint']`. **Sunbiz** is identity enrichment (structurally 0 leans — its
+leans book under FL contributions), so it's in `box.enrichments` and renders **nested** inside
+the FL contributions panel (`EnrichmentSection`), not as a row. **Party (T0)** is pre-game
+context (no lean), shown as a muted line. Clicking an inning row also **filters the voter list**
+to that arm (`handleSelectArm` → existing `armFilters`).
 **Guided workbench (ENH-019, in progress):** line-score rows are clickable and expand into
 `components/arm-detail-panel.tsx` — role/explainer from the pure registry
 `lib/evidence/arm-details.ts`, the arm's **game log**, and the arm's actions. Every

@@ -52,7 +52,13 @@ export interface BoxScore {
     by_lean: Record<string, number>;
     billing_total_usd: number | null;
   };
+  /** Scoring arms only — an inning is an at-bat (a chance to put a lean on the
+   *  board): FEC, FL contributions, OSINT. Identity/context arms are NOT here. */
   innings: BoxScoreInning[];
+  /** Identity-enrichment arms that feed an inning rather than scoring themselves
+   *  (D-038). Sunbiz confirms officers → its leans book under FL contributions,
+   *  so it renders nested inside that inning's panel, not as its own row. */
+  enrichments: BoxScoreInning[];
   /** Non-tier arms with activity (household, researcher, …) — footnote line. */
   supporting: { arm: string; label: string; events: number; lean_signals: number }[];
   opportunities: BoxScoreOpportunity[];
@@ -63,10 +69,17 @@ const ARM_LABELS: Record<string, string> = Object.fromEntries(
 );
 ARM_LABELS.party_prior = 'Party (provided)';
 
-/** Tier arms always shown, in waterfall order. */
-const CORE_INNINGS = ['party_prior', 'fec', 'fl_contrib', 'sunbiz', 'osint'];
+/**
+ * Innings = scoring arms (an at-bat can put a lean on the board), in waterfall
+ * order (D-038). Party (T0) is pre-game context (emits no lean) and Sunbiz (T2)
+ * is identity enrichment (structurally 0 leans — its runs book under FL
+ * contributions), so neither is an inning.
+ */
+const CORE_INNINGS = ['fec', 'fl_contrib', 'osint'];
 /** Tier arms shown only once they have events. */
 const OPTIONAL_INNINGS = ['local_media', 'civic'];
+/** Identity/context arms that never score — nested (Sunbiz) or footnoted, never innings. */
+const ENRICHMENT_ARMS = ['sunbiz'];
 
 export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
   const labeled_count = summary.fusion.fused_count + summary.fusion.provisional_count;
@@ -123,9 +136,22 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     .map(inningFor)
     .sort((a, b) => a.tier - b.tier);
 
-  const tierArms = new Set([...CORE_INNINGS, ...OPTIONAL_INNINGS]);
+  // Enrichment arms (Sunbiz) — rendered nested inside their host inning's panel,
+  // never as a scoring row. Only surfaced once they have activity.
+  const enrichments = ENRICHMENT_ARMS.filter(
+    (arm) => (summary.arms[arm]?.event_count ?? 0) > 0 || (summary.settled.by_arm[arm] ?? 0) > 0,
+  ).map(inningFor);
+
+  // party_prior is pre-game context, not a row or a footnote; enrichments are
+  // nested; everything else with events is a supporting footnote.
+  const accountedArms = new Set([
+    ...CORE_INNINGS,
+    ...OPTIONAL_INNINGS,
+    ...ENRICHMENT_ARMS,
+    'party_prior',
+  ]);
   const supporting = Object.entries(summary.arms)
-    .filter(([arm, stats]) => !tierArms.has(arm) && stats.event_count > 0)
+    .filter(([arm, stats]) => !accountedArms.has(arm) && stats.event_count > 0)
     .map(([arm, stats]) => ({
       arm,
       label: ARM_LABELS[arm] ?? arm,
@@ -170,6 +196,7 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
       billing_total_usd: summary.billing?.total_usd ?? null,
     },
     innings,
+    enrichments,
     supporting,
     opportunities,
   };

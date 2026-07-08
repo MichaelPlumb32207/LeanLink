@@ -6,6 +6,31 @@ current as design shifts.
 
 ---
 
+## D-038 · Innings are scoring arms only; identity/context arms nest or footnote
+**Decision (2026-07-08, owner):** In the box-score metaphor an inning is an *at-bat* — a chance
+to put a lean on the board. Arms that can never score don't get an inning row (you wouldn't play
+a baseball inning that grants your team no at-bat). Reclassified:
+- **Innings (scoring):** FEC (T1), FL contributions (T2), OSINT (T3). `CORE_INNINGS` is now
+  `['fec','fl_contrib','osint']`.
+- **Sunbiz → identity enrichment, nested inside the FL contributions inning.** Sunbiz only
+  confirms officer identity (structurally 0 leans); the leans it enables are booked as FL
+  "entity" (layer-2) events. So it renders as an "Identity enrichment" section inside the FL
+  contributions panel (`box.enrichments` → `EnrichmentSection`), where its "N officers identified"
+  is now the *single* home for that number (no D-036 duplication). Its `match-sunbiz-entity`
+  action + run history live there too.
+- **Party (T0) → pre-game context, not an inning.** It's stored from intake and emits no lean
+  (NPA lists carry none) — the lineup card, shown as a muted context line under the line score.
+- **OSINT stays an inning** — it *can* score (its events carry a lean), just yields ~0 today; it's
+  the intended future home for interactive "research arms" (system + researcher), built out over
+  time. Keep the at-bat row.
+
+Also: **clicking an inning row filters the voter list to that arm's hits** (reuses the existing
+`armFilters` — no new query); collapsing clears it. Rendered in `lib/box-score.ts`
+(`CORE_INNINGS`/`ENRICHMENT_ARMS`/`enrichments`), `components/box-score.tsx` (3 rows + party
+context line), `components/arm-detail-panel.tsx` (`EnrichmentSection`), `components/evidence-workspace.tsx`
+(`handleSelectArm`). Extends the pre-existing "Supporting arms" footnote distinction (household/
+aliases were already non-innings). No migration, no new route.
+
 ## D-037 · No guide rail — navigation lives in the line score + ON BASE strip, not a linear spine
 **Decision (2026-07-08, owner screen-read):** ENH-019 Phase 2 built a TurboTax-style guide rail
 (a horizontal stage spine + a "NEXT UP" banner, from a pure `lib/guidance.ts`). On the live Duval

@@ -312,6 +312,10 @@ export function LineScore({
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-[11px] opacity-45">
+        T0 · Party (provided): pre-game context — stored from intake, emits no lean (NPA lists
+        carry none). Sunbiz officer identity is folded into the FL contributions inning.
+      </p>
       {supporting.length > 0 && (
         <p className="mt-2 text-[11px] opacity-60">
           Supporting arms:{' '}

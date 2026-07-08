@@ -6,6 +6,29 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, innings = scoring arms only (D-038) + click-to-filter)
+
+**Box-score reclassified so the baseball metaphor is honest (owner insight): an inning is an
+at-bat — a chance to score — so arms that never score aren't innings.** Built, gated green, NOT
+yet pushed (stacked on the unpushed rail-removal commit; both go on the next push).
+- **Innings (scoring):** FEC, FL contributions, OSINT. `CORE_INNINGS = ['fec','fl_contrib','osint']`.
+- **Sunbiz → identity enrichment nested inside the FL contributions inning** — it only confirms
+  officer identity (0 leans of its own; its leans book as FL entity/layer-2 events). Renders as an
+  "Identity enrichment" section in the FL panel (`box.enrichments` → `EnrichmentSection`) with its
+  "N officers identified", run history, and `match-sunbiz-entity` action. Since it has no row, that
+  number's single home is now the FL panel (no D-036 duplication).
+- **Party (T0) → pre-game context**, a muted line under the line score (stored, emits no lean).
+- **OSINT stays an inning** — it can score (just ~0 today) and is the future home for interactive
+  "research arms" (system + researcher), built out over time.
+- **Click an inning → filters the voter list** to that arm's hits (`handleSelectArm` reuses
+  `armFilters`; no new query); collapsing clears it.
+
+Files: `lib/box-score.ts` (CORE_INNINGS/ENRICHMENT_ARMS/`enrichments`), `components/box-score.tsx`
+(3 rows + party line), `components/arm-detail-panel.tsx` (`EnrichmentSection`, parametrized
+action-state), `components/evidence-workspace.tsx` (`handleSelectArm`). Rationale = **D-038**. No
+migration/route. **Next:** owner screen-read (FL panel now hosts Sunbiz; 3-inning line score;
+click-to-filter) → push (with the rail removal) → Phase 3 (Review/Deliver).
+
 ## Where to pick up (continuity note — 2026-07-08, ENH-019 Phase 2 guide rail built then DITCHED (D-037))
 
 **A TurboTax guide rail was built, screen-read on the live Duval board, and removed — never
