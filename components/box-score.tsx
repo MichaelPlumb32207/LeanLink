@@ -6,8 +6,9 @@
  * numbers come from UploadEvidenceSummary via buildBoxScore; actions stay with
  * the pipeline controls in the evidence workspace.
  */
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { buildBoxScore, type BoxScoreInning } from '@/lib/box-score';
+import { RESEARCH_ARMS } from '@/lib/research-arms';
 import type { ArmRunSummary, UploadEvidenceSummary } from '@/lib/evidence/types';
 
 const nf = new Intl.NumberFormat('en-US');
@@ -202,6 +203,72 @@ export function RunStrip({ run }: { run: ArmRunSummary }) {
   );
 }
 
+/**
+ * Tier-3 "research arms" scaffold — indented T3a…T3f placeholder rows beneath the
+ * OSINT inning (owner, 2026-07-08). PLANNED only: no data, no runs, no spend —
+ * each expands to a stub where the Grok research pass will be defined later.
+ */
+function ResearchArmScaffold() {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <>
+      {RESEARCH_ARMS.map((ra) => {
+        const isOpen = open === ra.id;
+        const toggle = () => setOpen(isOpen ? null : ra.id);
+        return (
+          <Fragment key={ra.id}>
+            <tr
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+              onClick={toggle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggle();
+                }
+              }}
+              className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+            >
+              <td className="py-1 pr-2 pl-3 text-[10px] tabular-nums opacity-40">{ra.label}</td>
+              <td className="py-1 pr-2 text-[11px] opacity-55">
+                <span className="mr-1 opacity-40" aria-hidden>
+                  {isOpen ? '▾' : '▸'}
+                </span>
+                <span className="opacity-30" aria-hidden>
+                  └{' '}
+                </span>
+                {ra.title}
+              </td>
+              <td colSpan={5} />
+              <td className="py-1">
+                <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-40">
+                  planned
+                </span>
+              </td>
+            </tr>
+            {isOpen && (
+              <tr>
+                <td colSpan={8} className="p-0">
+                  <div className="border-t border-white/10 bg-black/30 px-4 py-3 text-xs">
+                    <p className="font-medium opacity-80">{ra.title} · planned research arm</p>
+                    <p className="mt-1 opacity-60">{ra.description}</p>
+                    <p className="mt-2 text-[11px] opacity-40">
+                      This is where the Grok research pass gets defined — what it looks at, what it
+                      extracts — and reviewed interactively (system + researcher in the loop). Not
+                      wired yet.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
 export function LineScore({
   summary,
   onOpportunityAction,
@@ -307,6 +374,8 @@ export function LineScore({
                       </td>
                     </tr>
                   )}
+                  {/* Tier-3 research arms scaffold, nested beneath OSINT. */}
+                  {inning.arm === 'osint' && <ResearchArmScaffold />}
                 </Fragment>
               );
             })}
