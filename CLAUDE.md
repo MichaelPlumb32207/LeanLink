@@ -168,13 +168,18 @@ PARTIAL means a genuinely interrupted (cancelled/failed) run. PROCESSED shows
 `max(run.processed_count, voters_touched)`.
 **Guided workbench (ENH-019, in progress):** line-score rows are clickable and expand into
 `components/arm-detail-panel.tsx` — role/explainer from the pure registry
-`lib/evidence/arm-details.ts`, a funnel sentence off the `BoxScoreInning`, the arm's run
-history (reuses `RunStrip`), and the arm's actions. Every evidence-action POST goes through the
-one shared hook `components/use-evidence-actions.ts` (which also owns `confirmLongRerun`); the
-`FecSweepPanel` fallback lives inside the FEC panel. The panels are **pure renders** — no new
-fetch/poll, no summary number sourced off anything but `buildBoxScore`/`summary`. Phase 2 adds
-`lib/guidance.ts` (a guide rail keyed off inning **state**) + `scripts/smoke-guidance.ts` and
+`lib/evidence/arm-details.ts`, the arm's **game log**, and the arm's actions. Every
+evidence-action POST goes through the one shared hook `components/use-evidence-actions.ts` (which
+also owns `confirmLongRerun`). The panels are **pure renders** — no new fetch/poll, no summary
+number sourced off anything but `buildBoxScore`/`summary`. **Scoreboard single-source discipline
+(D-036):** one home per number, one term per concept — the line-score row owns the per-arm funnel
+stats (the panel does NOT restate them), the top bar owns the aggregate, run displays use the
+board's vocabulary (**ID hits** / **lean signals** / **raw candidates**, never
+confirmed/hits/leans), and `Conflicted`/`Accepted` render on the top bar only when > 0. Phase 2
+adds `lib/guidance.ts` (a guide rail keyed off inning **state**) + `scripts/smoke-guidance.ts` and
 retires `components/pipeline-scoreboard.tsx`/`lib/pipeline-status.ts`/`components/pipeline-step.tsx`.
+The live-API FEC sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot
+into Neon (`scripts/import-fec-indiv.ts`).
 
 ## Conventions & gotchas
 

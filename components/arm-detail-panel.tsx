@@ -3,10 +3,11 @@
 /**
  * Arm detail panel — the expanded body of a clickable line-score inning
  * (ENH-019 Phase 1). Pure render of a BoxScoreInning + UploadEvidenceSummary
- * the workspace already holds: role/explainer (ARM_DETAILS), a funnel sentence,
- * this arm's run history (RunStrip + recent runs), and the actions that belong
- * to the arm (moved here from the old steps-1–5 button list). No fetches, no
- * polling, no summary numbers re-derived off a second path.
+ * the workspace already holds. Scoreboard single-source discipline (D-036): the
+ * per-arm funnel numbers live ONLY in the line-score row — this panel never
+ * restates them. It shows what the row can't: the explainer, the game log (when
+ * an arm was played, one diagnostic NOT on the board — raw candidates before the
+ * identity gate), and the arm's actions. No fetches, no polling.
  */
 import { RunStrip } from '@/components/box-score';
 import { buildBoxScore, type BoxScoreInning } from '@/lib/box-score';
@@ -30,6 +31,11 @@ function CliHint({ command }: { command: string }) {
   );
 }
 
+/**
+ * Game-log line for one finished run — when/how the arm was played, plus the one
+ * number NOT on the line score: raw candidates before the identity gate. The
+ * board owns the funnel outcomes; this never repeats or renames them (D-036).
+ */
 function RecentRunLine({ run }: { run: ArmRunSummary }) {
   const isCli = CLI_RUNNERS.has(run.runner);
   const completed = run.status === 'completed';
@@ -43,12 +49,7 @@ function RecentRunLine({ run }: { run: ArmRunSummary }) {
         >
           {completed ? '✓ completed' : run.status}
         </span>
-        <span>
-          {nf.format(run.processed_count)}/{nf.format(run.total_count)} processed
-        </span>
-        <span>
-          · {nf.format(run.hits_count)} hits · {nf.format(run.confirmed_count)} confirmed
-        </span>
+        <span>walked {nf.format(run.processed_count)} rows</span>
         <span className="rounded border border-white/25 px-1 text-[9px] uppercase tracking-wide opacity-80">
           {isCli ? 'cli' : 'ui'}
         </span>
@@ -59,13 +60,37 @@ function RecentRunLine({ run }: { run: ArmRunSummary }) {
           </span>
         )}
       </span>
-      {run.error_message && (
-        <p className="mt-0.5 text-amber-300">⚠ {run.error_message}</p>
+      {run.hits_count > 0 && (
+        <p className="mt-0.5 opacity-55">
+          {nf.format(run.hits_count)} raw candidates before the identity gate
+        </p>
       )}
+      {run.error_message && <p className="mt-0.5 text-amber-300">⚠ {run.error_message}</p>}
       {run.anomalies?.map((a) => (
         <p key={a} className="mt-0.5 text-amber-300">
           ⚠ {a}
         </p>
+      ))}
+    </div>
+  );
+}
+
+function Runs({
+  activeRuns,
+  recentRuns,
+}: {
+  activeRuns: ArmRunSummary[];
+  recentRuns: ArmRunSummary[];
+}) {
+  if (activeRuns.length === 0 && recentRuns.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wide opacity-50">Runs</p>
+      {activeRuns.map((r) => (
+        <RunStrip key={r.id} run={r} />
+      ))}
+      {recentRuns.map((r) => (
+        <RecentRunLine key={r.id} run={r} />
       ))}
     </div>
   );
@@ -110,16 +135,13 @@ export function ArmDetailPanel({
   const renderEvidenceAction = (action: ArmActionSpec) => {
     const id = action.id as EvidenceActionId;
     const cap = action.maxEligibleInline ?? Infinity;
-    const eligible = eligibleFor(id);
-    if (eligible > cap && action.cliHint) {
-      // FEC re-scores every row, so it's "rows in scope", not "awaiting settlement";
-      // the free-pass arms skip settled voters, so their number really is eligible-remaining.
-      const noun = id === 'match-fec-index' ? 'rows' : 'eligible';
+    // Over the cap → CLI hint instead of a button. The cap number tells the whole
+    // story; the row already owns the eligible/rows count, so we don't restate it.
+    if (eligibleFor(id) > cap && action.cliHint) {
       return (
         <div key={id} className="space-y-1">
           <p className="text-[11px] opacity-70">
-            {nf.format(eligible)} {noun} — over the {nf.format(cap)} inline cap; run county-scale
-            from the CLI:
+            Over the {nf.format(cap)} inline cap — run county-scale from the CLI:
           </p>
           <CliHint command={fillCli(action.cliHint, uploadId)} />
         </div>
@@ -145,21 +167,20 @@ export function ArmDetailPanel({
   };
 
   if (!spec) {
-    // Optional arms (local_media/civic) have no detail spec — show the funnel only.
+    // Optional arms (local_media/civic) have no detail spec — game log only.
     return (
       <div className="border-t border-white/10 bg-black/30 px-4 py-3 text-xs">
-        <FunnelLine inning={inning} hitOnly={false} />
-        {activeRuns.map((r) => (
-          <RunStrip key={r.id} run={r} />
-        ))}
-        {recentRuns.map((r) => (
-          <RecentRunLine key={r.id} run={r} />
-        ))}
+        {activeRuns.length === 0 && recentRuns.length === 0 ? (
+          <p className="opacity-50">No run detail for this arm.</p>
+        ) : (
+          <Runs activeRuns={activeRuns} recentRuns={recentRuns} />
+        )}
       </div>
     );
   }
 
-  const committees = summary.committees;
+  const hasCommitteeAction = spec.actions.some((a) => a.id === 'open-committee-manager');
+  const committeeLabel = spec.actions.find((a) => a.id === 'open-committee-manager')?.label;
 
   return (
     <div className="space-y-3 border-t border-white/10 bg-black/30 px-4 py-3 text-xs">
@@ -168,19 +189,7 @@ export function ArmDetailPanel({
         <p className="mt-1 opacity-70">{spec.explainer}</p>
       </div>
 
-      <FunnelLine inning={inning} hitOnly={!!spec.hitOnly} />
-
-      {(activeRuns.length > 0 || recentRuns.length > 0) && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide opacity-50">Runs</p>
-          {activeRuns.map((r) => (
-            <RunStrip key={r.id} run={r} />
-          ))}
-          {recentRuns.map((r) => (
-            <RecentRunLine key={r.id} run={r} />
-          ))}
-        </div>
-      )}
+      <Runs activeRuns={activeRuns} recentRuns={recentRuns} />
 
       {spec.cliOnly && (
         <div className="space-y-1">
@@ -199,24 +208,18 @@ export function ArmDetailPanel({
             {spec.actions
               .filter((a) => EVIDENCE_ACTION_IDS.has(a.id))
               .map(renderEvidenceAction)}
-            {spec.actions.some((a) => a.id === 'open-committee-manager') && (
+            {hasCommitteeAction && (
+              // Committee counts live once, in the ON BASE strip (D-036) — here
+              // we surface only the action, not the numbers.
               <button
                 type="button"
                 onClick={onOpenCommitteeManager}
                 className="rounded-lg border border-violet-300/50 px-3 py-1.5 text-xs hover:opacity-80"
               >
-                {spec.actions.find((a) => a.id === 'open-committee-manager')!.label}
-                {(committees?.unlabeled_count ?? 0) > 0 &&
-                  ` (${nf.format(committees.unlabeled_count)})`}
+                {committeeLabel}
               </button>
             )}
           </div>
-          {arm === 'fl_contrib' && (committees?.pending_refusion_voters ?? 0) > 0 && (
-            <p className="text-[11px] text-violet-200/80">
-              {nf.format(committees.pending_refusion_voters)} voters sit behind labeled committees
-              awaiting re-fusion — open the manager to book them.
-            </p>
-          )}
         </div>
       )}
 
@@ -226,32 +229,5 @@ export function ArmDetailPanel({
         </p>
       )}
     </div>
-  );
-}
-
-function FunnelLine({
-  inning,
-  hitOnly,
-}: {
-  inning: BoxScoreInning | null;
-  hitOnly: boolean;
-}) {
-  if (!inning || inning.state === 'not_run') {
-    return <p className="opacity-60">Not run yet on this upload.</p>;
-  }
-  return (
-    <p className="opacity-80">
-      <span className="opacity-60">Funnel: </span>
-      {nf.format(inning.eligible_in)} eligible → {nf.format(inning.attempted)} processed →{' '}
-      {nf.format(inning.identity_hits)} identified → {nf.format(inning.lean_signals)} lean signals →{' '}
-      <span className="text-emerald-300">{nf.format(inning.settled_here)} settled here</span>.
-      {hitOnly && (
-        <span className="opacity-60">
-          {' '}
-          Hit-only arm — a low event count relative to the eligible pool is expected, not a
-          failure.
-        </span>
-      )}
-    </p>
   );
 }

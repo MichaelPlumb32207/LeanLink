@@ -6,6 +6,33 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, scoreboard single-source cleanup (D-036) — shipped on top of Phase 1)
+
+**Phase 1 is pushed to main; this cleanup is the follow-up commit.** Owner walked the live Duval
+box score inning-by-inning and articulated a scoreboard rule (**D-036**): one home per number, one
+term per concept. Applied:
+- **Removed the arm-panel "Funnel:" sentence** — it duplicated the line-score row. Panels now show
+  explainer + game log + actions only.
+- **Game log = schedule, not a second line score:** a finished run reads "✓ completed · walked N
+  rows · cli · date" + the one off-board diagnostic ("N raw candidates before the identity gate").
+  Dropped per-run ID-hit/lean counts (the board owns those, cumulative).
+- **Unified vocab** in run displays: confirmed→**ID hits**, hits→**raw candidates**, leans→**lean
+  signals** (live `RunStrip` + recent-run line).
+- **`Conflicted`/`Accepted` render on the top bar only when > 0.** Rationale that matters:
+  acceptance is an *override/QA* tool, NOT a required pass — the engine auto-settles at the
+  confidence threshold, so the product scales to millions of NPAs with no per-voter human review.
+  Their permanent home is the Review surface (Phase 3).
+- **Committee counts live once** (ON BASE strip); the fl_contrib panel shows only the action.
+- **FEC over-cap hint** no longer restates the row's count — just the cap + command.
+
+Also logged two ideas from the walkthrough: **ENH-020** (read-only reference-data freshness surface
++ retire the UI-unreachable FEC-sweep backend) and **ENH-021** (T2-a: Grok/OSINT officer
+corroboration to harvest the un-corroborated Sunbiz bucket — measure-first, find-don't-guess).
+
+**Next:** Phase 2 — `lib/guidance.ts` (key off inning `state`) + `scripts/smoke-guidance.ts` +
+`components/guide-rail.tsx`, then delete the pipeline-cards trio. Phase 3 folds Conflicted/Accepted
+into the Review stage.
+
 ## Where to pick up (continuity note — 2026-07-08, ENH-019 Phase 1 shipped — clickable innings + arm panels)
 
 **Phase 1 of the guided workbench is built, gated (tsc/lint/build + golden green), and

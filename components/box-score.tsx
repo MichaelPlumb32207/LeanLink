@@ -78,12 +78,19 @@ export function BoxScoreBar({
           label="Leans settled"
           tone="text-emerald-300"
         />
-        <StatCell
-          value={nf.format(scoreboard.conflicted)}
-          label="Conflicted"
-          tone={scoreboard.conflicted > 0 ? 'text-amber-300' : undefined}
-        />
-        <StatCell value={nf.format(scoreboard.accepted)} label="Accepted" />
+        {/* Conflicted + Accepted are review-queue metrics, ~0 until a human
+            curates — they earn a slot only when there's something to show
+            (scoreboard single-source discipline, D-036). */}
+        {scoreboard.conflicted > 0 && (
+          <StatCell
+            value={nf.format(scoreboard.conflicted)}
+            label="Conflicted"
+            tone="text-amber-300"
+          />
+        )}
+        {scoreboard.accepted > 0 && (
+          <StatCell value={nf.format(scoreboard.accepted)} label="Accepted" />
+        )}
         <StatCell
           value={nf.format(scoreboard.eligible_remaining)}
           label="Still in research"
@@ -176,8 +183,8 @@ export function RunStrip({ run }: { run: ArmRunSummary }) {
         {rate != null && <span>· {rate >= 10 ? Math.round(rate) : rate.toFixed(1)}/s</span>}
         {etaLabel && <span>· {etaLabel}</span>}
         <span>
-          · {nf.format(run.hits_count)} hits · {nf.format(run.confirmed_count)} confirmed ·{' '}
-          {nf.format(run.lean_signal_count)} leans
+          · {nf.format(run.hits_count)} raw candidates · {nf.format(run.confirmed_count)} ID hits ·{' '}
+          {nf.format(run.lean_signal_count)} lean signals
         </span>
         {heartbeatAgeS != null && (
           <span className={stalled ? 'font-medium text-amber-300' : 'opacity-60'}>

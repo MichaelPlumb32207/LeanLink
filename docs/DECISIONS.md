@@ -6,6 +6,35 @@ current as design shifts.
 
 ---
 
+## D-036 · Scoreboard single-source discipline — one home per number, one term per concept
+**Decision (2026-07-08, owner):** The box score is a *scoreboard*, and a scoreboard never
+re-reports the same statistic in two places or renames it — the only allowed repetition is
+period results + their aggregate (line-score cells → the total). Applied across the evidence UI:
+- **The line-score row owns every per-arm funnel number** (In → Processed → ID hits → Lean
+  signals → Settled → State). The arm detail panel's old "Funnel:" sentence duplicated the row
+  and is **removed**; the panel now shows only what the row can't (explainer, game log, actions).
+- **The top bar owns the aggregate/total** (records in · leans settled · still in research +
+  by-lean split). `Leans settled` = the sum of the Settled column — the legit period→total
+  exception.
+- **One term per concept.** Run displays no longer say "confirmed"/"hits"/"leans" while the
+  board says "ID hits"/"lean signals": unified to **ID hits** and **lean signals**; the run's
+  raw pre-gate number is named **raw candidates** (a genuinely different stat, not on the board,
+  so it's allowed — it lives only in the expanded game log).
+- **The game log is a schedule, not a second line score.** Arms are the innings; a *run* is a
+  game-log entry ("walked N rows · cli · 7/5"), carrying only the one off-board diagnostic
+  (raw candidates), never the funnel outcomes again.
+- **Review-queue metrics earn a slot only when non-zero.** `Conflicted` and `Accepted` are ~0
+  until a human curates (and acceptance is an *override/QA* tool, never a required pass — the
+  engine settles automatically at the confidence threshold, so the product scales to millions of
+  NPAs without per-voter human review). They now render on the top bar only when > 0, and their
+  permanent home is the Review surface (Phase 3).
+- **Committee opportunity counts live once**, in the ON BASE strip — the fl_contrib panel shows
+  the *action* (open manager), not the numbers.
+
+Reason: on the 146k Duval board, the funnel sentence, the run-vs-board vocabulary drift, and the
+0-accepted headline all read as either duplication or a false "human bottleneck" signal. Overrides
+the ENH-019 Phase 1 arm-panel funnel sentence.
+
 ## D-035 · No live FEC API sweep in prod — freshness comes from a bulk-snapshot reload
 **Decision (2026-07-08, owner):** Remove the per-voter **FEC live-API sweep** from the UI
 entirely (deleted `components/fec-sweep-panel.tsx` and its ENH-019 FEC-panel disclosure). The
