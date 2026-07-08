@@ -141,6 +141,16 @@ These are reversible-config forks currently parked; each one nudges the roadmap 
 
 ## Recently shipped (see PROGRESS.md for detail)
 
+**2026-07-07 — Tier-3 verdict + the committee yield lever (D-033/D-034):** measured Tier-3 OSINT
+as *enrichment, not settle* (0 leans on NPAs; 1/10 on a known-signal control) → OSINT re-scoped to
+public expression (ENH-016), Bluesky follow-graph shelled after a coverage≈0 probe (ENH-017),
+pitch reframed. The yield lever is **Grok classifying public committees, not voters** (ENH-018):
+FEC scorer honors committee labels + a Grok committee classifier (bipartisan→Undetermined) +
+committee-manager v2 (review/override agent labels + "Re-fuse now"; ENH-018-UI) → **Duval 478→556
+settled, 0.32%→0.38% for ~$0.05**. Plus: re-pass diff report (ENH-010), FEC multi-snapshot
+matching for indiv22/20 backfill (ENH-014), hard-capped Tier-3 OSINT harness (ENH-015), evidence
+filter debounce/decouple/latest-wins + live totals (DEF-011). ·
+
 Address-corroboration identity gate (ENH-012/013): Sunbiz officer matches hard-gated on
 street address (name+zip collisions demote to `ambiguous`, never settle) + per-person hit
 clustering on the layer-2 bridge; fl_contrib street-corroboration bonus + recency-aware zip

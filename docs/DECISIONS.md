@@ -6,6 +6,46 @@ current as design shifts.
 
 ---
 
+## D-034 · Point Grok at committees, not voters — the Tier-1/2 yield lever
+**Decision (2026-07-07):** The constructive inverse of D-033. Grok is unreliable on anonymous
+private voters but **excellent at classifying public political committees** (prominent, finite,
+knowable). Measured: **31% of confirmed Duval FEC donors (208/678) sat Undetermined** purely
+because their committee carries no party code and matches no pattern (Harris Victory Fund, union
+PACs, the Lincoln Project). Fix, two parts: (1) **wire `committee_lean_labels` into the FEC
+scorer** — it was FL-contrib-only, which is why federal donors could never be recovered by a
+label (`inferContributionLean` now consults labels; federal + state share the one name-keyed
+namespace); (2) a **Grok committee classifier** (`scripts/classify-committees.ts` →
+`lib/committee-lean/classify.ts`) over the finite unresolved census — **one call per committee**
+(batched, no web search), not per voter — with **bipartisan corporate PACs left Undetermined**
+(CSX/Realtors/GuideWell — never manufacture signal). Precedence **human > agent > pattern**; a
+human override reclaims `source='researcher'` and **locks** the committee. Measured on Duval: 70
+committees classified for ~$0.05 → **+76 Tier-1 settles (470→546)**, +2 Tier-2 via FL re-fusion →
+**478→556 settled, yield 0.32%→0.38%**. Committee manager v2 (ENH-018-UI) makes agent labels
+reviewable/overridable (source badge + confidence + reasoning) and surfaces labeled-but-unfused
+voters with a **"Re-fuse now"** action (`countPendingRefusion`/`refusionAllPendingForUpload`,
+guarded at 150 voters → CLI). **Overrides:** the FEC scorer ignoring committee labels; the
+assumption that raising yield requires per-voter research.
+
+## D-033 · Tier-3 OSINT is an enrichment arm, not a settle arm; scoped to public expression
+**Decision (2026-07-07):** Measured Tier-3 (Grok OSINT) on real voters — **0 leans on 5 rich
+NPAs**, and a positive control of 10 known-signal voters (5 settled donors + 5 party-registered)
+returned **only 1 lean**. Two walls, both structural: (a) **identity-linkage** of a private
+individual to a confident online persona is unreliable (OSINT over-claims "probable"; a Bluesky
+follow-graph probe found 33% name-collisions but **0% confident links** — a UK Labour MP matched
+a Jacksonville voter); (b) even correctly-linked ordinary voters **post no codeable public
+ideology**. So OSINT is a **persona/identity enrichment** arm, not a lean-settle arm — the pitch
+was reframed (Tier 3 "assumed ~1,600 leans" → measured enrichment; headline "≈1,700 leans" →
+"≈140 defensible leans + full intelligence on all 25,000 records"). OSINT was also **re-scoped**
+(ENH-016): it had vestigially re-searched FEC/FL-finance/OpenSecrets (built in the June POC before
+the index arms existed, never pruned) — now it targets **public political expression only**
+(donations are resolved deterministically upstream by Tiers 1–2). The Bluesky follow-graph scorer
+is **shelved** (coverage ≈0 for anonymous NPAs; the coverage probe is the per-client-list gate).
+**Integrity lines held** under owner exploration: **no sock-puppet / authenticated FB-IG
+scraping** (Meta ToS + covert access of private citizens + breaks the "public/open-source only"
+client promise) and **no ad-targeting / lookalike data** (broker channel + "targeting" non-goal +
+protected-class proxy). **Overrides:** the pitch's "assumed" Tier-3 settle yield; the OSINT query
+plan's donation-database searches.
+
 ## D-032 · Street-address corroboration as the identity gate; Sunbiz tightened in place
 **Decision (2026-07-06, Wave 2; owner call — "tighten in place" over "demote to opt-in"):**
 Identity scoring gains a first-class **street-address** signal, in ONE shared helper
