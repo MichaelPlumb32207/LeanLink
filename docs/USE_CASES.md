@@ -285,3 +285,6 @@ using Grok on *committees* (public, finite, knowable), not on private voters.
 | UC-20·E3 | Agent vs human precedence | Agent never overwrites a `researcher`/`import` label (`skipped_human`); a human override reclaims `source='researcher'` and locks the committee against the agent (verified in a rolled-back tx). |
 | UC-20·E4 | `--dry-run` | Census + counts only, zero Grok calls, zero spend. |
 | UC-20·E5 | Billed account | CLI warns; default is propose-only (a lean settles + bills its donors, so review precedes `--apply`). |
+| UC-20·E6 | Committee manager — review agent labels (ENH-018-UI) | The "Labeled" section shows each label's **source badge** (Grok/Researcher), confidence, and Grok's reasoning; no loading flash (empty state gated behind `!loading`). |
+| UC-20·E7 | Edit / delete a label | Edit an agent label's lean → re-fuses affected voters + reclaims `source='researcher'` (locks out the agent, skipped by a later `classify --apply`). Delete → reverts affected voters to pattern-lean/Undetermined. |
+| UC-20·E8 | Re-fuse pending | A labeled-but-unfused population shows a "{N} voters behind {M} committees await re-fusion" strip (manager + box-score "on base"); **Re-fuse now** books them (`refusionAllPendingForUpload`). Guarded at 150 voters inline (>that → CLI hint). Verified on Duval: 304 pending → 344 re-fused, Tier-2 settles 8→10. |

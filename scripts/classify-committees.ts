@@ -41,6 +41,7 @@ import { classifyCommittees } from '@/lib/committee-lean/classify';
 import { upsertAgentCommitteeLabel } from '@/lib/committee-lean/store';
 import { getXaiApiKey } from '@/lib/xai/client';
 import { getActiveFecIndivSnapshotSet, processFecIndexVoter } from '@/lib/fec/run-index-upload';
+import { refusionAllPendingForUpload } from '@/lib/committee-lean/refusion';
 import type { ParsedFlVoterRecord } from '@/lib/fl-voter-registration';
 
 function loadEnvLocal() {
@@ -272,7 +273,14 @@ async function main() {
     }
     const after = await settledT1();
     console.log(`\nTier-1 settled: ${before} → ${after} (+${after - before} recovered by committee labels).`);
-    console.log(`Deliverable-changing on a research upload — bracket with repass-diff next time if you want the full lean/confidence delta.`);
+
+    // FL side: labels also cover FL state committees, whose voters aren't FEC
+    // donors and so weren't re-scored above. Re-fuse them too so --apply books
+    // both arms and never leaves labeled-but-unfused limbo (the manager's
+    // "Re-fuse now" does the same on demand).
+    const fl = await refusionAllPendingForUpload(client, { user_id: email, upload_id: resolved });
+    console.log(`FL contrib re-fused: ${fl.voters_refused} voters across ${fl.committees_processed} committees.`);
+    console.log(`Deliverable-changing on a research upload — bracket with repass-diff for the full lean/confidence delta.`);
   } finally {
     client.release();
     await pool.end();

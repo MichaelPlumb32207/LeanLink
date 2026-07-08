@@ -134,3 +134,22 @@ export async function upsertAgentCommitteeLabel(
   if (res.rows[0]) return { applied: true, skipped_human: false, row: res.rows[0] };
   return { applied: false, skipped_human: true, row: null };
 }
+
+/**
+ * Remove a committee label entirely (source-agnostic — clears agent or human).
+ * The caller should re-fuse the affected voters AFTER deleting so the rebuilt
+ * evidence reads the labels without this one (reverting voters to their
+ * pattern-lean, or Undetermined). See the DELETE route.
+ */
+export async function deleteCommitteeLeanLabel(
+  client: PoolClient,
+  params: { user_id: string; committee_name: string },
+): Promise<{ deleted: boolean; committee_name_norm: string }> {
+  const norm = committeeNameNorm(params.committee_name);
+  const res = await client.query(
+    `DELETE FROM committee_lean_labels
+     WHERE user_id = $1 AND committee_name_norm = $2`,
+    [params.user_id, norm],
+  );
+  return { deleted: (res.rowCount ?? 0) > 0, committee_name_norm: norm };
+}

@@ -6,6 +6,34 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-07, Committee Manager v2 + re-fusion visibility (ENH-018-UI))
+
+**Committee manager is now a real review/override surface + the re-fusion limbo is visible and
+bookable.** Owner screen-read found three gaps, all fixed (plan mode → approved): (1) modal
+**loading flash** (empty state rendered while `loading`) → gated behind `!loading`; (2) the
+labeled section was **read-only with no provenance** → now shows a **source badge**
+(Grok/Researcher), confidence, and Grok's reasoning, with **edit** (override → reclaims
+`source='researcher'`, locks the agent) and **delete** (reverts affected voters via re-fuse);
+(3) **re-fusion was invisible** — `classify --apply` had left 304 Duval FL voters
+labeled-but-unfused → new `countPendingRefusion` + **"Re-fuse now"** action
+(`refusionAllPendingForUpload`) surfaced in the manager AND the box-score "on base" strip
+(`refuse_committees` opportunity). Backend: `deleteCommitteeLeanLabel`, provenance on the
+labeled query, pending counter, bulk re-fuse, `DELETE` + `refuse_all` routes.
+
+**Verification caught a real issue:** bulk re-fuse re-matches FL contribs per voter (~0.5–1s
+each), so 304 voters took >2 min — too slow for a synchronous serverless POST. Fix: `maxDuration
+= 120` + a **150-voter guard** → over that, the route returns a CLI hint (mirrors the free-pass
+>5,000 guard). `classify --apply` now re-fuses the FL side too, so future runs don't create limbo
+(the 304 was a one-time backlog from before that fix).
+
+**Booked the 304 (via `refusionAllPendingForUpload`, what "Re-fuse now" calls):** 344 voters
+re-fused across 42 committees; `repass-diff` reconciles — **Tier-2 (fl_contrib) settles 8 → 10,
+partisan leans 600 → 604 (+7 new, −3 lost, 1 flip).** FL is settle-light (identity gating caps
+name-only matches), and the −3/flip means the labels also **corrected** spurious weak leans —
+accuracy, not just count. **Full committee arc on Duval: 478 → 556 settled (+78: +76 FEC, +2 FL),
+yield 0.32% → 0.38%.** tsc/lint/build + 34 goldens green. Manager is polished ahead of the planned
+**end-to-end client walkthrough** (owner has county data ready).
+
 ## Where to pick up (continuity note — 2026-07-07, committee classifier SHIPPED + measured (ENH-018 Unit B))
 
 **Grok-on-committees works — the constructive payoff of the T3 dig is real and measured.**

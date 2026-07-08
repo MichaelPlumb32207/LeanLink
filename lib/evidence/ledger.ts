@@ -1,6 +1,7 @@
 import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
 import { computeRunAnomalies, loadPriorRunRates } from '@/lib/evidence/run-baselines';
 import { inferLeanFromCommitteeName } from '@/lib/committee-lean/infer';
+import { countPendingRefusion } from '@/lib/committee-lean/queue';
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { fuseEvidenceEvents } from '@/lib/evidence/fusion';
@@ -469,6 +470,10 @@ export async function getUploadEvidenceSummary(
     }
   }
 
+  // The complement: voters behind a committee that IS labeled but who haven't
+  // been re-fused yet (label exists, fusion still Undetermined + eligible).
+  const pendingRefusion = await countPendingRefusion(client, userId, uploadId);
+
   const arms: UploadEvidenceSummary['arms'] = {};
   for (const row of armRes.rows) {
     arms[row.arm] = {
@@ -597,6 +602,8 @@ export async function getUploadEvidenceSummary(
     committees: {
       unlabeled_count: unlabeledNames.size,
       voters_affected: votersAffected.size,
+      pending_refusion_voters: pendingRefusion.voters_pending,
+      pending_refusion_committees: pendingRefusion.committees_pending,
     },
   };
 }

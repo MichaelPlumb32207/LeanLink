@@ -84,8 +84,14 @@ the unresolved-committee census (Grok is great at *public committees*, unlike an
 **bipartisan corporate PACs stay Undetermined** (never manufacture signal). `upsertAgentCommitteeLabel`
 is source-aware: the agent never overwrites a human label; a human override reclaims
 `source='researcher'` and locks the committee. On a billed account the agent *proposes* (default
-mode, no writes); a human confirms before `--apply` settles+bills. Labels apply on the next
-`run-fec-index` re-pass.
+mode, no writes); a human confirms before `--apply` settles+bills. The committee manager
+(`components/committee-lean-manager.tsx`) shows every label with a source badge + confidence +
+Grok reasoning and supports edit/delete (ENH-018-UI). **Applying a label only reaches a voter
+after re-fusion:** manual saves and DELETE re-fuse inline (`refusionFlContribForCommittee`);
+`classify --apply` re-fuses both arms (FEC re-score + `refusionAllPendingForUpload` for FL). A
+labeled-but-unfused backlog surfaces as the box-score `refuse_committees` opportunity /
+"Re-fuse now" (`countPendingRefusion`) — bulk re-fuse is per-voter FL re-matching (~0.5–1s each),
+so it's guarded at 150 voters inline (over that → CLI).
 
 **Re-pass as a product op** (ENH-010): a re-score with current logic self-cleans stale
 events (`deleteVoterArmEvents`, DEF-009) and reports a before/after delta. Bracket any

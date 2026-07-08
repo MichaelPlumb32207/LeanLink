@@ -319,7 +319,12 @@ export function EvidenceWorkspace({
             billing: null,
             fec_sweep: null,
             runs: { active: [], recent: [] },
-            committees: { unlabeled_count: 0, voters_affected: 0 },
+            committees: {
+              unlabeled_count: 0,
+              voters_affected: 0,
+              pending_refusion_voters: 0,
+              pending_refusion_committees: 0,
+            },
           }),
     [summary, syncing, uploadId, upload?.row_count],
   );
@@ -389,7 +394,11 @@ export function EvidenceWorkspace({
           <LineScore
             summary={summary}
             onOpportunityAction={(id) => {
-              if (id === 'label_committees') setCommitteeManagerOpen(true);
+              // Both open the committee manager — it hosts the label queue AND the
+              // "Re-fuse now" action for the labeled-but-unfused pending strip.
+              if (id === 'label_committees' || id === 'refuse_committees') {
+                setCommitteeManagerOpen(true);
+              }
             }}
           />
         )}

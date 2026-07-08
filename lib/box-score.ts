@@ -33,7 +33,7 @@ export interface BoxScoreInning {
  * `id` to an action (e.g. opening the committee-label manager).
  */
 export interface BoxScoreOpportunity {
-  id: 'label_committees';
+  id: 'label_committees' | 'refuse_committees';
   count: number;
   headline: string;
   detail: string;
@@ -135,6 +135,15 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     .sort((a, b) => b.lean_signals - a.lean_signals || b.events - a.events);
 
   const opportunities: BoxScoreOpportunity[] = [];
+  if ((summary.committees?.pending_refusion_voters ?? 0) > 0) {
+    opportunities.push({
+      id: 'refuse_committees',
+      count: summary.committees.pending_refusion_voters,
+      headline: `${summary.committees.pending_refusion_voters.toLocaleString()} voters behind labeled committees await re-fusion`,
+      detail: `${summary.committees.pending_refusion_committees.toLocaleString()} committee${summary.committees.pending_refusion_committees === 1 ? '' : 's'} labeled but not yet applied — one click books the leans`,
+      action_label: 'Re-fuse now',
+    });
+  }
   if ((summary.committees?.unlabeled_count ?? 0) > 0) {
     opportunities.push({
       id: 'label_committees',

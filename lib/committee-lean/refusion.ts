@@ -9,6 +9,7 @@ import {
 import { committeeNameNorm } from '@/lib/committee-lean/normalize';
 import { loadResearcherCommitteeLabels } from '@/lib/committee-lean/store';
 import { loadLeanPatterns } from '@/lib/lean-patterns/registry';
+import { CLAIM_ELIGIBLE_PREDICATE } from '@/lib/evidence/arm-runs';
 import { buildNameSearchVariants, fecQueryNames } from '@/lib/anchor/name-variants';
 import { parseEmailInsights } from '@/lib/enrichment/email-insights';
 import type { FlContributionHit } from '@/lib/fl-contrib/types';
@@ -124,4 +125,50 @@ export async function refusionFlContribForCommittee(
   }
 
   return { voters_refused: count };
+}
+
+/**
+ * Re-fuse every voter behind a labeled committee whose fusion is still
+ * Undetermined and eligible (the "Re-fuse now" bulk action). Selects the
+ * labeled committees that actually have pending voters, then loops the vetted
+ * per-committee re-fuse over each. Bounded to committees with pending work.
+ */
+export async function refusionAllPendingForUpload(
+  client: PoolClient,
+  params: { user_id: string; upload_id?: string | null },
+): Promise<{ voters_refused: number; committees_processed: number }> {
+  const qp: string[] = [params.user_id];
+  let uploadFilter = '';
+  if (params.upload_id) {
+    qp.push(params.upload_id);
+    uploadFilter = ` AND ee.upload_id = $${qp.length}`;
+  }
+  const { rows } = await client.query<{ committee_name: string }>(
+    `SELECT DISTINCT cl.committee_name
+     FROM committee_lean_labels cl
+     JOIN evidence_events ee
+       ON ee.user_id = cl.user_id
+      AND ee.arm = 'fl_contrib'
+      AND COALESCE(ee.payload->'committee_norms', '[]'::jsonb)
+          @> to_jsonb(ARRAY[cl.committee_name_norm]::text[])
+      ${uploadFilter}
+     JOIN voter_records vr ON vr.id = ee.voter_record_id
+     JOIN voter_lean_fusion vlf ON vlf.voter_record_id = vr.id
+     WHERE cl.user_id = $1
+       AND cl.lean != 'Undetermined'
+       AND vlf.lean = 'Undetermined'
+       AND ${CLAIM_ELIGIBLE_PREDICATE}`,
+    qp,
+  );
+
+  let voters_refused = 0;
+  for (const r of rows) {
+    const out = await refusionFlContribForCommittee(client, {
+      user_id: params.user_id,
+      committee_name: r.committee_name,
+      upload_id: params.upload_id ?? null,
+    });
+    voters_refused += out.voters_refused;
+  }
+  return { voters_refused, committees_processed: rows.length };
 }

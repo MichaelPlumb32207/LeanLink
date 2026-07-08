@@ -166,5 +166,12 @@ export interface UploadEvidenceSummary {
   committees: {
     unlabeled_count: number;
     voters_affected: number;
+    /**
+     * Voters behind a committee that IS labeled but whose fusion is still
+     * Undetermined + eligible — a label exists but they haven't been re-fused.
+     * Powers the box-score "Re-fuse now" opportunity (ENH-018-UI).
+     */
+    pending_refusion_voters: number;
+    pending_refusion_committees: number;
   };
 }
