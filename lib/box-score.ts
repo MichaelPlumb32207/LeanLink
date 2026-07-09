@@ -136,11 +136,10 @@ export function buildBoxScore(summary: UploadEvidenceSummary): BoxScore {
     .map(inningFor)
     .sort((a, b) => a.tier - b.tier);
 
-  // Enrichment arms (Sunbiz) — rendered nested inside their host inning's panel,
-  // never as a scoring row. Only surfaced once they have activity.
-  const enrichments = ENRICHMENT_ARMS.filter(
-    (arm) => (summary.arms[arm]?.event_count ?? 0) > 0 || (summary.settled.by_arm[arm] ?? 0) > 0,
-  ).map(inningFor);
+  // Enrichment arms (Sunbiz) — always nested inside their host inning's panel so
+  // the action surface stays reachable on a fresh upload (not_run is fine; zero
+  // stats are fine). Never a scoring row. Activity only changes the numbers/state.
+  const enrichments = ENRICHMENT_ARMS.map(inningFor);
 
   // party_prior is pre-game context, not a row or a footnote; enrichments are
   // nested; everything else with events is a supporting footnote.

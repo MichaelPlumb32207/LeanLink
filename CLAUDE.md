@@ -96,8 +96,11 @@ labeled-but-unfused backlog surfaces as the box-score `refuse_committees` opport
 (`app/api/committee-lean/refuse-worker/[runId]`, `maxDuration=800`) processes the pending
 committees single-pass (`listPendingRefusionCommittees` → `refusionFlContribForCommittee`),
 committing + heartbeating per committee so progress shows live in the box score, self-chaining
-past the budget (processed committees tracked in `arm_runs.meta` — resume-safe + won't loop on a
-genuinely-conflicted committee). The old 150-voter inline cap + CLI hint are gone.
+past the budget. `arm_runs.meta.processed_committees` is written on **every** heartbeat
+(`heartbeatArmRun(..., { meta })`) so a hard kill is resume-safe; budget is checked before
+starting each committee; won't loop on a genuinely-conflicted committee. RunStrip treats
+refuse as maintenance (voters re-fused only — no scoring-funnel vocab; bar capped at 100%).
+The old 150-voter inline cap + CLI hint are gone.
 
 **Re-pass as a product op** (ENH-010): a re-score with current logic self-cleans stale
 events (`deleteVoterArmEvents`, DEF-009) and reports a before/after delta. Bracket any
@@ -173,9 +176,10 @@ for a hit-only arm whose event count is far below the eligible pool (DEF-010); P
 genuinely interrupted (cancelled/failed) run. PROCESSED shows `max(run.processed_count,
 voters_touched)`. **Innings are scoring arms only (D-038):** `CORE_INNINGS =
 ['fec','fl_contrib','osint']`. **Sunbiz** is identity enrichment (structurally 0 leans — its
-leans book under FL contributions), so it's in `box.enrichments` and renders **nested** inside
-the FL contributions panel (`EnrichmentSection`), not as a row. **Party (T0)** is pre-game
-context (no lean), shown as a muted line. Clicking an inning row also **filters the voter list**
+leans book under FL contributions), so it's always in `box.enrichments` (even on first-run /
+`not_run` — the action surface is never activity-gated) and renders **nested** inside the FL
+contributions panel (`EnrichmentSection`), not as a row. **Party (T0)** is pre-game context
+(no lean), shown as a muted line. Clicking an inning row also **filters the voter list**
 to that arm (`handleSelectArm` → existing `armFilters`).
 **Guided workbench (ENH-019, in progress):** line-score rows are clickable and expand into
 `components/arm-detail-panel.tsx` — role/explainer from the pure registry

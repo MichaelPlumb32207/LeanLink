@@ -6,6 +6,20 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-08, post-review hardens: Sunbiz first-run + refuse resume)
+
+**Code review of the workbench sprint (ENH-019 + D-036…039 + ENH-022) found three real bugs;
+fixed in this commit.** (1) **Sunbiz unreachable on first-run** — `box.enrichments` was
+activity-gated, and the old step-5 button was gone, so `match-sunbiz-entity` had no UI path on a
+fresh upload. Fix: always emit enrichment innings (zero-friendly `not_run`); FL panel always
+hosts the action. (2) **Refuse meta only on chain** — hard kill lost `processed_committees`.
+Fix: `heartbeatArmRun` accepts optional `meta`; worker writes it every heartbeat + checks budget
+before starting a committee. (3) **Refuse RunStrip misused scoring funnel** — all four counters
+were the same voter total and the bar could overshoot 100%. Fix: heartbeat only `processed`
+(voters re-fused); RunStrip special-cases `committee_refuse` (no raw candidates / ID hits / lean
+signals; bar capped). UC-21·H/E3/E7/E12/E15 updated. **Next:** push + owner smoke (fresh-upload
+Sunbiz under FL; Duval re-fuse progress strip).
+
 ## Where to pick up (continuity note — 2026-07-08, "Re-fuse now" is a background job (D-039))
 
 **Prod validation of the D-036/037/038 push found a real friction: "Re-fuse now" on 249 pending
@@ -14,12 +28,12 @@ unlabeled census as a side effect.** Fixed by making bulk re-fuse a **background
 chose this over a CLI stopgap): `refuse_all` route creates a `committee_refuse` arm_run + fires
 `triggerRefuseWorker`; worker (`app/api/committee-lean/refuse-worker/[runId]`, maxDuration 800)
 processes pending committees single-pass with per-committee commits + heartbeats, self-chaining via
-`arm_runs.meta.processed_committees`. Progress shows live in the box score (RUN_ARM_LABELS gets
-`committee_refuse` → "Committee re-fusion"); the manager's button returns immediately with "started
-— watch the box score" and fires `onStarted` → `refreshSummary`. Removed the 150 cap + CLI hint.
-New: `lib/committee-lean/refuse-runner.ts`, the worker route, `listPendingRefusionCommittees`.
-Rationale = **D-039**. No migration (reuses arm_runs). Gated green; **not yet pushed** —
-owner-approved, ready to push + validate in prod (the 249 Duval pending is the live test).
+`arm_runs.meta.processed_committees` (written on every heartbeat — see post-review harden above).
+Progress shows live in the box score (RUN_ARM_LABELS gets `committee_refuse` → "Committee
+re-fusion"); the manager's button returns immediately with "started — watch the box score" and
+fires `onStarted` → `refreshSummary`. Removed the 150 cap + CLI hint. New:
+`lib/committee-lean/refuse-runner.ts`, the worker route, `listPendingRefusionCommittees`.
+Rationale = **D-039**. No migration (reuses arm_runs).
 
 ## Where to pick up (continuity note — 2026-07-08, innings = scoring arms only (D-038) + click-to-filter)
 

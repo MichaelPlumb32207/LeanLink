@@ -18,11 +18,17 @@ a `committee_refuse` arm_run and fire-and-forgets `triggerRefuseWorker`; the wor
 (`refuse-worker/[runId]`, `maxDuration=800`) processes the pending committees single-pass with
 per-committee commits + heartbeats (progress in the box score), self-chaining past the budget via
 `arm_runs.meta.processed_committees` (resume-safe; also stops a genuinely-conflicted committee — one
-that stays Undetermined after re-fusion — from looping). Removed the 150 cap and the CLI hint
-entirely; the button just works at any size, Grok-free. New: `lib/committee-lean/refuse-runner.ts`,
-`app/api/committee-lean/refuse-worker/[runId]/route.ts`, `listPendingRefusionCommittees`. No
-migration (reuses `arm_runs`, migration 014). Not an ENH-019 regression — pre-existing ENH-018-UI
-behavior surfaced during the D-036/037/038 prod validation.
+that stays Undetermined after re-fusion — from looping). **Hardening (post-review):** meta is
+written on *every* heartbeat (not only the chain branch), so a hard kill / maxDuration cut is
+resume-safe on the next chain of the same `runId`; budget is checked *before* starting each
+committee; RunStrip treats refuse as maintenance (voters re-fused only — no scoring-funnel
+vocab; bar capped at 100% because per-committee re-fusion can overshoot kickoff
+`voters_pending`). Removed the 150 cap and the CLI hint entirely; the button just works at any
+size, Grok-free. New: `lib/committee-lean/refuse-runner.ts`,
+`app/api/committee-lean/refuse-worker/[runId]/route.ts`, `listPendingRefusionCommittees`;
+`heartbeatArmRun` accepts optional `meta`. No migration (reuses `arm_runs`, migration 014). Not
+an ENH-019 regression — pre-existing ENH-018-UI behavior surfaced during the D-036/037/038 prod
+validation.
 
 ## D-038 · Innings are scoring arms only; identity/context arms nest or footnote
 **Decision (2026-07-08, owner):** In the box-score metaphor an inning is an *at-bat* — a chance
@@ -35,7 +41,9 @@ a baseball inning that grants your team no at-bat). Reclassified:
   "entity" (layer-2) events. So it renders as an "Identity enrichment" section inside the FL
   contributions panel (`box.enrichments` → `EnrichmentSection`), where its "N officers identified"
   is now the *single* home for that number (no D-036 duplication). Its `match-sunbiz-entity`
-  action + run history live there too.
+  action + run history live there too. **Always nested (even on first-run / `not_run`)** —
+  stats may be zero, but the action surface must never be activity-gated (the old step-5
+  button is gone; gating enrichments on event_count made Sunbiz unreachable on a fresh upload).
 - **Party (T0) → pre-game context, not an inning.** It's stored from intake and emits no lean
   (NPA lists carry none) — the lineup card, shown as a muted context line under the line score.
 - **OSINT stays an inning** — it *can* score (its events carry a lean), just yields ~0 today; it's

@@ -10,6 +10,8 @@ import { getRefuseDeadlineMs, triggerRefuseWorker } from '@/lib/committee-lean/r
 // Background "Re-fuse now" worker (D-039). Processes the labeled-but-unfused
 // committees for one arm_run single-pass, committing + heartbeating per committee
 // so the box score shows live progress; self-chains if it nears the budget.
+// Meta (`processed_committees`) is written on EVERY heartbeat so a hard kill
+// mid-segment is resume-safe on the next chain / re-trigger of the same runId.
 export const maxDuration = 800;
 
 function isAuthorized(request: Request): boolean {
@@ -56,13 +58,9 @@ export async function POST(request: Request, context: { params: Promise<{ runId:
     const todo = pending.filter((c) => !done.has(c));
 
     for (const committee_name of todo) {
+      // Check budget BEFORE starting work so a large committee never starts past
+      // the deadline (meta already has prior committees from the last heartbeat).
       if (Date.now() > deadline) {
-        await withUserDb(userEmail, (client) =>
-          client.query(`UPDATE arm_runs SET meta = $2, last_heartbeat_at = NOW() WHERE id = $1`, [
-            runId,
-            JSON.stringify({ processed_committees: [...done] }),
-          ]),
-        );
         void triggerRefuseWorker(runId);
         return NextResponse.json({ ok: true, refused, chained: true });
       }
@@ -79,13 +77,21 @@ export async function POST(request: Request, context: { params: Promise<{ runId:
         console.error('refuse committee failed', committee_name, e);
       }
       done.add(committee_name); // mark processed even on failure — never retry-loop
+      // Maintenance arm (not a scoring funnel): only `processed` carries meaning
+      // (voters re-fused). Persist processed_committees on every heartbeat so a
+      // hard kill / maxDuration cut mid-segment is resume-safe without a chain write.
       await withUserDb(userEmail, (client) =>
-        heartbeatArmRun(client, runId, {
-          processed: refused,
-          hits: refused,
-          confirmed: refused,
-          leanSignals: refused,
-        }),
+        heartbeatArmRun(
+          client,
+          runId,
+          {
+            processed: refused,
+            hits: 0,
+            confirmed: 0,
+            leanSignals: 0,
+          },
+          { meta: { processed_committees: [...done] } },
+        ),
       );
     }
 

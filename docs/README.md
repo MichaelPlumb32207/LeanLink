@@ -26,10 +26,12 @@ Read in this order when joining the project cold.
 
 1. **Upload** registration extract (+ optional `*_H_*` history) — no AI cost.
 2. **Select upload** from inventory (rows show a mini-score: settled · accepted · conflicted).
-3. **Box score** (D-029) — pinned scoreboard (records in / leans settled / conflicted /
-   accepted / still in research) + live progress while an arm runs; per-arm **line score**
-   inside the pipeline box. One polling loop (5s active / 30s idle).
-4. **Evidence accumulator** — pipeline steps, voter list + evidence timeline (FEC sweep, fused lean).
+3. **Box score** (D-029 / D-036…038) — pinned scoreboard (records in / leans settled /
+   conflicted / accepted / still in research) + live progress while an arm runs; per-arm
+   **line score** (scoring innings only; click a row → arm detail panel). Sunbiz nests under
+   FL contributions (always, including first-run). One polling loop (5s active / 30s idle).
+4. **Evidence workspace** — line score + ON BASE (committee CTAs) + arm panels + voter list /
+   evidence timeline (no pipeline cards; D-037).
 5. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate).
 6. **Export** CSV/JSON when fused lean exists in `lean_results`.
 

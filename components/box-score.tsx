@@ -3,8 +3,8 @@
 /**
  * The box score — pinned engagement scoreboard (BoxScoreBar), per-arm line
  * score (LineScore), and live current-inning detail. Read-only surfaces: all
- * numbers come from UploadEvidenceSummary via buildBoxScore; actions stay with
- * the pipeline controls in the evidence workspace.
+ * numbers come from UploadEvidenceSummary via buildBoxScore. Arm actions live
+ * in ArmDetailPanel (click a line-score row); ON BASE owns committee CTAs.
  */
 import { Fragment, useState, type ReactNode } from 'react';
 import { buildBoxScore, type BoxScoreInning } from '@/lib/box-score';
@@ -145,7 +145,11 @@ export function CurrentInning({ runs }: { runs: ArmRunSummary[] }) {
 
 export function RunStrip({ run }: { run: ArmRunSummary }) {
   const total = run.total_count;
-  const pct = total > 0 ? Math.max(2, Math.round((run.processed_count / total) * 100)) : 2;
+  // Cap the bar at 100% — refuse re-fuses every voter on a committee (broader
+  // than kickoff `voters_pending`), so processed can exceed total_count.
+  const rawPct = total > 0 ? Math.round((run.processed_count / total) * 100) : 0;
+  const pct = total > 0 ? Math.min(100, Math.max(2, rawPct)) : 2;
+  const isRefuse = run.arm === 'committee_refuse';
 
   const startedMs = run.started_at ? Date.parse(run.started_at) : NaN;
   const elapsedS = Number.isFinite(startedMs) ? Math.max(1, (Date.now() - startedMs) / 1000) : null;
@@ -180,14 +184,26 @@ export function RunStrip({ run }: { run: ArmRunSummary }) {
           </span>
         )}
         <span>
-          {nf.format(run.processed_count)}/{nf.format(total)} ({pct}%)
+          {isRefuse
+            ? `${nf.format(run.processed_count)} voters re-fused`
+            : `${nf.format(run.processed_count)}/${nf.format(total)} (${pct}%)`}
+          {isRefuse && total > 0 && (
+            <span className="opacity-70">
+              {' '}
+              · {nf.format(total)} pending at start
+              {run.processed_count > total ? ` · ${pct}%+` : ` · ${pct}%`}
+            </span>
+          )}
         </span>
         {rate != null && <span>· {rate >= 10 ? Math.round(rate) : rate.toFixed(1)}/s</span>}
         {etaLabel && <span>· {etaLabel}</span>}
-        <span>
-          · {nf.format(run.hits_count)} raw candidates · {nf.format(run.confirmed_count)} ID hits ·{' '}
-          {nf.format(run.lean_signal_count)} lean signals
-        </span>
+        {/* Scoring arms only — refuse is maintenance, not a funnel (D-036). */}
+        {!isRefuse && (
+          <span>
+            · {nf.format(run.hits_count)} raw candidates · {nf.format(run.confirmed_count)} ID hits ·{' '}
+            {nf.format(run.lean_signal_count)} lean signals
+          </span>
+        )}
         {heartbeatAgeS != null && (
           <span className={stalled ? 'font-medium text-amber-300' : 'opacity-60'}>
             · {stalled ? `no heartbeat for ${Math.round(heartbeatAgeS / 60)} min — stalled?` : `heartbeat ${heartbeatAgeS}s ago`}

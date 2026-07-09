@@ -93,12 +93,37 @@ export async function startArmRun(
   return res.rows[0]?.id ?? null;
 }
 
-/** Absolute cumulative counts for this run — call at least once per chunk. */
+/**
+ * Absolute cumulative counts for this run — call at least once per chunk.
+ * Optional `meta` replaces `arm_runs.meta` (used by refuse-worker to persist
+ * `processed_committees` on every heartbeat so a hard kill stays resume-safe).
+ */
 export async function heartbeatArmRun(
   client: PoolClient,
   runId: string,
   counts: ArmRunCounts,
+  opts?: { meta?: Record<string, unknown> },
 ): Promise<void> {
+  if (opts?.meta !== undefined) {
+    await client.query(
+      `UPDATE arm_runs
+       SET processed_count = $2, failed_count = $3, hits_count = $4,
+           confirmed_count = $5, lean_signal_count = $6,
+           status = 'running', last_heartbeat_at = NOW(),
+           meta = $7
+       WHERE id = $1`,
+      [
+        runId,
+        counts.processed,
+        counts.failed ?? 0,
+        counts.hits,
+        counts.confirmed,
+        counts.leanSignals,
+        JSON.stringify(opts.meta),
+      ],
+    );
+    return;
+  }
   await client.query(
     `UPDATE arm_runs
      SET processed_count = $2, failed_count = $3, hits_count = $4,
