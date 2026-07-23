@@ -15,7 +15,8 @@ Read in this order when joining the project cold.
 | [`plans/`](plans/ENH-019-guided-workbench.md) | Build specs for planned work, written self-contained for hand-off to a builder model (currently: ENH-019 guided workbench) | A plan is authored or revised; when it ships, its outcome folds into PROGRESS/BACKLOG |
 | [`enrichment-pipeline.html`](enrichment-pipeline.html) | Visual enrichment/inference spec (modes, guardrails, code map) | Pipeline or mode changes |
 | [`evidence-accumulator-pitch.html`](evidence-accumulator-pitch.html) | Pitch deck — multi-arm evidence, identity gates, fusion | Architecture or stakeholder demos |
-| [`USE_CASES.md`](USE_CASES.md) | Use cases + manual QA checklist (future automated tests) | New user-facing behavior |
+| [`USE_CASES.md`](USE_CASES.md) | Use-case catalog + embedded happy/edge tests (no separate TEST_PLAN) | New user-facing behavior |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | Operator smoke paths (upload, universe, lean conflict, deliverable) | Operator-facing flows change |
 | [`COST-ESTIMATES.md`](COST-ESTIMATES.md) | Grok/Apify $/voter bands from live samples | After scorecard or test enrichment runs |
 | [`../leanlink-pitch.html`](../leanlink-pitch.html) | **Client-facing 3-page pitch** — what it is, deliverables, confirmed pricing (print-ready) | Pricing or deliverable changes |
 | [`../onrecord-pitch.html`](../onrecord-pitch.html) | OnRecord brand variant of the pitch (naming A/B — **generated mirror, never hand-edit**; regenerate: `sed -e 's/LeanLink/OnRecord/g' -e 's/leanlink-pitch/onrecord-pitch/g' leanlink-pitch.html > onrecord-pitch.html`, same pattern for the one-pager) | Whenever the LeanLink source doc changes |
@@ -24,16 +25,21 @@ Read in this order when joining the project cold.
 
 ## POC workflow (dashboard)
 
-1. **Upload** registration extract (+ optional `*_H_*` history) — no AI cost.
-2. **Select upload** from inventory (rows show a mini-score: settled · accepted · conflicted).
+1. **Upload** registration extract (+ optional `*_H_*` history) — no AI cost. Choose
+   **universe** (NPA research · GOTV · custom) before upload.
+2. **Select upload** from inventory (rows show a mini-score: settled · accepted · conflicted;
+   universe badge on each row).
 3. **Box score** (D-029 / D-036…038) — pinned scoreboard (records in / leans settled /
    conflicted / accepted / still in research) + live progress while an arm runs; per-arm
    **line score** (scoring innings only; click a row → arm detail panel). Sunbiz nests under
    FL contributions (always, including first-run). One polling loop (5s active / 30s idle).
 4. **Evidence workspace** — line score + ON BASE (committee CTAs) + arm panels + voter list /
-   evidence timeline (no pipeline cards; D-037).
-5. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate).
-6. **Export** CSV/JSON when fused lean exists in `lean_results`.
+   evidence timeline (no pipeline cards; D-037). Set **Lean conflict rule** (D-044) before
+   handing off a client deliverable.
+5. **Download deliverable (CSV)** — original columns + Lean/Confidence/Source/Status/Evidence,
+   resolved under the upload’s `lean_precedence`.
+6. **Research lab** — row-index subset tests (enrichment, scorecard, Street View, FEC disambiguate)
+   and research CSV/JSON export from `lean_results`.
 
 ## Tiered / prepaid product (2026-07-03)
 
@@ -52,11 +58,14 @@ Read in this order when joining the project cold.
 | `lib/enrichment/grok-pipeline.ts` | Grok OSINT + inference |
 | `lib/enrichment/apify-pipeline.ts` | Apify fetch + Grok synthesize |
 | `lib/exa/*` | Exa retrieval spike (people/web/contents; D-040) — not yet a pipeline mode |
+| `lib/ingest/universe.ts` | FL extract universe presets (D-041) |
+| `lib/lean-precedence.ts` | Party vs wallet deliverable resolve (D-044) |
+| `lib/priority/tiers.ts` | GOTV priority tier pure helpers (Client-1 shape) |
 | `lib/enrichment/query-builder.ts` | Social-first + Tier-A query plan |
 | `lib/fec/contributor-lookup.ts` | Direct FEC Schedule A API |
 | `lib/evidence/ledger.ts` | Evidence events + fusion → `lean_results` |
 | `lib/evidence/arms.ts` | Pluggable arm registry |
-| `components/evidence-workspace.tsx` | Dashboard split-pane evidence UI |
+| `components/evidence-workspace.tsx` | Dashboard split-pane evidence UI + lean conflict select |
 | `components/box-score.tsx` + `lib/box-score.ts` | Pinned scoreboard, per-arm line score, live strip (D-029) |
 | `components/use-evidence-summary.ts` | The one summary polling loop (5s active / 30s idle) |
 | `lib/enrichment/suggested-test-rows.ts` | Curated row indices per county |
@@ -74,7 +83,8 @@ Read in this order when joining the project cold.
 | `GET/POST /api/uploads/[id]/evidence` | Voter timeline; `sync-fec` backfill |
 | `POST /api/voters/[id]/review` | Researcher accept / reopen / re-enroll one voter |
 | `POST /api/uploads/[id]/re-enroll` | Cohort re-enroll (confidence/tier filters) or withdraw |
-| `GET /api/export/[id]/deliverable` | Client deliverable CSV/JSON; `?format=audit` = internal arm audit (D-042) |
+| `GET /api/export/[id]/deliverable` | Client deliverable CSV/JSON under `lean_precedence` (D-044); `?format=audit` = internal arm audit (D-042) |
+| `PATCH /api/uploads/[id]` | Update upload settings (e.g. `lean_precedence`) |
 | `GET /api/enrichment/apify-config` | Actor IDs and limits |
 
-Last reviewed: 2026-07-04.
+Last reviewed: 2026-07-23.

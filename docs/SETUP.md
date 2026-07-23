@@ -82,8 +82,8 @@ for f in migrations/0*.sql; do psql "$DATABASE_URL" -f "$f"; done
 `DATABASE_URL` from the environment or `.env.local`):
 
 ```bash
-node scripts/apply-migrations.mjs                       # applies 007–011 by default
-node scripts/apply-migrations.mjs migrations/011_initiation_and_review.sql   # or specific files
+node scripts/apply-migrations.mjs                       # walks migrations/ (007 may error if already applied — skip and continue)
+node scripts/apply-migrations.mjs migrations/023_lean_precedence.sql   # or a specific file
 ```
 
 Full order:
@@ -103,6 +103,13 @@ Full order:
 | `011_initiation_and_review.sql` | `initiation` ledger kind + `rate_cards.initiation_usd` (seeded $2,500); `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
 | `012_fl_extract_unbilled.sql` | posture guardrail: `CHECK` that an `fl_extract` upload never carries a billing `account_id` (D-027) |
 | `013_fec_indiv_index.sql` | `fec_contributions` bulk index (FL-filtered FEC federal Schedule A) + `reference_snapshots.completed_at`; makes Tier 1 a local lookup (D-028) |
+| `014_arm_runs.sql` | Per-arm run progress (`arm_runs`) for box-score live strip |
+| `015`–`018` | Sunbiz/fl_contrib indexes + unlabeled-committees partial index (perf) |
+| `019_lean_patterns.sql` | `lean_patterns` registry (seeded from hardcoded lists) |
+| `020_agent_committee_source.sql` | `'agent'` source on `committee_lean_labels` (Grok classifier) |
+| `021_ingest_universe.sql` | `voter_uploads.ingest_universe` JSONB (NPA / GOTV / custom — D-041) |
+| `022_lean_results_per_upload.sql` | `lean_results` uniqueness per upload (D-043) |
+| `023_lean_precedence.sql` | `lean_precedence` on uploads (+ optional account default) — D-044 |
 
 Migrations are additive and idempotent (`CREATE ... IF NOT EXISTS`, `ADD COLUMN IF NOT
 EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is safe.

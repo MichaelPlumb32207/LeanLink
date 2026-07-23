@@ -11,7 +11,8 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 **D-044 / ENH-026 / migration 023:** deliverable lean when party and wallet disagree is
 **client-configurable** — default **wallet** (evidence wins). Pure resolver + smoke;
 export honors `voter_uploads.lean_precedence`; dashboard select on evidence workspace;
-`PATCH /api/uploads/[id]`. Apply **023** before deploy. Does not rewrite fusion.
+`PATCH /api/uploads/[id]`. Migration **023 applied** on Neon (local). Does not rewrite fusion.
+**Owner smoke-testing** deliverable + dropdown next — see `docs/USER_GUIDE.md` § Lean conflict rule.
 
 ## Where to pick up (continuity note — 2026-07-23, unique-key fix + innings run)
 
@@ -100,7 +101,8 @@ yet pushed (stacked on the unpushed rail-removal commit; both go on the next pus
   "Identity enrichment" section in the FL panel (`box.enrichments` → `EnrichmentSection`) with its
   "N officers identified", run history, and `match-sunbiz-entity` action. Since it has no row, that
   number's single home is now the FL panel (no D-036 duplication).
-- **Party (T0) → pre-game context**, a muted line under the line score (stored, emits no lean).
+- **Party (T0) → pre-game context**, a muted line under the line score (stored; no fusion
+  settle lean; deliverable may still use party under D-044).
 - **OSINT stays an inning** — it can score (just ~0 today) and is the future home for interactive
   "research arms" (system + researcher), built out over time.
 - **Click an inning → filters the voter list** to that arm's hits (`handleSelectArm` reuses
@@ -841,8 +843,9 @@ waterfall product the one-pager (`leanlink-one-pager.html`) sells.
   ledger/rate editor). Scoreboard shows settled-by-tier + billed totals.
 
 **Open decisions (reversible config):** OSINT hit currently bills attempt **+** tier-3 (set
-`osint_attempt_usd=0` to bill tier-3 only). Provided-party is inert (no lean emitted) —
-recommended treatment is "weak prior, arms still run," not pre-settle.
+`osint_attempt_usd=0` to bill tier-3 only). Provided-party is inert in **fusion** (no auto
+evidence event); deliverable party-vs-wallet is configurable (D-044, default wallet) — not
+pre-settle / not billed for echoing registration.
 
 **Validate in prod:** create account → deposit → `/dashboard/intake` sample list billed to
 it → run FEC/FL/OSINT → scoreboard "Settled by tier" + "Billed $…"; Billing console invoice
@@ -1016,8 +1019,9 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
    so uploads are identifiable in the inventory + deliverable filename.
 3. **OSINT charge policy decision** — confirm whether an OSINT hit should bill attempt **+**
    tier-3 (current) or tier-3 only (`osint_attempt_usd = 0`). Money-sensitive; owner call.
-4. **Party-prior decision** — provided party is currently inert (no lean emitted). Recommended:
-   emit a low-weight tier-0 prior the arms confirm/override, never billed for echoing. Owner call.
+4. **Party-prior as fusion arm** — still inert in fusion (no auto evidence event). **Deliverable**
+   party-vs-wallet policy is **done** (D-044 / ENH-026, default wallet). Optional later: tier-0
+   fusion prior (never billed for echoing registration).
 5. **FL-scoped FEC bulk-load** — ✅ **shipped 2026-07-04 (D-028, migration 013)**; remaining:
    apply 013, load the 2024 cycle (SETUP §8), backfill older cycles, then retire the Alachua
    API sweep in favor of the local pass.
@@ -1047,4 +1051,6 @@ optional `FEC_API_KEY` (falls back to `DEMO_KEY` locally) — do **not** set
 - Grok ≈ **$0.03/voter** at `grok-full` — never run 40k without explicit opt-in.
 - FEC `DEMO_KEY` is rate-limited — set `FEC_API_KEY` in Vercel for production eval volume.
 - Single-user only by design; `user_id` is the email everywhere.
-- `voter_hash` uniqueness is per user — re-processing conflicts on `lean_results` insert.
+- `lean_results` uniqueness is **per upload** (`upload_id, voter_hash`) plus one row per
+  `voter_record_id` (D-043 / migration 022) — multi re-ingest of the same person across
+  uploads is allowed; do not reintroduce a global `(user_id, voter_hash)` unique.

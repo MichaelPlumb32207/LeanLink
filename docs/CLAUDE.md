@@ -31,7 +31,10 @@ the activity:
 
 Both tracks share the standing integrity rules (also client-facing promises in
 `leanlink-pitch.html`): public data only, no data brokers, race/gender never used as
-inputs, conflicting evidence → withheld label, no resale or pooling of results.
+inputs, **conflicting public-evidence arms** → fusion withholds the label, no resale or
+pooling of results. Separately, **registration party vs public-evidence** tension is a
+client product policy (`lean_precedence`, D-044) — default **wallet** (donations win), not
+the fusion withhold rule.
 
 ## Stack (as built — supersedes the original plan HTML)
 
@@ -107,8 +110,11 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
 
 **Config knobs (money-sensitive, reversible):** `LEANLINK_SETTLE_THRESHOLD`; all fees via the
 `rate_cards` table. OSINT currently bills attempt **and** tier-3 on a hit — set
-`osint_attempt_usd=0` for tier-3-only. Provided-party is stored/scored but emits **no** lean
-yet (treat as a weak prior the arms confirm/override; never bill for echoing a registration).
+`osint_attempt_usd=0` for tier-3-only. **Provided-party (T0)** is stored on intake and is
+**not** auto-written as a fusion evidence event / settle arm (box score: pre-game context).
+The **client deliverable** may still surface a registration prior or resolve party-vs-wallet
+tension via `lean_precedence` (D-044, default wallet) — never billed for echoing a
+registration; never rewrites fusion.
 
 **Posture note:** commercial deployment on client-supplied lists is now the operating model
 (D-027, 2026-07-04) — see the two-track posture at the top of this doc. FL-extract uploads

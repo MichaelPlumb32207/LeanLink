@@ -66,8 +66,10 @@
           max next-arm spend before advancing a tier.</li>
         <li><strong>Client deliverable</strong> — the client's original file back with Lean /
           Confidence / Source (all contributing arms, settled arm first) / Status (accepted · fused ·
-          provisional · conflicted · unresearched) / Evidence columns, plus a <code>?format=audit</code>
-          export (one row per evidence event with arm, source, identity band, lean signal, citation URLs).</li>
+          provisional · conflicted · unresearched) / Evidence columns. Lean is resolved under
+          <code>lean_precedence</code> (D-044: default <strong>wallet</strong> when party and
+          public-evidence disagree; presentation only). <code>?format=audit</code> is
+          operator-internal (D-042 layer 4).</li>
         <li><strong>Resilience</strong> — FEC lookups retry transient 5xx in-call, and a background
           cron re-attempts anything that still failed.</li>
       </ul>

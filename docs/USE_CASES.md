@@ -199,7 +199,9 @@ without Grok spend.
 
 ## UC-15 — Client deliverable export ✅
 **As** the operator, **I can** hand the client back their own list with lean, confidence,
-source labels, and short evidence (D-042 layers 1–2). Full arm audit is operator-internal.
+source labels, and short evidence (D-042 layers 1–2). Lean is resolved under the upload’s
+**lean_precedence** when registration party and public-evidence disagree (D-044; default
+wallet). Full arm audit is operator-internal.
 
 | ID | Test | Expected |
 |---|---|---|

@@ -135,9 +135,9 @@ These are reversible-config forks currently parked; each one nudges the roadmap 
 | Decision | Current default | The call |
 |---|---|---|
 | **OSINT charge policy** | Attempt **+** tier-3 on a hit | Keep, or bill tier-3 only (`osint_attempt_usd = 0`). Money-sensitive. |
-| **Party-prior treatment** | Inert (provided party emits no lean) | Keep inert, or emit a low-weight tier-0 prior the arms confirm/override (never billed for echoing a registration). |
+| **Party-prior as fusion settle arm** | Still inert in fusion (no auto `party_prior` evidence event) | Optional later: low-weight tier-0 fusion prior arms confirm/override (never billed for echoing). **Deliverable side closed by D-044** (party vs wallet is client-configurable; default wallet). |
 | **Brand name** | Undecided — parallel LeanLink/OnRecord docs | Pick one; the A/B docs are byte-identical except the name, so it tests the name alone. |
-| **Living-doc set alignment** | Project set (D-007) + `BACKLOG.md` (added 2026-07-05, owner call) | `BACKLOG.md` now holds the DEF-/ENH-/FEAT- ledger; `USER_GUIDE.md` is the remaining absentee from the global 8-doc standard. |
+| **Living-doc set alignment** | Project set + `BACKLOG.md` | `USE_CASES.md` is the catalog (no separate `TEST_PLAN`/`USE_CASE_CATALOG`); `USER_GUIDE.md` added 2026-07-23 for operator smoke paths. |
 
 ## Non-goals (explicit — not on any horizon)
 

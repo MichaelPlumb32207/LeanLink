@@ -117,8 +117,10 @@ a baseball inning that grants your team no at-bat). Reclassified:
   action + run history live there too. **Always nested (even on first-run / `not_run`)** —
   stats may be zero, but the action surface must never be activity-gated (the old step-5
   button is gone; gating enrichments on event_count made Sunbiz unreachable on a fresh upload).
-- **Party (T0) → pre-game context, not an inning.** It's stored from intake and emits no lean
-  (NPA lists carry none) — the lineup card, shown as a muted context line under the line score.
+- **Party (T0) → pre-game context, not an inning.** Stored from intake; **not** a fusion settle
+  arm or line-score inning (NPA lists carry none) — muted context line under the line score.
+  Client deliverable may still use party as a prior / conflict input under **D-044**
+  (`lean_precedence`; default wallet).
 - **OSINT stays an inning** — it *can* score (its events carry a lean), just yields ~0 today; it's
   the intended future home for interactive "research arms" (system + researcher), built out over
   time. Keep the at-bat row.
@@ -432,8 +434,9 @@ voters. **Chose "hard stop above threshold"** over pure fusion (accuracy vs cost
 **baseline-per-record + attempt-priced OSINT** (vs pure success-only) to stop thin-data lists
 consuming expensive attempts for free. **Overrides:** the `stack-spec.md` "No billing system"
 non-goal. **Open (reversible config):** OSINT hit bills attempt + tier-3 (`osint_attempt_usd=0`
-for tier-3 only); provided-party emits no lean yet (weak-prior recommendation). Single-operator
-now; `account_id` is the seam to future multi-tenant login.
+for tier-3 only); party-prior as a **fusion** settle arm still optional. **Deliverable**
+party-vs-wallet is decided (D-044). Single-operator now; `account_id` is the seam to
+future multi-tenant login.
 
 ## D-023 · Multi-arm evidence accumulator + fused lean
 **Decision:** Add `evidence_events` ledger (per voter, per arm) and `voter_lean_fusion` with

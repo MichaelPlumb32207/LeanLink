@@ -19,8 +19,10 @@ engagements run on **client-supplied lists** enriched exclusively from public re
 > voters), and prepaid per-tier billing — the tiered product the one-pager sells.
 > **New (2026-07-04):** pricing confirmed (incl. $2,500 initiation fee), researcher review
 > controls (accept/reopen/re-enroll), waterfall gate with projected next-arm spend, and a
-> multi-arm provenance + audit deliverable export. See
-> [`docs/PROGRESS.md`](docs/PROGRESS.md) for where to pick up.
+> multi-arm provenance + audit deliverable export.
+> **New (2026-07-23):** ingest universe presets (NPA research · GOTV · custom); deliverable
+> **lean conflict rule** (party vs wallet — default wallet wins, client-overridable). See
+> [`docs/PROGRESS.md`](docs/PROGRESS.md) and [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
 
 ## Stack
 
@@ -43,13 +45,14 @@ instance from scratch.
 
 ## How it works
 
-1. **Upload** a Florida registration extract (`.txt`, 38 tab-delimited fields) — auto-filtered
-   to NPA + Active voters. Optionally add a voting-history file (`*_H_*.txt`) for turnout
-   scoring. No AI cost on upload.
-2. **Analyze** a selected upload — enter a small **row-index subset** (defaults to ~7 curated
-   rows/county), pick a test: enrichment, scorecard, Street View exploratory, or **FEC lookup**.
-   Four Grok pipeline modes for enrichment/scorecard.
-3. **Export** results when present (CSV/JSON). Full-county batch inference is off by default.
+1. **Upload** a Florida registration extract (`.txt`, 38 tab-delimited fields). Choose
+   **universe** at ingest: NPA+Active (research default), GOTV (all parties + ACT/INA), or
+   custom. Optionally add a voting-history file (`*_H_*.txt`) for turnout scoring. No AI cost
+   on upload. County-scale files: `scripts/ingest-extract.ts` (dashboard body limit ~4.5 MB).
+2. **Evidence workspace** — run FEC / FL / Sunbiz arms; box score tracks progress. Set
+   **Lean conflict rule** when party and public-evidence lean may disagree (default: wallet).
+3. **Export** client deliverable (`/api/export/…/deliverable`) or research lab CSV/JSON.
+   Full-county Grok batch inference is off by default.
 
 ## Documentation
 
@@ -59,6 +62,7 @@ instance from scratch.
 - [`docs/SETUP.md`](docs/SETUP.md) — provisioning runbook
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why the stack/design choices were made
 - [`docs/USE_CASES.md`](docs/USE_CASES.md) — use cases + test cases
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — operator smoke paths (universe, lean conflict, export)
 - [`docs/PROGRESS.md`](docs/PROGRESS.md) — build status + continuity / pick-up notes
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — where the product is going (Now/Next/Later + open decisions)
 - [`docs/COST-ESTIMATES.md`](docs/COST-ESTIMATES.md) — Grok $/voter bands

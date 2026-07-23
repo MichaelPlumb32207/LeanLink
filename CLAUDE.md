@@ -66,8 +66,9 @@ except in the cron sweeper (which runs as a system job, not a user).
 
 **Data model** (`migrations/`): `voter_uploads` 1→N `voter_records` 1→1 `lean_results`,
 with `processing_jobs` tracking a run per upload. Dedup is enforced by
-`UNIQUE (upload_id, voter_hash)` and `UNIQUE (user_id, voter_hash)` — the same voter
-hashed twice (across uploads) will conflict on insert into `lean_results`.
+`UNIQUE (upload_id, voter_hash)` on `voter_records` and, on `lean_results`,
+`UNIQUE (voter_record_id)` + `UNIQUE (upload_id, voter_hash)` (D-043 — **not** global
+`user_id + voter_hash`; multi re-ingest of the same person across uploads is expected).
 
 **Waterfall/review semantics** (`voter_lean_fusion`, migrations 008/011): settlement
 (`settled_tier`, billed once ever) and research continuation are separate switches. Arm claim
@@ -78,6 +79,11 @@ canonical SQL lives in `CLAIM_ELIGIBLE_PREDICATE` (`lib/evidence/arm-runs.ts`), 
 eligible-remaining count; `claimFecSweepRows` still inlines a copy — keep it in sync.
 Researcher acceptance also freezes fusion — `persistFusionForVoter` early-returns for
 accepted voters so their deliverable values never drift.
+
+**Deliverable lean vs fusion (D-044):** the client deliverable resolves registration party
+vs public-evidence lean under `voter_uploads.lean_precedence` (default **wallet** —
+evidence wins). Pure helper `lib/lean-precedence.ts`; does **not** rewrite fusion.
+Dashboard: evidence workspace “Lean conflict rule”; `PATCH /api/uploads/[id]`.
 
 **Committee labels & the Grok classifier** (ENH-018): committee → lean labels
 (`committee_lean_labels`, name-keyed, **federal + state share one namespace**) beat pattern
