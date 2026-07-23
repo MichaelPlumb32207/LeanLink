@@ -6,6 +6,79 @@ current as design shifts.
 
 ---
 
+## D-044 · Lean conflict precedence is client-configurable; default wallet wins
+**Decision (2026-07-23, owner):** When registration party (DEM→Left / REP→Right) and
+public-evidence lean (FEC / FL contributions / fusion) **disagree**, the **client deliverable**
+resolves under a per-upload setting `lean_precedence`:
+
+| Mode | Behavior |
+|---|---|
+| **`wallet` (default)** | Donation / public-evidence lean wins (“they lean the way their wallet leans”) |
+| **`registration`** | Party on the roll wins; evidence is noted as conflicting |
+| **`conflict_undetermined`** | Withhold lean (research integrity / force human review) |
+
+**Presentation only** — does not rewrite `voter_lean_fusion` or arm events. Researcher-**accepted**
+rows keep frozen fusion values. Party-only rows (no evidence yet) still get a registration prior
+on the deliverable under any mode. Optional `accounts.lean_precedence` seeds new billed generic
+uploads; upload column is authoritative once set. Migration **023**; pure resolver
+`lib/lean-precedence.ts`; UI select on the evidence workspace; `PATCH /api/uploads/[id]`.
+**Why:** Learning #4 from multi-county GOTV — party-vs-wallet tension is real and clients will
+want different product policies (GOTV chase vs research purity). **Related:** D-042 (deliverable
+layers), ENH-026.
+
+## D-043 · lean_results uniqueness is per upload, not global per user hash
+**Decision (2026-07-23):** Drop `UNIQUE (user_id, voter_hash)` on `lean_results`; keep
+`UNIQUE (voter_record_id)` and add `UNIQUE (upload_id, voter_hash)`. **Why:** FL voterId
+hashes collide across re-ingests of the same person (NPA research + GOTV 2026, etc.). FEC
+fusion then aborted mid-county with `lean_results_user_id_voter_hash_key` (CAL GOTV partial
+run). Multi-upload is normal R&D; one deliverable row per *record* is the right scope.
+Migration **022**.
+
+## D-042 · Client deliverables vs internal audit (disclosure ladder)
+**Decision (2026-07-23, owner):** Split what clients receive from what operators keep.
+
+| Layer | Audience | Contents |
+|---|---|---|
+| **1 · Results** | Client (always) | Tier and/or lean, confidence band, short plain-language why |
+| **2 · Methodology** | Client (always / on request) | How tiers work; leans require public evidence; data vintage; limits |
+| **3 · Sanitized evidence** | Client optional add-on | Source *class* only (e.g. “federal contribution records”, “registration party”) — not arm ids, scorer versions, query plans, vendors, prompts |
+| **4 · Full per-voter arm audit** | **Internal default** | Full evidence ledger / `format=audit` events, payloads, fusion path — screen-shareable for trust, not a standard email handoff |
+
+**Product defaults:**
+- **Priority / chase lists (Client-1 shape):** layers 1–2; reason codes from tier inputs (party, status, turnout, contact). Not the full arm ledger unless lean enrichment was also sold.
+- **Lean estimates (Client-2 shape):** layers 1–2; layer 3 if counsel/trust needs it; layer 4 stays operator-only.
+- **Hybrid:** priority for all rows; lean + source class only where settled.
+
+**Why:** Full audit exports expose pipeline IP (waterfall, thresholds, vendors) and are noisier than clients need for doors/phones. Transparent *results* without handing over the factory. **Overrides:** treating `/api/export/…?format=audit` as a default client deliverable — it remains an **internal/operator** tool (may be walked through live). Future export UI should label “Deliverable” vs “Internal audit.”
+
+## D-041 · Ingest universe is configurable (NPA research vs GOTV); not hard-coded NPA+ACT only
+**Decision (2026-07-23, owner):** FL extract ingest no longer always means NPA + Active.
+**Presets:** `npa-act` (research lean scope), `gotv` (all parties + ACT+INA mobilization universe),
+`custom` (multi-select parties/statuses). Snapshot stored on `voter_uploads.ingest_universe`
+(migration **021**). CLI `--universe` / dashboard Universe step / API form fields all write it.
+Exempt/suppressed still excluded. Generic client lists leave `ingest_universe` null (the list
+*is* the universe). **Why:** GOTV/engagement targets include inactive registrants and
+party-registered voters; dropping them was a research convenience, not a product truth.
+**Related:** ENH-024. Does not change evidence/fusion semantics — only who lands in
+`voter_records`.
+
+## D-040 · Exa as modular retrieval (not a full AI rewrite); People for public-footprint identity only
+**Decision (2026-07-22, owner exploration + Phase 0 probe):** Do **not** hand Tier-3 lean
+settlement to Exa Agent / deep search end-to-end. Revamp the **AI research retrieval half** only:
+Exa for people-index + web/news/contents fetch; **xAI Grok remains judgment** (JSON schema +
+`applyInferenceGuardrails`), **x_search**, committee knowledge (ENH-018), and vision.
+**Phase 0 evidence (free MCP people search):** strong hits on public/professional footprints
+(e.g. UF faculty-style LinkedIn + location); thin NPAs produce near-misses and name collisions
+("Ezra Thomas" ≠ "Ezra Thomas Childs"; "Janelle Stewart" ≠ "Steward") — same identity wall as
+D-033. Therefore People is a **conditional identity pre-step**, never an always-on cohort arm and
+never a lean signal (job title/employer identity-only). **Phase 1 shipped:** `lib/exa/*` (REST,
+no SDK), pure `score-people` with strict name+location gates, offline smoke, read-only
+`scripts/probe-exa-people.ts` (needs `EXA_API_KEY`). **Not yet:** `exa-modular` enrichment mode
+or Apify demotion (Phase 2, scorecard-gated). Product promise unchanged: public indexes only —
+Exa is not framed as a data broker; mass "LinkedIn for every voter" is out of scope.
+**Overrides:** nothing in fusion/waterfall; softens D-008's "Grok live-search first" for the
+fetch half only when/if `exa-modular` proves out. **Related:** ENH-023.
+
 ## D-039 · "Re-fuse now" is a background job — no size cap, no CLI, live in the box score
 **Decision (2026-07-08, owner — found in prod validation):** Clicking "Re-fuse now" on a backlog
 over 150 voters hit an inline cap and showed a message pointing at

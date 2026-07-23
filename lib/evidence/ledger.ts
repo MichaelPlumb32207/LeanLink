@@ -203,6 +203,9 @@ export async function persistFusionForVoter(
     const voter_hash = voterHashRes.rows[0]?.voter_hash;
     if (!voter_hash) return;
 
+    // Upsert by voter_record_id (one result per record). Also covers the rare case
+    // where (upload_id, voter_hash) collides within an upload after migration 022
+    // dropped the global (user_id, voter_hash) unique that broke multi-upload re-ingests.
     await client.query(
       `INSERT INTO lean_results
          (upload_id, voter_record_id, user_id, voter_hash, lean, confidence, evidence, audit_log)
@@ -211,7 +214,9 @@ export async function persistFusionForVoter(
          lean = EXCLUDED.lean,
          confidence = EXCLUDED.confidence,
          evidence = EXCLUDED.evidence,
-         audit_log = EXCLUDED.audit_log`,
+         audit_log = EXCLUDED.audit_log,
+         upload_id = EXCLUDED.upload_id,
+         voter_hash = EXCLUDED.voter_hash`,
       [
         uploadId,
         voterRecordId,

@@ -66,6 +66,13 @@ samples/leanlink-*.csv
 Import Example.csv
 Import Example.xlsx
 
+# Client-experience demos built from real registration rows — local only
+docs/demo-client-experience.html
+docs/demo-client-experience-data.json
+docs/demo-innings-data.json
+docs/demo-innings.html
+docs/innings-runs/
+
 # Reference bulk downloads (large; local / Neon only)
 data/reference/
 

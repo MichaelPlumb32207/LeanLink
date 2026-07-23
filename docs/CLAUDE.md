@@ -40,8 +40,10 @@ inputs, conflicting evidence → withheld label, no resale or pooling of results
 - **Background jobs:** self-chaining Vercel function worker + Vercel cron sweeper.
   No n8n. Worker `maxDuration = 800s` relies on the Pro plan's extended duration.
 - **Auth:** NextAuth Google provider, single allowed user (`ALLOWED_USER_EMAIL`).
-- **AI:** xAI / Grok via Responses API (`lib/xai/client.ts`, `lib/enrichment/grok-pipeline.ts`).
+- **AI judgment:** xAI / Grok via Responses API (`lib/xai/client.ts`, `lib/enrichment/grok-pipeline.ts`).
   Live when `XAI_API_KEY` is set; deterministic mock fallback when missing or on error.
+- **AI retrieval (optional):** Exa (`lib/exa/*`, `EXA_API_KEY`) — people index + web/news/contents
+  only; never lean judgment. Phase 1 spike (D-040 / ENH-023); `exa-modular` pipeline mode TBD.
 - **Apify:** optional fetch layer for `apify-modular` (`lib/apify/*`, `APIFY_API_TOKEN`).
 - **Google Maps:** Street View Static for vision tests (`GOOGLE_MAPS_API_KEY`).
 - **FEC Open API:** direct Schedule A contributor lookup (`lib/fec/contributor-lookup.ts`,
@@ -94,8 +96,14 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
   Status = `accepted`) and excludes them from every arm; **Re-enroll** (same route, or cohort
   via `/api/uploads/[id]/re-enroll`) pushes settled voters back into later arms without
   re-billing. Claim-query predicate everywhere: locked → never claim; re-enrolled → claim even
-  if settled; default → unsettled only. The deliverable export lists all contributing arms
-  (settled arm first) plus a `?format=audit` per-event provenance export.
+  if settled; default → unsettled only. The **client deliverable** export lists lean + confidence
+  + source *labels* (settled arm first among contributing arms). Full `?format=audit` per-event
+  provenance is **operator-internal** (D-042) — may be screen-shared, not a standard client handoff.
+  **Lean conflict precedence (D-044 / migration 023):** when registration party and
+  public-evidence lean disagree, deliverable uses `voter_uploads.lean_precedence`
+  (`wallet` default | `registration` | `conflict_undetermined`) via
+  `resolveDeliverableLean` — presentation only; accepted freezes fusion; optional
+  account default for new billed generic uploads.
 
 **Config knobs (money-sensitive, reversible):** `LEANLINK_SETTLE_THRESHOLD`; all fees via the
 `rate_cards` table. OSINT currently bills attempt **and** tier-3 on a hit — set
@@ -126,6 +134,13 @@ keep this table current. Do **not** pin prices/rate-limits here (they rot); pin 
 | Live X search | Responses API `tools: [{ type: 'x_search' }]` | n/a | https://docs.x.ai/docs/guides/live-search | 2026-06-27 |
 | Vision (Street View) | Responses API `input_image` + text | `grok-4.3` | https://docs.x.ai/docs/models | 2026-06-27 |
 | FEC contributor lookup | `GET https://api.open.fec.gov/v1/schedules/schedule_a/` | n/a | https://api.open.fec.gov/developers/ | 2026-06-28 |
+| Exa people / web search (retrieval only) | `POST https://api.exa.ai/search` (`x-api-key` / Bearer) | n/a | https://exa.ai/docs/reference/search | 2026-07-22 |
+| Exa page contents | `POST https://api.exa.ai/contents` | n/a | https://exa.ai/docs/reference/contents-api-guide | 2026-07-22 |
+
+**Exa conventions we depend on:** `category: "people"` for the professional-profile index (no
+`includeDomains` / date filters on people — 400 if sent); structured person fields under
+`results[].entities[]` (`type: "person"`, `properties.name` / `location` / `workHistory`);
+`costDollars.total` when present; judgment stays Grok (D-040).
 
 ## Data-source verification (layouts drift too — Resilience norm, 2026-07-06)
 

@@ -41,7 +41,7 @@ Read in this order when joining the project cold.
 - **`/dashboard/accounts`** — prepaid billing console: accounts, deposits, per-batch invoices, ledger, editable rate cards, one-time **initiation fee** ($2,500 default, billed at account creation).
 - Waterfall settlement skips already-found voters in later arms; billing charges initiation + baseline + per-tier + OSINT-attempt.
 - **Researcher review (2026-07-04):** per-voter **Accept** (freeze lean, close research) / **Reopen** / **Re-enroll** (settled voter re-enters later arms, no re-billing); cohort re-enroll + projected next-arm spend in the evidence workspace **Waterfall controls** strip (counts live in the pinned box score, D-029).
-- Client deliverable (`/api/export/[id]/deliverable`): original columns + Lean/Confidence/Source (all arms)/Status/Evidence; `?format=audit` = one row per evidence event.
+- Client deliverable (`/api/export/[id]/deliverable`): original columns + Lean/Confidence/Source labels/Status/Evidence (D-042 layers 1–2). Lean conflicts (party vs wallet) use **lean_precedence** (D-044, default wallet). `?format=audit` = full per-event provenance — **internal/operator** by default (D-042 layer 4), not a standard client package.
 - Dev scripts: `node scripts/apply-migrations.mjs` (migrations), `npx tsx scripts/smoke-billing.ts` (billing verifier), `npx tsx scripts/ingest-extract.ts` (county-scale FL-extract ingest — dashboard upload caps at Vercel's ~4.5 MB body limit; SETUP §9). See `DECISIONS.md` D-024/D-026 and `CLAUDE.md` → "Tiered / prepaid / waterfall product".
 
 ## Key code paths (enrichment)
@@ -51,6 +51,7 @@ Read in this order when joining the project cold.
 | `app/dashboard/page.tsx` | Upload UI, analyze subset, results preview |
 | `lib/enrichment/grok-pipeline.ts` | Grok OSINT + inference |
 | `lib/enrichment/apify-pipeline.ts` | Apify fetch + Grok synthesize |
+| `lib/exa/*` | Exa retrieval spike (people/web/contents; D-040) — not yet a pipeline mode |
 | `lib/enrichment/query-builder.ts` | Social-first + Tier-A query plan |
 | `lib/fec/contributor-lookup.ts` | Direct FEC Schedule A API |
 | `lib/evidence/ledger.ts` | Evidence events + fusion → `lean_results` |
@@ -73,7 +74,7 @@ Read in this order when joining the project cold.
 | `GET/POST /api/uploads/[id]/evidence` | Voter timeline; `sync-fec` backfill |
 | `POST /api/voters/[id]/review` | Researcher accept / reopen / re-enroll one voter |
 | `POST /api/uploads/[id]/re-enroll` | Cohort re-enroll (confidence/tier filters) or withdraw |
-| `GET /api/export/[id]/deliverable` | Client deliverable CSV/JSON; `?format=audit` per-event provenance |
+| `GET /api/export/[id]/deliverable` | Client deliverable CSV/JSON; `?format=audit` = internal arm audit (D-042) |
 | `GET /api/enrichment/apify-config` | Actor IDs and limits |
 
 Last reviewed: 2026-07-04.

@@ -11,7 +11,37 @@ Written so a new owner with their own accounts can run it end to end. Assumes No
 | Neon Postgres | App database | Use the **pooled** connection string. |
 | Google Cloud OAuth | Sign-in | OAuth consent screen + Web client. |
 | xAI (Grok) | Lean inference (when wired) | API key. See `docs/CLAUDE.md` for endpoint/model. |
+| Exa (optional) | OSINT retrieval spike (people/web) | API key — https://dashboard.exa.ai/api-keys · D-040 |
 | Vercel | Hosting + cron | **Pro plan required** (see step 5). |
+
+### FL extract universe (party + status)
+
+At ingest (dashboard or CLI), choose who is kept from the registration file:
+
+| Preset | Keeps | Use |
+|---|---|---|
+| `npa-act` (default) | NPA + Active | Lean-inference research |
+| `gotv` | All parties + ACT + INA | Mobilization / engagement |
+| `custom` | `--parties` / `--statuses` | Fine-grained |
+
+CLI: `--universe gotv` · Dashboard: step **Universe**. Snapshot in `voter_uploads.ingest_universe`
+(migration **021**). History is optional via `--history` / history slot — already stored on
+`voter_records.history_summary`.
+
+### Lean conflict rule (party vs wallet)
+
+When registration party and public-evidence lean disagree, the **deliverable** uses
+`voter_uploads.lean_precedence` (migration **023**, D-044):
+
+| Value | Meaning |
+|---|---|
+| `wallet` (default) | Evidence / donations win |
+| `registration` | Party on the roll wins |
+| `conflict_undetermined` | Withhold lean |
+
+Dashboard: evidence workspace **Lean conflict rule** select. API: `PATCH /api/uploads/[id]`
+with `{ "lean_precedence": "wallet" }`. Optional `accounts.lean_precedence` seeds new billed
+generic uploads.
 
 ## 1. Clone, env, install
 
@@ -35,6 +65,7 @@ Fill in `.env.local`:
 | `XAI_MODEL` | Optional; default `grok-4.3`. |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud — Street View Static API (enrichment tests). |
 | `APIFY_API_TOKEN` | Apify console — `apify-modular` fetch layer. |
+| `EXA_API_KEY` | [Exa dashboard](https://dashboard.exa.ai/api-keys) — optional retrieval (people/web); `scripts/probe-exa-people.ts`. Judgment stays xAI. |
 | `FEC_API_KEY` | [FEC Open API](https://api.open.fec.gov/developers/) — optional; `DEMO_KEY` works locally with strict rate limits. |
 | `ENRICHMENT_MODE` | Batch mode when batch enabled: `grok-full` \| `apify-modular` \| etc. |
 | `LEANLINK_ENABLE_BATCH_INFERENCE` | Leave **unset** for POC (blocks full-file jobs). Set `true` only when ready for county-scale Grok spend. |

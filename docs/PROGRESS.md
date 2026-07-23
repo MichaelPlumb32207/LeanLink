@@ -6,6 +6,60 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-23, D-044 lean precedence)
+
+**D-044 / ENH-026 / migration 023:** deliverable lean when party and wallet disagree is
+**client-configurable** — default **wallet** (evidence wins). Pure resolver + smoke;
+export honors `voter_uploads.lean_precedence`; dashboard select on evidence workspace;
+`PATCH /api/uploads/[id]`. Apply **023** before deploy. Does not rewrite fusion.
+
+## Where to pick up (continuity note — 2026-07-23, unique-key fix + innings run)
+
+**D-043 / migration 022:** `lean_results` uniqueness is per-upload (`upload_id, voter_hash`), not
+global `(user_id, voter_hash)` — multi re-ingest no longer aborts FEC mid-run.
+**Inning 1 (registration lean)** complete on CAL/ALA/DUV GOTV 2026 — see
+`scripts/run-inning-registration.ts` / `docs/innings-runs/`.
+**Inning 2 (FEC):** CAL complete (~41 settled); ALA then DUV chained in background
+(`/tmp/fec-ala.log`, `/tmp/fec-duv.log`). Next after FEC: FL free-pass inning if desired.
+
+## Where to pick up (continuity note — 2026-07-23, three-county GOTV + innings demo)
+
+**Data:** CAL/ALA/DUV all on **Jul 2026 GOTV+history** — DUV `b26967ed…` **717,462** rows
+(542k hist). CAL partial FEC: ~30 settled before lean_results unique abort (bug to fix).
+ALA/DUV GOTV donation arms not run. **Demos (gitignored):** `docs/demo-innings.html`,
+`docs/demo-client-experience.html`. Registration lean = party prior; donation lean = fusion.
+
+## Where to pick up (continuity note — 2026-07-23, D-042 deliverable disclosure)
+
+**D-042 locked:** client gets results + methodology (+ optional sanitized source class);
+full per-voter arm audit stays **internal** (demoable live, not standard handoff). Export
+route comment + docs updated; UI split still open (ENH-025).
+
+## Where to pick up (continuity note — 2026-07-23, ingest universe + Calhoun 2026 GOTV)
+
+**D-041 / ENH-024:** universe presets (NPA research · GOTV · custom) on FL extract — column
+`ingest_universe`, dashboard step 2, CLI `--universe gotv`. **Calhoun Jul 2026 GOTV+history**
+loaded: upload `77c730ec…` (8,183 rows, 6,637 hist). Keep 2025 uploads (cheap vs reference
+data). **Step 3 probe (news/LTE reverse):** `scripts/probe-exa-news-lean.ts` on CAL 2026 GOTV —
+~$0.02, 24 articles, **0 name matches** (authors rarely in title/highlights for small counties;
+syndication noise). Party-chair LinkedIn + LTE both weak for Calhoun NPAs/GOTV density.
+**Alachua 2026 GOTV retest:** upload `16089ca5…` — **202,127** voters, **159,202** with history,
+`ingest_universe=gotv`. Exa People reverse (~$0.04): **15** name+geo matches (e.g. Ebonie Bryant
+DEM chair → DEM on roll; Walt Boyer REP → REP Newberry). Still includes collision risk
+(J Maggio → two Gainesville Maggios). News/LTE reverse (~$0.02): local press hits but **0**
+joinable authors (byline extraction). **Conclusion:** GOTV universe + People party/activist
+profiles can join to the roll; yield is still activist-dense not mass NPA; finance arms remain
+primary lean path. Apply migration **021** before dashboard universe upload (applied).
+
+## Where to pick up (continuity note — 2026-07-22, Exa retrieval spike D-040 / ENH-023)
+
+**Decision:** revamp OSINT **retrieval**, not the whole AI stack — Exa for people/web fetch;
+Grok keeps judgment, x_search, committees. Phase 0 probes (MCP): public-footprint identity works;
+thin NPAs do not (strict name gate required). **Phase 1 code:** `lib/exa/*`,
+`npx tsx scripts/smoke-exa-people-scorer.ts` (offline OK), `scripts/probe-exa-people.ts` (needs
+`EXA_API_KEY` in `.env.local`). **Next:** owner adds key + live probe on ALA row 114 / thin
+controls; then Phase 2 `exa-modular` only if identity lift beats `grok-full` on scorecard.
+
 ## Where to pick up (continuity note — 2026-07-08, post-review hardens: Sunbiz first-run + refuse resume)
 
 **Code review of the workbench sprint (ENH-019 + D-036…039 + ENH-022) found three real bugs;

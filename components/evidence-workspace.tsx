@@ -8,6 +8,10 @@ import { LineScore } from '@/components/box-score';
 import { ResidenceTiebreaker } from '@/components/residence-tiebreaker';
 import { confirmLongRerun, useEvidenceActions } from '@/components/use-evidence-actions';
 import type { UploadEvidenceSummary } from '@/lib/evidence/types';
+import {
+  LEAN_PRECEDENCE_OPTIONS,
+  type LeanPrecedenceMode,
+} from '@/lib/lean-precedence';
 
 type VoterListRow = {
   id: string;
@@ -77,6 +81,7 @@ type EvidenceUploadMeta = {
   filename: string;
   row_count: number;
   ballot_favors?: string | null;
+  lean_precedence?: string | null;
 };
 
 export function EvidenceWorkspace({
@@ -84,12 +89,19 @@ export function EvidenceWorkspace({
   upload,
   summary,
   refreshSummary,
+  leanPrecedence,
+  onLeanPrecedenceChange,
+  precedenceBusy,
 }: {
   uploadId: string;
   upload?: EvidenceUploadMeta | null;
   /** Owned by the page-level useEvidenceSummary hook (single polling loop). */
   summary: UploadEvidenceSummary | null;
   refreshSummary: () => Promise<void>;
+  /** D-044 — when party and wallet disagree, who wins on the deliverable. */
+  leanPrecedence?: LeanPrecedenceMode;
+  onLeanPrecedenceChange?: (mode: LeanPrecedenceMode) => void;
+  precedenceBusy?: boolean;
 }) {
   const [voters, setVoters] = useState<VoterListRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -321,6 +333,36 @@ export function EvidenceWorkspace({
           </button>
         </div>
       </div>
+
+      {onLeanPrecedenceChange && (
+        <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="lean-precedence" className="text-sm font-medium">
+              Lean conflict rule (deliverable)
+            </label>
+            <select
+              id="lean-precedence"
+              value={leanPrecedence ?? 'wallet'}
+              disabled={precedenceBusy}
+              onChange={(e) =>
+                onLeanPrecedenceChange(e.target.value as LeanPrecedenceMode)
+              }
+              className="rounded-lg border border-white/20 bg-black/40 px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              {LEAN_PRECEDENCE_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs opacity-70">
+            {LEAN_PRECEDENCE_OPTIONS.find((o) => o.id === (leanPrecedence ?? 'wallet'))
+              ?.description ??
+              'When registration party and public donation evidence disagree, who wins on the client file. Default: wallet (they lean the way their wallet leans). Does not rewrite fusion research rows — export only.'}
+          </p>
+        </div>
+      )}
 
       <div className="rounded-xl border border-white/10 bg-black/15 p-4 space-y-4">
         {summary && (

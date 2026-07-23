@@ -32,6 +32,18 @@ voters ingested.
 | T2.4 | Row with trailing empty columns (no email) | Parses; no field misalignment (no `trim()` damage). |
 | T2.5 | Each ingested row has a `voter_hash` | Hash present; PII is hashed, not stored raw beyond `raw_data`. |
 
+## UC-2b — Choose ingest universe (FL extract) ✅
+**As** the operator, **I can** choose who is kept from a FL registration extract: NPA research,
+GOTV (all parties + inactive), or custom parties/statuses.
+
+| ID | Test | Expected |
+|---|---|---|
+| T2b.1 | Dashboard preset **NPA lean research** | Only NPA + ACT rows; `ingest_universe.preset=npa-act`. |
+| T2b.2 | Dashboard / CLI **GOTV universe** | ACT+INA, all parties; row count ≫ NPA-only; `preset=gotv`. |
+| T2b.3 | Custom DEM+REP + ACT only | Only those parties/status; `preset=custom`. |
+| T2b.4 | Upload list shows universe label | `universeLabel(ingest_universe)` on each FL upload row. |
+| T2b.5 | Pre-021 upload with NULL universe | UI shows legacy “NPA + ACT (legacy default)”. |
+
 ## UC-3 — Attach voting history (turnout scoring) ✅
 **As** the researcher, **I can** add a `*_H_*` history file to enrich turnout/primary scoring.
 
@@ -109,6 +121,7 @@ sources. Identity resolution is strong; social/lean coverage still thin on score
 | T9.5 | Capped cohort dry-run (ENH-015) | `run-osint-cohort.ts --county DUV --limit 100 --dry-run` selects the eligible cohort, prints richness + projected max cost, makes **zero** Grok calls / no spend. Verified: Duval → 100 eligible (rich: 100/100 email+history). |
 | T9.6 | Hard spend cap | Cap binds on `max(reported spend, processed × --est-usd)`; the run stops before a voter that could breach `--max-usd`, and never processes more than `max-usd / est` voters even if the API reports $0 cost. Sequential — no fuzzy overshoot. |
 | T9.7 | Track isolation | Settlement/tier-fee bill only when the upload has a billing account; FL-extract research uploads carry none → measured-but-unbilled (D-027). |
+| T9.8 | Exa people scorer offline (ENH-023 / D-040) | `npx tsx scripts/smoke-exa-people-scorer.ts` — rejects partial names / last-name collisions; accepts city-corroborated full-name hits; never implies lean. Live probe (`probe-exa-people.ts`) needs `EXA_API_KEY` and is read-only. |
 
 ## UC-10 — POC test subset (Analyze UI) ✅
 **As** the researcher, **I can** define a small row-index subset and run one test against it
@@ -185,8 +198,8 @@ without Grok spend.
 | T14.12 | Attach an `account_id` to an `fl_extract` upload (direct SQL) | Rejected by `voter_uploads_fl_extract_unbilled` CHECK — FL registration data is research-track only (D-027). |
 
 ## UC-15 — Client deliverable export ✅
-**As** the operator, **I can** hand the client back their own list with our lean, confidence,
-source, and evidence appended to every row.
+**As** the operator, **I can** hand the client back their own list with lean, confidence,
+source labels, and short evidence (D-042 layers 1–2). Full arm audit is operator-internal.
 
 | ID | Test | Expected |
 |---|---|---|
@@ -197,7 +210,13 @@ source, and evidence appended to every row.
 | T15.5 | `format=json` | JSON array of row objects with appended keys. |
 | T15.6 | Voter fused from multiple arms | `LeanLink Source` lists **all** contributing arms, settled (billed) arm first (e.g. `FEC federal + Sunbiz → entity`). |
 | T15.7 | Status column values | `accepted` (researcher), `fused`/`provisional`/`conflicted` (fusion), `unresearched` (no fusion row). |
-| T15.8 | `format=audit` | One CSV row per evidence event: Row, Name, Arm, Source, Identity Band, Probable Match, Lean Signal, Signal Confidence, Evidence, URLs, Recorded At. |
+| T15.8 | `format=audit` (internal) | One CSV row per evidence event (D-042 layer 4). Operator use / live review — **not** default client package. |
+| T15.9 | Default `lean_precedence=wallet`; DEM + Right evidence | Deliverable Lean = Right; Evidence notes wallet override (D-044). |
+| T15.10 | PATCH upload to `registration`; same voter | Deliverable Lean = Left (party); tension reason still in Evidence. |
+| T15.11 | PATCH to `conflict_undetermined` | Deliverable Lean = Undetermined when party ≠ evidence. |
+| T15.12 | Accepted voter with frozen fusion lean | Deliverable keeps accepted fusion lean regardless of precedence. |
+| T15.13 | Party-only (no fusion row), any mode | Deliverable Lean from registration prior; Source = Party (provided). |
+| T15.14 | Dashboard select "Lean conflict rule" | `PATCH` persists; next deliverable download uses new mode. |
 
 ## UC-16 — Researcher review: accept / reopen / re-enroll ✅
 **As** the researcher, **I can** accept a fused lean as final (freezing it while research

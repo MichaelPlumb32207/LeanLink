@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
-import { parseFlVoterFile, DEFAULT_LEANLINK_FILTER } from '@/lib/fl-voter-registration';
+import { parseFlVoterFile } from '@/lib/fl-voter-registration';
 import {
   buildHistorySummaryMap,
   type BallotFavors,
@@ -12,6 +12,16 @@ import { insertVoterRecords } from '@/lib/ingest/insert-voter-records';
 import { parseGenericVoterList } from '@/lib/generic-voter-list';
 import { resolveRates } from '@/lib/billing/rates';
 import { chargeBaselineBulk, getBalance } from '@/lib/billing/ledger';
+import {
+  parseUniverseInput,
+  toFlIngestFilter,
+  universeLabel,
+} from '@/lib/ingest/universe';
+import {
+  DEFAULT_LEAN_PRECEDENCE,
+  parseLeanPrecedence,
+  type LeanPrecedenceMode,
+} from '@/lib/lean-precedence';
 
 export const maxDuration = 120;
 
@@ -41,6 +51,7 @@ async function handleGenericUpload(
   }
 
   const accountId = ((formData.get('accountId') as string) || '').trim() || null;
+  const leanPrecedenceExplicit = formData.get('leanPrecedence');
 
   const parsed = parseGenericVoterList(content);
   if (parsed.accepted.length === 0) {
@@ -71,11 +82,26 @@ async function handleGenericUpload(
       }
     }
 
+    // Precedence: form override → account default → wallet (D-044).
+    let leanPrecedence: LeanPrecedenceMode = DEFAULT_LEAN_PRECEDENCE;
+    if (leanPrecedenceExplicit != null && String(leanPrecedenceExplicit).trim()) {
+      leanPrecedence = parseLeanPrecedence(leanPrecedenceExplicit);
+    } else if (accountId) {
+      const acct = await client.query<{ lean_precedence: string | null }>(
+        `SELECT lean_precedence FROM accounts WHERE id = $1`,
+        [accountId],
+      );
+      if (acct.rows[0]?.lean_precedence) {
+        leanPrecedence = parseLeanPrecedence(acct.rows[0].lean_precedence);
+      }
+    }
+
     const uploadRes = await client.query<{ id: string }>(
-      `INSERT INTO voter_uploads (user_id, filename, row_count, status, source_type, account_id)
-       VALUES ($1, $2, $3, 'ready', 'generic', $4)
+      `INSERT INTO voter_uploads
+         (user_id, filename, row_count, status, source_type, account_id, lean_precedence)
+       VALUES ($1, $2, $3, 'ready', 'generic', $4, $5)
        RETURNING id`,
-      [userEmail, filename, parsed.accepted.length, accountId],
+      [userEmail, filename, parsed.accepted.length, accountId, leanPrecedence],
     );
     const uploadId = uploadRes.rows[0].id;
     const batchSize = 100;
@@ -139,6 +165,7 @@ async function handleGenericUpload(
       uploadId,
       sourceType: 'generic' as const,
       accountId,
+      leanPrecedence,
       rowCount: insertedIds.length,
       rejected: parsed.rejected.length,
       baselineCharged,
@@ -167,17 +194,28 @@ export async function POST(request: Request) {
     const file = formData.get('file');
     const historyFile = formData.get('historyFile');
     const ballotFavors = parseBallotFavors(formData.get('ballotFavors'));
+    const universe = parseUniverseInput({
+      preset: formData.get('universePreset') as string | null,
+      parties: formData.get('universeParties') as string | null,
+      statuses: formData.get('universeStatuses') as string | null,
+    });
+    const leanPrecedence = formData.get('leanPrecedence')
+      ? parseLeanPrecedence(formData.get('leanPrecedence'))
+      : DEFAULT_LEAN_PRECEDENCE;
+    const filter = toFlIngestFilter(universe);
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
     const content = await file.text();
-    const records = parseFlVoterFile(content, DEFAULT_LEANLINK_FILTER);
+    const records = parseFlVoterFile(content, filter);
 
     if (records.length === 0) {
       return NextResponse.json(
-        { error: 'No eligible NPA active voters found in file' },
+        {
+          error: `No eligible voters found for universe: ${universeLabel(universe)}`,
+        },
         { status: 400 },
       );
     }
@@ -196,10 +234,20 @@ export async function POST(request: Request) {
       // to a client account. Enforced by the voter_uploads_fl_extract_unbilled
       // CHECK (migration 012); client work goes through generic intake above.
       const uploadRes = await client.query<{ id: string }>(
-        `INSERT INTO voter_uploads (user_id, filename, row_count, status, history_filename, ballot_favors)
-         VALUES ($1, $2, $3, 'ready', $4, $5)
+        `INSERT INTO voter_uploads
+           (user_id, filename, row_count, status, history_filename, ballot_favors,
+            ingest_universe, lean_precedence)
+         VALUES ($1, $2, $3, 'ready', $4, $5, $6::jsonb, $7)
          RETURNING id`,
-        [userEmail, file.name, records.length, historyFilename, ballotFavors],
+        [
+          userEmail,
+          file.name,
+          records.length,
+          historyFilename,
+          ballotFavors,
+          JSON.stringify(universe),
+          leanPrecedence,
+        ],
       );
       const uploadId = uploadRes.rows[0].id;
       const withHistory = await insertVoterRecords(client, {
@@ -216,6 +264,9 @@ export async function POST(request: Request) {
         historyAttached: !!historyFilename,
         votersWithHistory: withHistory,
         ballotFavors,
+        universe,
+        universeLabel: universeLabel(universe),
+        leanPrecedence,
       };
     });
 
@@ -243,6 +294,8 @@ export async function GET() {
                 u.status,
                 u.history_filename,
                 u.ballot_favors,
+                u.ingest_universe,
+                u.lean_precedence,
                 u.created_at,
                 j.id AS job_id,
                 j.status AS job_status,

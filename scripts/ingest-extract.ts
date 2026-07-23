@@ -12,6 +12,12 @@
  *     [--chunk 2000]
  *   npx tsx scripts/ingest-extract.ts --file "/path/…" --resume <upload-id>
  *
+ * Universe filter (default remains research NPA+ACT):
+ *   --universe npa-act     # DEFAULT_LEANLINK_FILTER (NPA + Active only)
+ *   --universe gotv        # all parties, ACT+INA (mobilization universe)
+ *   --parties NPA,DEM,REP  # optional override (comma list; omit = no party filter under gotv)
+ *   --statuses ACT,INA     # optional override
+ *
  * Commits every chunk (default 2,000 rows) and prints progress; a killed run
  * leaves the upload in status 'pending' — re-run with --resume to continue from
  * the last committed row (parse order is deterministic, so row_index is stable).
@@ -20,10 +26,12 @@
 import { readFileSync } from 'fs';
 import { basename, join } from 'path';
 import { Pool, type PoolClient } from 'pg';
+import { parseFlVoterFile } from '@/lib/fl-voter-registration';
 import {
-  DEFAULT_LEANLINK_FILTER,
-  parseFlVoterFile,
-} from '@/lib/fl-voter-registration';
+  universeFromCliArgs,
+  toFlIngestFilter,
+  universeLabel,
+} from '@/lib/ingest/universe';
 import {
   buildHistorySummaryMap,
   type BallotFavors,
@@ -103,10 +111,20 @@ async function main() {
 
   const filename = basename(filePath);
   console.log(`Reading ${filename} …`);
-  const records = parseFlVoterFile(readFileSync(filePath, 'utf8'), DEFAULT_LEANLINK_FILTER);
-  console.log(`Parsed: ${records.length.toLocaleString()} NPA + Active voters`);
+
+  const universe = universeFromCliArgs({
+    universe: arg('universe'),
+    parties: arg('parties'),
+    statuses: arg('statuses'),
+  });
+  const filter = toFlIngestFilter(universe);
+
+  const records = parseFlVoterFile(readFileSync(filePath, 'utf8'), filter);
+  console.log(
+    `Parsed: ${records.length.toLocaleString()} voters (${universeLabel(universe)})`,
+  );
   if (records.length === 0) {
-    console.error('No eligible NPA active voters found — is this a registration extract?');
+    console.error('No eligible voters after filter — is this a registration extract?');
     process.exit(1);
   }
 
@@ -174,10 +192,18 @@ async function main() {
         // No account_id, ever, on this path — FL-extract data is research-track
         // only (D-027) and the migration-012 CHECK enforces it.
         const res = await client.query<{ id: string }>(
-          `INSERT INTO voter_uploads (user_id, filename, row_count, status, history_filename, ballot_favors)
-           VALUES ($1, $2, $3, 'pending', $4, $5)
+          `INSERT INTO voter_uploads
+             (user_id, filename, row_count, status, history_filename, ballot_favors, ingest_universe)
+           VALUES ($1, $2, $3, 'pending', $4, $5, $6::jsonb)
            RETURNING id`,
-          [userEmail, filename, records.length, historyFilename, ballotFavors],
+          [
+            userEmail,
+            filename,
+            records.length,
+            historyFilename,
+            ballotFavors,
+            JSON.stringify(universe),
+          ],
         );
         return res.rows[0].id;
       });

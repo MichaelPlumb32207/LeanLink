@@ -25,6 +25,20 @@ import { BoxScoreBar } from '@/components/box-score';
 import { EvidenceWorkspace } from '@/components/evidence-workspace';
 import { useEvidenceSummary } from '@/components/use-evidence-summary';
 import { BALLOT_FAVORS_OPTIONS, ballotFavorsLabel } from '@/lib/ballot-favors';
+import {
+  UNIVERSE_PRESETS,
+  UNIVERSE_PARTY_OPTIONS,
+  UNIVERSE_STATUS_OPTIONS,
+  universeLabel,
+  type IngestUniverse,
+  type UniversePreset,
+} from '@/lib/ingest/universe';
+import {
+  DEFAULT_LEAN_PRECEDENCE,
+  LEAN_PRECEDENCE_OPTIONS,
+  parseLeanPrecedence,
+  type LeanPrecedenceMode,
+} from '@/lib/lean-precedence';
 
 type AnalyzeTest =
   | 'enrichment'
@@ -108,6 +122,9 @@ type Upload = {
   status: string;
   history_filename?: string | null;
   ballot_favors?: string | null;
+  ingest_universe?: IngestUniverse | null;
+  /** D-044: wallet | registration | conflict_undetermined */
+  lean_precedence?: string | null;
   created_at: string;
   job_id?: string | null;
   job_status?: string | null;
@@ -155,6 +172,9 @@ export default function DashboardPage() {
   const [file, setFile] = useState<File | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
   const [ballotFavors, setBallotFavors] = useState<BallotFavors>('south');
+  const [universePreset, setUniversePreset] = useState<UniversePreset>('npa-act');
+  const [customParties, setCustomParties] = useState<string[]>(['NPA']);
+  const [customStatuses, setCustomStatuses] = useState<string[]>(['ACT']);
   const [sortColumn, setSortColumn] = useState<SortColumn>('opposition');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(EMPTY_COLUMN_FILTERS);
@@ -460,6 +480,11 @@ export default function DashboardPage() {
       const form = new FormData();
       form.append('file', file);
       form.append('ballotFavors', ballotFavors);
+      form.append('universePreset', universePreset);
+      if (universePreset === 'custom') {
+        form.append('universeParties', customParties.join(','));
+        form.append('universeStatuses', customStatuses.join(','));
+      }
       if (historyFile) form.append('historyFile', historyFile);
       const res = await fetch('/api/uploads', { method: 'POST', body: form });
       const data = await res.json();
@@ -467,8 +492,9 @@ export default function DashboardPage() {
       const historyNote = data.historyAttached
         ? ` History attached (${data.votersWithHistory} voters matched).`
         : '';
+      const uniNote = data.universeLabel ?? 'selected universe';
       setMessage(
-        `Uploaded ${data.rowCount} NPA active voters.${historyNote} Scenario: ${ballotFavorsLabel(data.ballotFavors)}.`,
+        `Uploaded ${data.rowCount} voters (${uniNote}).${historyNote} Scenario: ${ballotFavorsLabel(data.ballotFavors)}.`,
       );
       setSelectedUploadId(data.uploadId);
       await refreshUploads();
@@ -814,6 +840,35 @@ export default function DashboardPage() {
     }
   };
 
+  /** D-044 — client override for registration vs wallet lean conflicts (deliverable only). */
+  const handleLeanPrecedenceChange = async (mode: LeanPrecedenceMode) => {
+    if (!selectedUploadId) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/uploads/${selectedUploadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lean_precedence: mode }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update lean precedence');
+      setUploads((prev) =>
+        prev.map((u) =>
+          u.id === selectedUploadId
+            ? { ...u, lean_precedence: data.lean_precedence ?? mode }
+            : u,
+        ),
+      );
+      const opt = LEAN_PRECEDENCE_OPTIONS.find((o) => o.id === mode);
+      setMessage(`Lean conflict rule: ${opt?.label ?? mode}. Affects deliverable export.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to update lean precedence');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (status === 'loading') {
     return <main className="min-h-screen p-8">Loading...</main>;
   }
@@ -991,6 +1046,80 @@ export default function DashboardPage() {
           <div className="mb-4">
             <h3 className="mb-2 font-medium">
               <span className="mr-2 text-lg font-bold tabular-nums text-emerald-200">2</span>
+              Universe (who stays on the list)
+            </h3>
+            <p className="mb-2 text-xs opacity-70">
+              Party affiliation and registration status (ACT = active, INA = inactive). Research
+              default is NPA + Active; GOTV keeps all parties and inactive registrants.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {UNIVERSE_PRESETS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setUniversePreset(opt.id)}
+                  title={opt.description}
+                  className={`rounded-lg px-4 py-2 text-sm ${
+                    universePreset === opt.id ? 'bg-white/20' : 'bg-black/20'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {universePreset === 'custom' && (
+              <div className="mt-3 space-y-2 rounded-lg border border-white/15 bg-black/20 p-3 text-sm">
+                <div>
+                  <p className="mb-1 text-xs opacity-70">Parties (empty = any)</p>
+                  <div className="flex flex-wrap gap-2">
+                    {UNIVERSE_PARTY_OPTIONS.map((p) => {
+                      const on = customParties.includes(p.code);
+                      return (
+                        <button
+                          key={p.code}
+                          type="button"
+                          onClick={() =>
+                            setCustomParties((prev) =>
+                              on ? prev.filter((x) => x !== p.code) : [...prev, p.code],
+                            )
+                          }
+                          className={`rounded px-3 py-1 text-xs ${on ? 'bg-emerald-600/80' : 'bg-black/30'}`}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs opacity-70">Registration status</p>
+                  <div className="flex flex-wrap gap-2">
+                    {UNIVERSE_STATUS_OPTIONS.map((s) => {
+                      const on = customStatuses.includes(s.code);
+                      return (
+                        <button
+                          key={s.code}
+                          type="button"
+                          onClick={() =>
+                            setCustomStatuses((prev) =>
+                              on ? prev.filter((x) => x !== s.code) : [...prev, s.code],
+                            )
+                          }
+                          className={`rounded px-3 py-1 text-xs ${on ? 'bg-emerald-600/80' : 'bg-black/30'}`}
+                        >
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <h3 className="mb-2 font-medium">
+              <span className="mr-2 text-lg font-bold tabular-nums text-emerald-200">3</span>
               Research scenario (opposition mobilization)
             </h3>
             <p className="mb-2 text-xs opacity-70">
@@ -1020,7 +1149,7 @@ export default function DashboardPage() {
               disabled={busy}
               className="rounded-lg bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-500 disabled:opacity-50"
             >
-              {busy ? 'Uploading…' : file ? '1 · Upload & extract NPAs' : 'Choose File'}
+              {busy ? 'Uploading…' : file ? '1 · Upload & extract' : 'Choose File'}
             </button>
             {file && (
               <button
@@ -1036,7 +1165,8 @@ export default function DashboardPage() {
             )}
           </div>
           <p className="mt-3 text-sm opacity-75">
-            Filters to NPA + Active voters automatically.
+            Universe filter applies at extract time (public-records-exempt / suppressed still
+            excluded).
           </p>
         </section>
 
@@ -1077,6 +1207,7 @@ export default function DashboardPage() {
                   {upload.ballot_favors
                     ? ` · ${ballotFavorsLabel(upload.ballot_favors)}`
                     : ''}
+                  {` · ${universeLabel(upload.ingest_universe)}`}
                 </div>
                 <div className="mt-1 text-xs opacity-70">{jobSummary(upload)}</div>
                 {(upload.settled_count ?? 0) > 0 && (
@@ -1109,6 +1240,11 @@ export default function DashboardPage() {
             upload={selectedUpload}
             summary={evidenceSummary}
             refreshSummary={refreshEvidenceSummary}
+            leanPrecedence={parseLeanPrecedence(
+              selectedUpload.lean_precedence ?? DEFAULT_LEAN_PRECEDENCE,
+            )}
+            onLeanPrecedenceChange={(mode) => void handleLeanPrecedenceChange(mode)}
+            precedenceBusy={busy}
           />
         )}
 

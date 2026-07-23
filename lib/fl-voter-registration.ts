@@ -168,15 +168,32 @@ export function parseFlVoterLine(line: string): ParsedFlVoterRecord | null {
 }
 
 export interface FlIngestFilter {
+  /** Single party (legacy). Prefer `parties` for multi-select. */
   party?: FlPartyAffiliation;
+  /** Multi party allow-list. Empty/undefined = no party filter when `party` also unset. */
+  parties?: FlPartyAffiliation[];
+  /** Single status (legacy). Prefer `statuses` for multi-select. */
   status?: FlVoterStatus;
+  /** Multi status allow-list (e.g. ACT + INA for GOTV universe). */
+  statuses?: FlVoterStatus[];
   excludeExempt?: boolean;
   excludeSuppressed?: boolean;
 }
 
+/** Original research default: NPA + Active only (lean-inference POC). */
 export const DEFAULT_LEANLINK_FILTER: FlIngestFilter = {
   party: 'NPA',
   status: 'ACT',
+  excludeExempt: true,
+  excludeSuppressed: true,
+};
+
+/**
+ * Mobilization / engagement universe: any party affiliation, Active + Inactive.
+ * Still excludes public-records-exempt and suppressed rows (contact/PII posture).
+ */
+export const GOTV_UNIVERSE_FILTER: FlIngestFilter = {
+  statuses: ['ACT', 'INA'],
   excludeExempt: true,
   excludeSuppressed: true,
 };
@@ -185,8 +202,22 @@ export function passesLeanLinkFilter(
   record: ParsedFlVoterRecord,
   filter: FlIngestFilter = DEFAULT_LEANLINK_FILTER,
 ): boolean {
-  if (filter.party && record.party !== filter.party) return false;
-  if (filter.status && record.status !== filter.status) return false;
+  const parties =
+    filter.parties && filter.parties.length > 0
+      ? filter.parties
+      : filter.party
+        ? [filter.party]
+        : null;
+  if (parties && !parties.includes(record.party)) return false;
+
+  const statuses =
+    filter.statuses && filter.statuses.length > 0
+      ? filter.statuses
+      : filter.status
+        ? [filter.status]
+        : null;
+  if (statuses && !statuses.includes(record.status as FlVoterStatus)) return false;
+
   if (filter.excludeExempt && record.publicRecordsExemption) return false;
   if (filter.excludeSuppressed && record.suppressed) return false;
   return true;

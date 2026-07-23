@@ -152,6 +152,18 @@ These are reversible-config forks currently parked; each one nudges the roadmap 
 
 ## Recently shipped (see PROGRESS.md for detail)
 
+**2026-07-23 — Lean conflict precedence (D-044 / ENH-026):** deliverable resolves
+registration-vs-wallet tension via `lean_precedence` (default **wallet**); UI select + export.
+
+**2026-07-23 — Ingest universe (D-041 / ENH-024):** NPA research vs GOTV (ACT+INA, all
+parties) vs custom — stored on `voter_uploads.ingest_universe`, dashboard + CLI. Calhoun Jul
+2026 GOTV+history loaded. Next: lean-corpus beyond party chairs, then Alachua GOTV retest. ·
+
+**2026-07-22 — Exa retrieval spike (D-040 / ENH-023 Phase 1):** modular “retrieve then judge”
+direction for OSINT — Exa people/web for fetch, Grok for judgment + x_search. Phase 0 showed
+People helps public-footprint identity only; thin NPAs still empty. Code: `lib/exa/*`, offline
+scorer smoke, read-only probe CLI. Phase 2 `exa-modular` scorecard-gated. ·
+
 **2026-07-07 — Tier-3 verdict + the committee yield lever (D-033/D-034):** measured Tier-3 OSINT
 as *enrichment, not settle* (0 leans on NPAs; 1/10 on a known-signal control) → OSINT re-scoped to
 public expression (ENH-016), Bluesky follow-graph shelled after a coverage≈0 probe (ENH-017),

@@ -44,7 +44,11 @@ officer-zip index (the one the lookup's real query shape uses — DEF-007); `018
 fl_contributions name-prefix index (text_pattern_ops, DEF-008); `019` adds the
 **lean_patterns registry** (seeded with the exact hardcoded lists — see the patterns
 gotcha below); `020` adds `'agent'` to the `committee_lean_labels.source` CHECK (the Grok
-committee classifier, ENH-018). See `docs/SETUP.md`.
+committee classifier, ENH-018); `021` adds `voter_uploads.ingest_universe` (NPA research /
+GOTV / custom party+status filter snapshot, D-041); `022` scopes `lean_results` uniqueness
+per upload (not global user+hash — multi re-ingest safe, D-043); `023` adds
+`lean_precedence` on uploads (+ optional account default) for registration-vs-wallet
+deliverable conflicts (D-044, default **wallet**). See `docs/SETUP.md`.
 
 ## Architecture (the parts that span files)
 
@@ -111,7 +115,8 @@ future UI/deliverable-delta attachment; golden (m) pins it.
 
 **Two input files, both tab-delimited FL DOS extracts, both parsed by hand (no CSV lib):**
 - `lib/fl-voter-registration.ts` — the registration extract: **38 fields, no header**.
-  Filtered to NPA + Active voters via `DEFAULT_LEANLINK_FILTER` at upload time.
+  Filtered at upload via ingest universe (default NPA+ACT; GOTV = all parties+ACT+INA —
+  `lib/ingest/universe.ts`, D-041).
 - `lib/fl-voter-history.ts` — the optional voting-history extract (`*_H_*.txt`, 5 fields):
   summarized into turnout score / propensity / primary engagement per voter.
   The dashboard auto-routes a dropped `_H_` file to the history slot.

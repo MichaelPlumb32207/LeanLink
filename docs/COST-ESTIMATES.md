@@ -3,6 +3,14 @@
 Rough order-of-magnitude costs for processing NPA voters with Grok live-search enrichment.
 Update as we collect more `usage.cost_in_usd_ticks` samples from Test enrichment.
 
+## Exa (retrieval spike — ENH-023 / D-040)
+
+Not yet in the product pipeline. Phase 1 probe reports `costDollars.total` per search when
+present. Do **not** pin Exa list prices here (they rot) — see https://exa.ai/pricing and re-check
+when wiring `exa-modular`. Expect People + web calls to be **much cheaper than a full Grok
+live-search voter** if they replace Grok `web_search` rounds; still bill under OSINT attempt
+governance (`--max-usd`).
+
 ## xAI / Grok (dominant cost)
 
 xAI returns exact per-request cost in `usage.cost_in_usd_ticks` where **1 USD = 10¹⁰ ticks**.
