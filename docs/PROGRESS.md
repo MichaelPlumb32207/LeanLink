@@ -6,6 +6,15 @@ truth for "is the product done?" Update as work lands. Last reviewed: 2026-07-05
 ## Legend
 ✅ done & real · 🟡 works but partial / gated · ⬜ not started
 
+## Where to pick up (continuity note — 2026-07-27, OpenPlanter assessment parked)
+
+**ENH-027:** Reviewed [OpenPlanter](https://github.com/ShinMegamiBoson/OpenPlanter) as a possible
+OSINT/public-records knowledge graph. **Not a LeanLink dependency** (agent + source wiki; weaker
+ER; non-xAI). Parked next steps for a later session: source-catalog docs (`docs/sources/`) →
+optional ProPublica 990 coverage probe → arm only if measure-first clears. Full resume checklist:
+[`plans/ENH-027-openplanter-source-catalog.md`](plans/ENH-027-openplanter-source-catalog.md).
+**No code shipped this pass.** Owner chose stop-after-document.
+
 ## Where to pick up (continuity note — 2026-07-23, D-044 lean precedence)
 
 **D-044 / ENH-026 / migration 023:** deliverable lean when party and wallet disagree is

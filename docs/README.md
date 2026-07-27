@@ -12,7 +12,9 @@ Read in this order when joining the project cold.
 | [`ROADMAP.md`](ROADMAP.md) | Forward-looking — Now/Next/Later horizons, open owner decisions, non-goals | Priorities shift or an item ships |
 | [`BACKLOG.md`](BACKLOG.md) | Work-item ledger — `DEF-`/`ENH-`/`FEAT-` with root causes, so lessons aren't re-learned | A defect is found **and** when it's fixed |
 | [`DECISIONS.md`](DECISIONS.md) | ADR-lite — why the stack and rules look this way | Non-obvious design choices |
-| [`plans/`](plans/ENH-019-guided-workbench.md) | Build specs for planned work, written self-contained for hand-off to a builder model (currently: ENH-019 guided workbench) | A plan is authored or revised; when it ships, its outcome folds into PROGRESS/BACKLOG |
+| [`plans/`](plans/) | Build specs for planned work, written self-contained for hand-off to a builder model | A plan is authored or revised; when it ships, its outcome folds into PROGRESS/BACKLOG |
+| ↳ [`ENH-019-guided-workbench.md`](plans/ENH-019-guided-workbench.md) | Guided evidence workbench (Phase 1 shipped; guide rail ditched D-037) | When workbench phases change |
+| ↳ [`ENH-027-openplanter-source-catalog.md`](plans/ENH-027-openplanter-source-catalog.md) | OpenPlanter assessment + parked source-catalog / 990 measure-first path | When ENH-027 resumes or shelves |
 | [`enrichment-pipeline.html`](enrichment-pipeline.html) | Visual enrichment/inference spec (modes, guardrails, code map) | Pipeline or mode changes |
 | [`evidence-accumulator-pitch.html`](evidence-accumulator-pitch.html) | Pitch deck — multi-arm evidence, identity gates, fusion | Architecture or stakeholder demos |
 | [`USE_CASES.md`](USE_CASES.md) | Use-case catalog + embedded happy/edge tests (no separate TEST_PLAN) | New user-facing behavior |

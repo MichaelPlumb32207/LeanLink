@@ -125,6 +125,10 @@ fixture + a data-source verification entry, before the arm ships.
   a second operator or client self-serve is a real requirement.
 - **Additional reference indexes** — new arms plug into the evidence ledger (`lib/evidence/arms.ts`)
   without rewriting the core; add when a source clears the OSINT-only bar and earns its cost.
+  **Parked research (ENH-027, 2026-07-27):** OpenPlanter review — do not integrate that product;
+  when next opening this item, start from
+  [`plans/ENH-027-openplanter-source-catalog.md`](plans/ENH-027-openplanter-source-catalog.md)
+  (source-card docs → ProPublica 990 measure-first probe → arm only if yield clears).
 
 ---
 
