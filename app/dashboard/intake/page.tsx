@@ -12,9 +12,9 @@ export default function IntakePage() {
       <div className="mx-auto max-w-5xl space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Client list intake</h1>
+            <h1 className="text-2xl font-bold">List intake</h1>
             <p className="text-sm opacity-70">
-              Onboard an arbitrary client voter list (no FL voter file required).
+              Ingest an arbitrary voter list (no FL voter file required).
             </p>
           </div>
           <Link href="/dashboard" className="rounded-lg border px-4 py-2 text-sm hover:opacity-80">

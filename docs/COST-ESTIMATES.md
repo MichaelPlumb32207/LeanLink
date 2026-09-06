@@ -8,7 +8,7 @@ Update as we collect more `usage.cost_in_usd_ticks` samples from Test enrichment
 Not yet in the product pipeline. Phase 1 probe reports `costDollars.total` per search when
 present. Do **not** pin Exa list prices here (they rot) — see https://exa.ai/pricing and re-check
 when wiring `exa-modular`. Expect People + web calls to be **much cheaper than a full Grok
-live-search voter** if they replace Grok `web_search` rounds; still bill under OSINT attempt
+live-search voter** if they replace Grok `web_search` rounds; still cap under OSINT attempt
 governance (`--max-usd`).
 
 ## xAI / Grok (dominant cost)
@@ -17,9 +17,9 @@ xAI returns exact per-request cost in `usage.cost_in_usd_ticks` where **1 USD = 
 
 ### Calibrated sample (2026-06-27)
 
-| Voter | Scenario | Web searches | Tokens | Cost (USD) |
+| Canary | Scenario | Web searches | Tokens | Cost (USD) |
 |-------|----------|--------------|--------|------------|
-| Ezra Thomas Childs (row 0) | Thin OSINT, no contact | 4 | 10,996 | **$0.0328** |
+| Thin OSINT (row 0) | No contact | 4 | 10,996 | **$0.0328** |
 
 Formula: `cost_usd = cost_in_usd_ticks / 10_000_000_000`
 
@@ -29,50 +29,21 @@ Using the single-voter anchor **$0.033/voter**:
 
 | Scenario | $/voter | 10,000 voters |
 |----------|---------|---------------|
-| **Anchor (Ezra)** | $0.033 | **~$330** |
+| **Anchor (thin OSINT)** | $0.033 | **~$330** |
 | Optimistic (fewer searches, thinner) | $0.020 | ~$200 |
 | Pessimistic (more searches, matches found) | $0.050 | ~$500 |
 
 **Working estimate: $250–$500 per 10,000 voters** until we have 10+ samples across scenarios
 (email on file, common surnames, probable matches, etc.).
 
-## Pricing vs. cost (prepaid billing, D-024)
+## What you spend (vendors)
 
-Client-facing fees live in the editable `rate_cards` table (seeded defaults below), not in
-code — tune per account without a redeploy. The waterfall means most voters settle on the
-**free** deterministic arms (FEC/FL/Sunbiz), so the paid Grok cost above is incurred only for
-records that fall through to OSINT.
+This file is **your** xAI / Vercel / Neon / Apify bill. The software is MIT (D-045) —
+Four Plums does not charge for it. Contact: Michael@Four-Plums.com · https://four-plums.com.
+Tips: `bc1qac237n8ekdr370ueyv8795fmm3gerdd5n27ahr`
 
-| Fee | Default | Cost it must cover |
-|---|---|---|
-| **Initiation (kickoff), once per account** | **$2,500** | onboarding/engagement setup; ledger kind `initiation` (migration 011) |
-| Baseline / accepted record | $0.03 | ingest + free-arm attempts; charged on every record, hit or miss |
-| Tier 1 (FEC settle) | $0.15 | free API — margin |
-| Tier 2 (FL/Sunbiz settle) | $0.25 | free indexes — margin |
-| Tier 3 (OSINT settle) | $0.33 | value premium on a Grok/Apify hit |
-| OSINT / attempt | $0.05 | recovers the ~$0.033/voter Grok cost above on **misses** |
-
-The baseline + OSINT-attempt fees exist specifically so a thin-data list (which cascades to
-the expensive OSINT arm and rarely settles cheaply) doesn't consume paid attempts for free.
-**These defaults were confirmed as the client pricing on 2026-07-04 (D-026).** All four
-client-facing HTML docs quote these numbers: `leanlink-pitch.html` (flagship 3-pager) and
-`leanlink-one-pager.html`, plus their OnRecord brand mirrors (`onrecord-*.html`, generated —
-see `docs/README.md`). Adjust per account in the Billing console.
-
-### Market anchors (researched 2026-07-04 — refresh before quoting competitively)
-
-- Setup/onboarding fees: $1k–$5k typical for SMB data-service implementations (NGP VAN);
-  i360-class implementations $3k–$30k. → $2,500 is comfortably normal.
-- Per-successful-match norms: $0.02–$0.03 commodity append (DataZapp, The Data Group);
-  $0.07–$0.20/hit batch skip-tracing; $0.50–$2.00/record investigative-grade (IDI/TLOxp).
-  "Charged only on match" is the dominant convention — our free-arm + per-settle framing fits.
-- Modeled partisanship (L2, TargetSmart, Catalist, i360): **all quote-only** — no public
-  per-score comparable exists. L2 bulk voter-file records reportedly ~$0.025/record direct.
-- FEC reality check: itemized federal donors ≈1.4% of adults (2020 cycle; ≈0.5% in 2016), and
-  NPAs donate less — so **the baseline fee, not per-lean fees, is the volume revenue driver**
-  on a typical list. A $0.01 baseline change moves more revenue than the whole FEC per-lean line.
-- OSINT arm: revisit the $0.33 settle fee once real Grok/Apify cost-per-attempt data lands from
-  the Alachua runs; investigative-grade comparables suggest headroom to $0.50+.
+The waterfall means most voters settle on the **$0-API** deterministic arms (FEC/FL/Sunbiz),
+so the Grok cost above is incurred only for records that fall through to OSINT.
 
 ### What drives variance
 

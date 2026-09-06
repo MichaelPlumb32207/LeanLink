@@ -48,7 +48,7 @@ const usd = (v: string | number | null | undefined) =>
   `$${Number(v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const FEE_FIELDS = [
-  { key: 'initiation_usd', label: 'Initiation (kickoff)' },
+  { key: 'initiation_usd', label: 'Initiation' },
   { key: 'baseline_usd', label: 'Baseline / record' },
   { key: 'tier1_usd', label: 'Tier 1 (FEC)' },
   { key: 'tier2_usd', label: 'Tier 2 (FL/Sunbiz)' },
@@ -209,8 +209,8 @@ export default function AccountsPage() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Billing console</h1>
-            <p className="text-sm opacity-70">Prepaid accounts, deposits, invoices, and rates.</p>
+            <h1 className="text-2xl font-bold">Accounts</h1>
+            <p className="text-sm opacity-70">Optional batch labels (leftover ledger schema).</p>
           </div>
           <Link href="/dashboard" className="rounded-lg border px-4 py-2 text-sm hover:opacity-80">
             ← Dashboard

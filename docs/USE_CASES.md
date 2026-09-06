@@ -179,8 +179,9 @@ without Grok spend.
 | T13.5 | Re-enrolled settled voter (`research_status='re_enrolled'`) | Re-enters later arm work-sets; new evidence may revise lean/confidence. |
 | T13.6 | Settled + re-enrolled voter gains more evidence | **No second tier charge** (partial unique index holds). |
 
-## UC-14 — Prepaid billing (accounts, waterfall pricing) ✅
-**As** the operator, **I can** prepay an account and have research deducted per tier.
+## UC-14 — Accounts ledger (leftover schema) ✅
+**As** the operator, **I can** still drive the historical accounts/ledger tables if they
+exist (not a product to sell; D-045 MIT).
 
 | ID | Test | Expected |
 |---|---|---|
@@ -192,7 +193,7 @@ without Grok spend.
 | T14.6 | Edit default fee / set per-account override | New batches bill at resolved rates; prior ledger rows unchanged (rate snapshot). |
 | T14.7 | Unbilled batch (`account_id` NULL) | No ledger rows; arms run free. |
 | T14.8 | `scripts/smoke-billing.ts` | All ✓; rolls back; "Billing engine verified". |
-| T14.9 | Create account with "Bill initiation fee" checked | One `initiation` ledger row −$2,500 (rate card); balance reflects it. |
+| T14.9 | Create account with "Bill initiation fee" checked | One `initiation` ledger row for `rate_cards.initiation_usd`; balance reflects it. |
 | T14.10 | Charge initiation again (button or re-create) | No-op — once per account, ever (partial unique index); UI reports "already charged". |
 | T14.11 | Create account with the checkbox off | No initiation row; "Charge initiation fee" button available on the account detail. |
 | T14.12 | Attach an `account_id` to an `fl_extract` upload (direct SQL) | Rejected by `voter_uploads_fl_extract_unbilled` CHECK — FL registration data is research-track only (D-027). |

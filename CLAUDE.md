@@ -4,10 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-LeanLink is a single-user research proof-of-concept that ingests Florida public voter
+LeanLink is a single-user research tool that ingests Florida public voter
 records, infers a political "lean" + turnout/mobilization scores per voter, and exposes
-results in a dashboard with CSV/JSON export. Built for a University of Florida
-political-science professor — research/validation use, **not** outreach or targeting.
+results in a dashboard with CSV/JSON export. Built by **Four Plums, LLC**
+([four-plums.com](https://four-plums.com)) — research/validation use, **not** outreach
+or targeting. **MIT** — free for any purpose (see [`LICENSE`](LICENSE)).
+Contact: Michael@Four-Plums.com · [four-plums.com](https://four-plums.com).
 See `docs/CLAUDE.md` for the use posture and AI-vendor verification table, and
 `docs/DECISIONS.md` for why the stack looks the way it does.
 
@@ -29,11 +31,11 @@ migrations `001` → `011` to Neon in order — either by hand
 Migrations are additive and idempotent (`IF NOT EXISTS`; policies `DROP … IF EXISTS` then
 `CREATE`) — except `007_committee_lean.sql`, whose `CREATE POLICY` predates that convention,
 so a "policy already exists" error just means 007 is applied; skip it. `008` adds generic
-intake + waterfall settlement columns; `009` adds prepaid billing; `010` adds FEC-retry
-tracking columns; `011` adds the initiation-fee ledger kind + researcher review columns
+intake + waterfall settlement columns; `009` adds accounts/ledger tables (leftover schema);
+`010` adds FEC-retry tracking columns; `011` adds researcher review columns
 (`review_status`/`research_status` — **the arm claim queries reference these, so 011 must be
-applied before deploying code that includes them**); `012` adds the fl_extract-unbillable
-posture CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
+applied before deploying code that includes them**); `012` adds the fl_extract `account_id`
+CHECK; `013` adds the FEC federal bulk index (`fec_contributions` +
 `reference_snapshots.completed_at` — Tier 1 as a local lookup; loader/runbook in
 `docs/SETUP.md` §8); `014` adds `arm_runs` (per-arm run progress incl. CLI runs — the
 summary's `runs` feed degrades gracefully pre-migration, but apply it anyway); `015` adds
@@ -158,13 +160,15 @@ future UI/deliverable-delta attachment; golden (m) pins it.
 4. `POST /api/jobs/[id]/worker` — batch engine (also gated). Claims rows, runs `inferLean`,
    writes `lean_results`. Self-chains before `maxDuration` budget.
 5. `GET /api/cron/job-sweeper` — stall recovery; skips re-trigger when batch disabled.
+   **Parked (2026-08-12):** Neon endpoint disabled + `vercel.json` crons empty — see
+   `docs/SETUP.md` park/unpark before restoring schedules.
 
 **Inference** (`lib/inference.ts`, `inferLean`): when `XAI_API_KEY` is set, calls
 `grokEnrichAndInferRecord` (mode from `ENRICHMENT_MODE` or `apify-modular` path). Turnout and
 **opposition-mobilization scoring is real math** (`computeOppositionMobilizationScore`).
 Mock fallback only when key missing or Grok errors. Guardrails in `applyInferenceGuardrails`
 require ideological content in `identity_matches[].signals[]`. See `docs/CLAUDE.md` for xAI
-endpoints; `docs/PROGRESS.md` for continuity.
+endpoints; `docs/PROGRESS.md` for the build scoreboard.
 
 **Results querying scales by size** (`lib/results-query.ts`, shared client+server):
 small uploads sort/filter entirely in the browser; above the thresholds
@@ -235,8 +239,9 @@ sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot 
 - **Never `trim()` a full voter line.** `normalizeLine` only strips `\r`/`\n` — `trim()`
   would drop trailing empty tab columns and break field alignment (the file's last column,
   email/history-code, is often empty).
-- **PII never goes to git.** `.gitignore` blocks `CAL_*.txt`, `*_H_*.txt`, `samples/*.txt`,
-  `.env.local`. Real voter extracts and `.env.local` stay local only.
+- **PII never goes to git.** `.gitignore` blocks county extracts (`CCC_*.txt` / `*_H_*.txt`),
+  `samples/*.txt`, pitch/offering HTML, `docs/ops/`, OSINT self-tests, and `.env.local`.
+  Real voter extracts and `.env.local` stay local only.
 - **`@/*` path alias** maps to repo root (`tsconfig.json`).
 - **Secrets**: `INTERNAL_JOB_SECRET` (worker auth), `CRON_SECRET` (sweeper auth),
   `NEXTAUTH_SECRET`, Google OAuth, `DATABASE_URL` (Neon pooled). All in `.env.example`.
@@ -246,6 +251,7 @@ sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot 
 
 ## Deploy
 
-`git push origin HEAD:main` only — Vercel auto-deploys `main` (team Liberty Concierge, Pro).
-Run `npm run build` locally first; do not run `vercel --prod` (double-builds). Commits must
-be authored `Michael Plumb <meplumb@gmail.com>` or Vercel blocks the deploy.
+`git push origin HEAD:main` only — Vercel auto-deploys `main` (Pro plan required).
+Run `npm run build` locally first; do not run `vercel --prod` (double-builds). The
+commit-author email must be a GitHub account email linked to the Vercel project or
+Vercel blocks the deploy.

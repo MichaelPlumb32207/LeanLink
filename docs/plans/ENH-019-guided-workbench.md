@@ -6,8 +6,7 @@
 > and its linear metaphor mis-signalled. Do NOT re-implement the guide rail; the §4.1 arm panels
 > and §4.3 Review/Deliver work still stand. This spec is kept as the historical build record.
 
-**Status:** PLANNED 2026-07-08 · authored by Claude (Fable) for hand-off to a
-smaller builder model. Owner: Michael.
+**Status:** PLANNED 2026-07-08 · written for hand-off to a builder model.
 **Read first:** root `CLAUDE.md`, `docs/CLAUDE.md` (architecture + gotchas), this file.
 **Prime directive for the builder:** this is a *presentation* refactor. You will not touch
 scoring, fusion, settlement, billing, migrations, or any `lib/evidence/*` internals beyond
@@ -310,7 +309,7 @@ current); no live-poll regressions (still exactly one loop); the pipeline-cards 
 8. **No PII anywhere** — fixtures in `smoke-guidance.ts` are synthetic; never commit real
    extract data (`.gitignore` already blocks it).
 9. **Deploy hygiene**: gates (`tsc` → `lint` → `build`) before every push; push each phase
-   as one commit to `main` only; author `Michael Plumb <meplumb@gmail.com>`.
+   as one commit to `main` only; commit author must be a GitHub account email on the Vercel project.
 
 ---
 
@@ -386,7 +385,7 @@ arms whose good output is zero settles.
 ## 9. Living-docs pass (per phase, per the repo protocol)
 
 - `docs/BACKLOG.md` — ENH-019 row: flip status per phase (🟡 phase N shipped → ✅ on Phase 3).
-- `docs/PROGRESS.md` — continuity note per phase (what shipped, measured/observed behavior).
+- `docs/PROGRESS.md` — scoreboard row if a phase changes what's built.
 - `docs/ROADMAP.md` — move the item when it ships.
 - `docs/USE_CASES.md` — on Phase 1 add **UC-21 "Guided workbench navigation"** with
   UC-21·H (click an inning → panel with funnel/runs/actions; guide rail proposes the same

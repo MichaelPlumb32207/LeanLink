@@ -33,11 +33,9 @@ function loadEnvLocal() {
 async function main() {
   loadEnvLocal();
   const url = process.env.DATABASE_URL;
-  const user = process.env.ALLOWED_USER_EMAIL ?? 'meplumb@gmail.com';
-  if (!url) {
-    console.error('DATABASE_URL missing');
-    process.exit(1);
-  }
+  const user = process.env.ALLOWED_USER_EMAIL;
+  if (!user) throw new Error('ALLOWED_USER_EMAIL required');
+  if (!url) throw new Error('DATABASE_URL missing');
 
   const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
   const client = await pool.connect();

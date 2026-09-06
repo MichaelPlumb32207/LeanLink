@@ -1,11 +1,9 @@
 /**
- * Rate resolution.
+ * Rate resolution for the leftover accounts ledger (not a product to sell).
  *
- * Fees live in the `rate_cards` table (edited by the operator, no redeploy), not
- * in code. `scope='default'` holds the base fees; `scope=<account_id>` overrides
- * individual fees (volume discounts). Any override fee left NULL falls back to
- * the default. The amount actually charged is snapshotted onto each ledger row,
- * so editing a rate never re-prices an already-billed batch.
+ * Values live in `rate_cards` (`scope='default'` plus optional per-account
+ * overrides). NULL override fields fall back to default. Ledger rows snapshot
+ * the amount at write time.
  */
 import type { PoolClient } from 'pg';
 
@@ -18,14 +16,14 @@ export interface ResolvedRates {
   osintAttempt: number;
 }
 
-/** Last-resort fallback if the default row is somehow missing. */
+/** Last-resort fallback if the default row is missing. Software is free (MIT). */
 const HARD_DEFAULTS: ResolvedRates = {
-  initiation: 2500,
-  baseline: 0.03,
-  tier1: 0.15,
-  tier2: 0.25,
-  tier3: 0.33,
-  osintAttempt: 0.05,
+  initiation: 0,
+  baseline: 0,
+  tier1: 0,
+  tier2: 0,
+  tier3: 0,
+  osintAttempt: 0,
 };
 
 interface RateRow {

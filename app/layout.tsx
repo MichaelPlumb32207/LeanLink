@@ -3,8 +3,9 @@ import { Providers } from '@/app/providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LeanLink NPA FL',
-  description: 'Political lean inference for Florida NPA voters',
+  title: 'LeanLink — Four Plums',
+  description:
+    'Public-records political lean inference for Florida voter lists. A Four Plums project (four-plums.com).',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

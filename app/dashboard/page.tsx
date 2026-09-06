@@ -894,13 +894,13 @@ export default function DashboardPage() {
               href="/dashboard/intake"
               className="rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-4 py-2 text-sm hover:opacity-80"
             >
-              Client list intake
+              List intake
             </Link>
             <Link
               href="/dashboard/accounts"
               className="rounded-lg border px-4 py-2 text-sm hover:opacity-80"
             >
-              Billing console
+              Accounts
             </Link>
             <button
               onClick={() => signOut({ callbackUrl: '/' })}

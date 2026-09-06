@@ -2,7 +2,7 @@
  * Pure scorer for Exa People results → identity candidates.
  *
  * Hard rules (Phase 0):
- * - Partial names ("Ezra Thomas" for "Ezra Thomas Childs") must not pass as strong matches.
+ * - Partial names ("Alex Thomas" for "Alex Thomas Golden") must not pass as strong matches.
  * - Location corroboration (city / county / state) required for high scores.
  * - Job title / company NEVER imply lean — only identity support.
  */
@@ -87,7 +87,7 @@ export function scoreNameMatch(
       cSet.has(aFirst) ||
       cTokens.some((t) => t === aFirst[0] || (t.length === 1 && aFirst.startsWith(t)));
     if (!firstOk) {
-      // Common trap: "Alex Meier" for "Alexandra Elizabeth Meier"
+      // Common trap: "Alex Gale" for "Alexandra Elizabeth Gale"
       const prefix =
         cTokens.some((t) => aFirst.startsWith(t) && t.length >= 4) ||
         cTokens.some((t) => t.startsWith(aFirst) && aFirst.length >= 4);
@@ -102,10 +102,10 @@ export function scoreNameMatch(
     }
   }
 
-  // Middle-name trap: "Ezra Thomas" vs "Ezra Thomas Childs" —
-  // if anchor last is Childs and candidate last is Thomas, already rejected.
-  // If anchor is Ezra Thomas Childs and candidate is Ezra Thomas:
-  // last_name_mismatch on Childs → reject. Good.
+  // Middle-name trap: "Alex Thomas" vs "Alex Thomas Golden" —
+  // if anchor last is Golden and candidate last is Thomas, already rejected.
+  // If anchor is Alex Thomas Golden and candidate is Alex Thomas:
+  // last_name_mismatch on Golden → reject. Good.
   // If anchor has middle "Thomas" and candidate omits it: soft penalty only.
   if (aMiddle && aMiddle.length >= 3) {
     if (cSet.has(aMiddle)) {

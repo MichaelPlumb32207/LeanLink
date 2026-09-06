@@ -7,11 +7,11 @@
 > individuals. See `docs/CLAUDE.md`.
 
 ## Core Stack
-- **Frontend**: Next.js 15 (App Router) deployed on Vercel (team Liberty Concierge, **Pro** plan)
+- **Frontend**: Next.js 15 (App Router) deployed on Vercel (**Pro** plan)
 - **Database**: Neon Postgres (no external ORMs/helpers — raw SQL or Drizzle if needed)
 - **Styling**: Tailwind CSS + shadcn/ui
 - **Orchestration**: Self-chaining Vercel function worker + Vercel cron sweeper (no n8n); manual run from the dashboard
-- **Auth**: Google Identity only (restricted to meplumb@gmail.com for MVP)
+- **Auth**: Google Identity only (restricted to `ALLOWED_USER_EMAIL` for MVP)
 - **Primary AI**: Grok/xAI API for lean inference (see `docs/CLAUDE.md` for verified endpoint/model)
 - **Enrichment**: **OSINT only for the POC.** No commercial data-broker vendors (Clearbit/FullContact) — revisit only as a deliberate, counsel-reviewed decision. DIY fuzzy matching in Postgres.
 - **Branding**: Default "Matrix" theme with easy toggle to Red (leans-right view) and Blue (leans-left view)
@@ -19,7 +19,7 @@
 ## Non-Goals for MVP
 - No multi-user / teams yet (single operator; `account_id` is the seam that later becomes a tenant/login key)
 - No outbound contact / texting features
-- ~~No billing system~~ — **shipped 2026-07-03**: prepaid accounts + waterfall per-tier billing (`lib/billing/*`, migration 009). See `docs/CLAUDE.md` → "Tiered / prepaid / waterfall product".
+- Waterfall settlement shipped 2026-07-03. License is MIT (D-045).
 
 ## Nice-to-Haves
 - Responsive dashboard with upload progress, results table, filters, and color-mode toggle

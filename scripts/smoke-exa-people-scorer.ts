@@ -44,21 +44,23 @@ function personResult(
   };
 }
 
-const anchorChilds: ExaPeopleAnchor = {
-  firstName: 'Ezra',
+/** Synthetic GOLDEN family — middle-name trap (first+middle without last). */
+const anchorGolden: ExaPeopleAnchor = {
+  firstName: 'Alex',
   middleName: 'Thomas',
-  lastName: 'Childs',
-  fullName: 'Ezra Thomas Childs',
+  lastName: 'Golden',
+  fullName: 'Alex Thomas Golden',
   city: 'Altha',
   countyLabel: 'Calhoun County',
   state: 'Florida',
 };
 
-const anchorSeraphin: ExaPeopleAnchor = {
-  firstName: 'Marie',
+/** Synthetic public-footprint identity (accent + city corroboration). */
+const anchorHarbor: ExaPeopleAnchor = {
+  firstName: 'Maya',
   middleName: 'Nancy',
-  lastName: 'Seraphin',
-  fullName: 'Marie Nancy Seraphin',
+  lastName: 'Harbor',
+  fullName: 'Maya Nancy Harbor',
   city: 'Gainesville',
   countyLabel: 'Alachua County',
   state: 'Florida',
@@ -66,22 +68,22 @@ const anchorSeraphin: ExaPeopleAnchor = {
 
 function main() {
   // Partial name must reject (Phase 0 trap)
-  const partial = scoreNameMatch(anchorChilds, 'Ezra Thomas');
-  assert(partial.reject, 'expected reject on partial Ezra Thomas');
+  const partial = scoreNameMatch(anchorGolden, 'Alex Thomas');
+  assert(partial.reject, 'expected reject on partial Alex Thomas');
 
   // Wrong last name reject
-  const wrong = scoreNameMatch(anchorChilds, 'Ezra Thomas Smith');
+  const wrong = scoreNameMatch(anchorGolden, 'Alex Thomas Smith');
   assert(wrong.reject, 'expected reject on wrong last name');
 
   // Full name accept
-  const full = scoreNameMatch(anchorChilds, 'Ezra Thomas Childs');
+  const full = scoreNameMatch(anchorGolden, 'Alex Thomas Golden');
   assert(!full.reject && full.score >= 0.7, `expected strong full name, got ${full.score}`);
 
   // Collision: right-ish name, wrong city → capped / null
   const collision = scorePeopleResult(
-    anchorChilds,
+    anchorGolden,
     personResult({
-      name: 'Ezra Thomas Childs',
+      name: 'Alex Thomas Golden',
       location: 'Jacksonville, Florida, United States',
     }),
   );
@@ -93,48 +95,48 @@ function main() {
     );
   }
 
-  // Strong public-footprint hit
+  // Strong public-footprint hit (accented last name still matches)
   const hit = scorePeopleResult(
-    anchorSeraphin,
+    anchorHarbor,
     personResult({
-      name: 'Marie Nancy Séraphin',
+      name: 'Maya Nancy Harbór',
       location: 'Gainesville, Florida, United States',
-      url: 'https://linkedin.com/in/nseraphin',
+      url: 'https://example.com/in/maya-harbor',
     }),
   );
-  assert(hit, 'expected Seraphin hit');
-  assert(hit!.matchScore >= 0.7, `expected strong Seraphin score, got ${hit!.matchScore}`);
+  assert(hit, 'expected Harbor hit');
+  assert(hit!.matchScore >= 0.7, `expected strong Harbor score, got ${hit!.matchScore}`);
   assert(hit!.matchReasons.includes('city_match'), 'expected city_match');
 
-  // Fuzzy Janelle Stewart vs Janelle Rayjean Steward — last name mismatch → reject
-  const steward: ExaPeopleAnchor = {
+  // Fuzzy last-name mismatch → reject (Linden vs Lindon)
+  const linden: ExaPeopleAnchor = {
     firstName: 'Janelle',
     middleName: 'Rayjean',
-    lastName: 'Steward',
-    fullName: 'Janelle Rayjean Steward',
+    lastName: 'Linden',
+    fullName: 'Janelle Rayjean Linden',
     city: 'Gainesville',
     state: 'Florida',
   };
   const fuzzy = scorePeopleResult(
-    steward,
+    linden,
     personResult({
-      name: 'Janelle Stewart',
+      name: 'Janelle Lindon',
       location: 'Tampa, Florida, United States',
     }),
   );
-  assert(fuzzy === null, 'expected null for Steward vs Stewart');
+  assert(fuzzy === null, 'expected null for Linden vs Lindon');
 
   // Ranking + max candidates
   const ranked = scorePeopleResults(
-    anchorSeraphin,
+    anchorHarbor,
     [
       personResult({
-        name: 'Anne Seraphine',
+        name: 'Anne Harborage',
         location: 'Gainesville, Florida, United States',
         url: 'https://example.com/a',
       }),
       personResult({
-        name: 'Marie Nancy Seraphin',
+        name: 'Maya Nancy Harbor',
         location: 'Gainesville, Florida, United States',
         url: 'https://example.com/b',
       }),
@@ -143,8 +145,8 @@ function main() {
   );
   assert(ranked.length >= 1, 'expected at least one ranked candidate');
   assert(
-    ranked[0].name.toLowerCase().includes('marie'),
-    `expected Marie first, got ${ranked[0].name}`,
+    ranked[0].name.toLowerCase().includes('maya'),
+    `expected Maya first, got ${ranked[0].name}`,
   );
 
   console.log('smoke-exa-people-scorer: OK');

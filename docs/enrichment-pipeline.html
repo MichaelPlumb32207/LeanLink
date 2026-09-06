@@ -41,30 +41,31 @@
   </style>
 </head>
 <body>
+<!-- INTERNAL / NOT for external buyers. Current commercial leave-behind: leanlink-offering.html -->
+
   <div class="wrap">
     <h1>LeanLink Enrichment &amp; Inference Pipeline</h1>
     <p class="subtitle">Voter lean intelligence · Florida NPAs · Validated on Calhoun (736) + Alachua (40,546) · Last updated 2026-07-05</p>
 
     <div class="card" style="border-left:4px solid #059669;">
-      <strong>Product layer — tiered / prepaid / waterfall (D-024 · D-026).</strong>
-      The enrichment arms below sit inside a productized flow:
+      <strong>Waterfall engine (D-024 · D-026 · D-045).</strong>
+      The enrichment arms below sit inside:
       <ul style="margin:.4rem 0 0 1.1rem;">
-        <li><strong>Generic client intake</strong> — accept an arbitrary voter list (CSV/paste/JSON,
-          name + one of county/ZIP/address), normalized into the same record shape the arms consume,
-          billed to the client's prepaid account.</li>
+        <li><strong>Generic intake</strong> — accept an arbitrary voter list (CSV/paste/JSON,
+          name + one of county/ZIP/address), normalized into the same record shape the arms consume.</li>
         <li><strong>Waterfall settlement</strong> — a voter settles once fusion yields a
-          non-Undetermined lean at confidence ≥ 60, at the cheapest contributing tier; the settle
-          fee is billed once ever, and later, pricier arms skip settled voters by default.</li>
-        <li><strong>Confirmed pricing (D-026)</strong> — $2,500 initiation (once per account, ever) ·
-          $0.03/record baseline · per settled lean $0.15 (Tier 1 FEC) / $0.25 (Tier 2 FL contrib +
-          Sunbiz) / $0.33 + $0.05 per attempt (Tier 3 OSINT).</li>
-        <li><strong>Researcher review</strong> — settlement (billing) and research continuation are
+          non-Undetermined lean at confidence ≥ 60, at the cheapest contributing tier; later
+          arms skip settled voters by default.</li>
+        <li><strong>License (D-045)</strong> — <strong>MIT</strong>, any purpose. Four Plums
+          (<a href="https://four-plums.com">four-plums.com</a> · Michael@Four-Plums.com).
+          Tips: <code>bc1qac237n8ekdr370ueyv8795fmm3gerdd5n27ahr</code></li>
+        <li><strong>Researcher review</strong> — settlement and research continuation are
           separate switches: <strong>Accept</strong> freezes a voter's fused lean and excludes them
           from all arms; <strong>Reopen</strong> clears it; <strong>Re-enroll</strong> (per voter or
-          cohort) pushes settled voters back into later arms without re-billing. The dashboard
+          cohort) pushes settled voters back into later arms. The dashboard
           waterfall-gate strip shows eligible-remaining, accepted/re-enrolled counts, and projected
-          max next-arm spend before advancing a tier.</li>
-        <li><strong>Client deliverable</strong> — the client's original file back with Lean /
+          next-arm API spend before advancing a tier.</li>
+        <li><strong>Deliverable</strong> — original file back with Lean /
           Confidence / Source (all contributing arms, settled arm first) / Status (accepted · fused ·
           provisional · conflicted · unresearched) / Evidence columns. Lean is resolved under
           <code>lean_precedence</code> (D-044: default <strong>wallet</strong> when party and
@@ -98,7 +99,7 @@
       </ol>
       <p style="margin:0.75rem 0 0;font-size:0.88rem;color:var(--muted);">
         Calhoun demo path unchanged: FEC✓ rows 273/402/569 (lean) → Layer-2 row 224 or 280 (identity bridge).
-        Pitch deck: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a>.
+        Architecture notes: <a href="DECISIONS.md">DECISIONS.md</a>.
       </p>
     </div>
 
@@ -115,46 +116,45 @@
       <p style="margin:0;">This filter applies to FL-extract uploads (research track). Client-supplied lists enter through generic intake instead — anchor gate is name + one of county/ZIP/address; no NPA/ACT filter.</p>
     </div>
 
-    <h2 id="tiers">2. Product tiers</h2>
+    <h2 id="tiers">2. Research tiers</h2>
     <p style="font-size:0.88rem;color:var(--muted);">
-      <strong>Confirmed client pricing (D-026):</strong> $2,500 initiation (once per account, ever) +
-      $0.03/record baseline at intake + a per-lean settle fee at the tier that settled the voter.
       A voter settles once fusion yields a non-Undetermined lean at confidence ≥ 60, at the cheapest
-      contributing tier — billed once ever. FL-extract (research-track) uploads are never billed.
+      contributing tier. FL-extract (research-track) uploads never attach an <code>account_id</code>.
+      License is MIT (D-045).
     </p>
     <table>
-      <thead><tr><th>Tier</th><th>Arms</th><th>Client fee</th><th>Scope</th></tr></thead>
+      <thead><tr><th>Tier</th><th>Arms</th><th>Your API cost</th><th>Scope</th></tr></thead>
       <tbody>
         <tr>
           <td><strong>Baseline</strong></td>
           <td>Intake · anchor/household · fusion · deliverable</td>
-          <td><span class="tag tag-paid">$0.03 / record</span></td>
+          <td><span class="tag tag-free">$0</span></td>
           <td>Every accepted record</td>
         </tr>
         <tr>
           <td><strong>Tier 1 — FEC</strong></td>
           <td>Local FEC bulk index (primary, D-028) · throttled Open API (fallback)</td>
-          <td><span class="tag tag-paid">$0.15 / settled lean</span></td>
-          <td>Whole upload (local SQL match)</td>
+          <td><span class="tag tag-free">$0 (local SQL)</span></td>
+          <td>Whole upload</td>
         </tr>
         <tr>
           <td><strong>Tier 2 — FL contrib + Sunbiz</strong></td>
           <td>FL contrib index (layer 1 person + layer 2 entity) · Sunbiz officer bridge</td>
-          <td><span class="tag tag-paid">$0.25 / settled lean</span></td>
+          <td><span class="tag tag-free">$0 (local indexes)</span></td>
           <td>Unsettled remainder (free pass)</td>
         </tr>
         <tr>
           <td><strong>Tier 3 — OSINT</strong></td>
           <td><code>grok-full</code> / <code>apify-modular</code> / scorecard</td>
-          <td><span class="tag tag-paid">$0.33 / settled lean + $0.05 / attempt</span></td>
+          <td><span class="tag tag-paid">~Grok/Apify per attempt</span></td>
           <td>Opt-in unsettled remainder (D-020)</td>
         </tr>
       </tbody>
     </table>
     <p style="font-size:0.85rem;color:var(--muted);">
-      Tiers 1–2 match against local bulk indexes — <span class="tag tag-free">No per-voter API fees</span>
-      (the fee prices the research, not third-party compute). Tier 3 carries real per-attempt API cost
-      (~$0.03/voter Grok), which is why attempts are billed.
+      Tiers 1–2 match against local bulk indexes — <span class="tag tag-free">No per-voter API fees</span>.
+      Tier 3 carries real per-attempt API cost (~$0.03/voter Grok on the measured canary). See
+      <code>docs/COST-ESTIMATES.md</code>.
     </p>
 
     <h3>Reference data refresh (client quarterly snapshot)</h3>
@@ -204,7 +204,7 @@
         <div class="pipe-box t1"><strong>Social OSINT</strong></div>
       </div>
     </div>
-    <p>Pitch deck: <a href="evidence-accumulator-pitch.html">evidence-accumulator-pitch.html</a></p>
+    <p>Decisions: <a href="DECISIONS.md">DECISIONS.md</a> · Four Plums: <a href="https://four-plums.com">four-plums.com</a></p>
 
     <h2 id="free-pass">4. Local index implementation (Tier 1 FEC + Tier 2 free pass)</h2>
     <ul>

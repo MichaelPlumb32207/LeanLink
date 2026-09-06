@@ -6,6 +6,19 @@ current as design shifts.
 
 ---
 
+## D-045 · MIT — free and open source, any purpose
+**Decision (2026-09-06, owner):** Publish the repo under the **MIT License**. Anyone
+may use, copy, modify, and distribute LeanLink **for any purpose**, including
+commercial and political work. Copyright **Four Plums, LLC**
+([four-plums.com](https://four-plums.com)); contact
+Michael@Four-Plums.com. **No telemetry / no phone-home.** Pitch / offering HTML
+stay **local** (gitignored) — this repo is not a sales surface. The in-app
+accounts ledger (`lib/billing/*`, D-024/D-026) is leftover schema, not a product
+to sell. Optional Bitcoin tips (README / home page) are appreciation, not a
+license fee. **Overrides:** the 2026-09-05 campaign-restricted draft of this same
+id; the original proprietary LICENSE; D-024’s “product the one-pager sells” as
+the public story (the waterfall engine stays). **Related:** D-005, D-027.
+
 ## D-044 · Lean conflict precedence is client-configurable; default wallet wins
 **Decision (2026-07-23, owner):** When registration party (DEM→Left / REP→Right) and
 public-evidence lean (FEC / FL contributions / fusion) **disagree**, the **client deliverable**
@@ -69,7 +82,7 @@ Exa for people-index + web/news/contents fetch; **xAI Grok remains judgment** (J
 `applyInferenceGuardrails`), **x_search**, committee knowledge (ENH-018), and vision.
 **Phase 0 evidence (free MCP people search):** strong hits on public/professional footprints
 (e.g. UF faculty-style LinkedIn + location); thin NPAs produce near-misses and name collisions
-("Ezra Thomas" ≠ "Ezra Thomas Childs"; "Janelle Stewart" ≠ "Steward") — same identity wall as
+("Alex Thomas" ≠ "Alex Thomas Golden"; "Janelle Lindon" ≠ "Linden") — same identity wall as
 D-033. Therefore People is a **conditional identity pre-step**, never an always-on cohort arm and
 never a lean signal (job title/employer identity-only). **Phase 1 shipped:** `lib/exa/*` (REST,
 no SDK), pure `score-people` with strict name+location gates, offline smoke, read-only
@@ -375,11 +388,11 @@ the client's — capture in engagement terms. **Overrides:** D-005's blanket res
 posture and its counsel-review tripwire framing (the tripwire attached to the FL-extract
 data, which remains protected).
 
-## D-026 · Pricing confirmed + researcher review controls (accept / re-enroll)
-**Decision (pricing, owner-confirmed 2026-07-04):** Keep the migration-009 seeded rate card as
-the client pricing — $0.03 baseline/record, $0.15 tier-1 (FEC), $0.25 tier-2 (FL/Sunbiz),
-$0.33 + $0.05/attempt tier-3 (OSINT) — and add a **$2,500 initiation (kickoff) fee** as a
-first-class rate-card fee + ledger kind (`initiation`, once per account ever, migration 011).
+## D-026 · Rate-card seed + researcher review controls (accept / re-enroll)
+**Decision (2026-07-04):** Seed migration-009 `rate_cards` as **self-host ledger defaults**
+(not a public offering — D-045 superseded the “client price list” reading). Add an
+`initiation` ledger kind (`rate_cards.initiation_usd`, once per account ever, migration 011).
+Historical seed amounts stay in the migration SQL.
 **Why:** Market comparables (researched 2026-07-04): setup fees of $1k–$5k are standard for
 SMB data-service implementations; charged-on-match is the dominant append convention
 ($0.02–$0.03/match commodity append, $0.07–$0.20/hit batch skip-trace, $0.50–$2.00
@@ -419,7 +432,7 @@ hand for determinism). Rule expectations unchanged; the 8 findings the working g
 were fixed in the same commit. **Overrides:** the scaffold's `"lint": "next lint"` script.
 
 ## D-024 · Tiered / prepaid / waterfall billing + generic client intake
-**Decision:** Turn the evidence engine into the product the one-pager sells. (1) **Generic
+**Decision:** Turn the evidence engine into a waterfall product. (1) **Generic
 intake** — accept an arbitrary client list (name + one of county/ZIP/address required; no FL
 voter file, no voter ID), normalized to `ParsedFlVoterRecord` so arms are unchanged
 (`lib/generic-voter-list.ts`); per-row completeness score. (2) **Waterfall settlement** — a

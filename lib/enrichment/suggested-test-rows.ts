@@ -1,6 +1,8 @@
 /**
  * Curated row_index picks per county upload (0-based among ingested voter_records).
  * Re-validate if ingest filter or source file changes.
+ *
+ * Notes are scenario labels only — never commit real voter names or emails.
  */
 export interface SuggestedTestRow {
   rowIndex: number;
@@ -13,37 +15,37 @@ export const CALHOUN_SUGGESTED_TEST_ROWS: SuggestedTestRow[] = [
   {
     rowIndex: 0,
     scenario: 'Thin OSINT (baseline)',
-    note: 'Ezra Thomas Childs — Altha, no contact, medium turnout → Undetermined expected',
+    note: 'Small town, no contact, medium turnout → Undetermined expected',
   },
   {
     rowIndex: 13,
     scenario: 'Email + phone',
-    note: 'Mary Alice Partridge — Altha, both contact fields on file',
+    note: 'Small town, both contact fields on file',
   },
   {
     rowIndex: 7,
     scenario: 'Phone only',
-    note: 'Mark Russell Tadlock — Fountain, phone but no email',
+    note: 'Phone but no email',
   },
   {
     rowIndex: 371,
-    scenario: 'Blountstown + email',
-    note: 'Michael Lee Ward — largest town, email on file',
+    scenario: 'Largest town + email',
+    note: 'County seat, email on file',
   },
   {
     rowIndex: 19,
     scenario: 'Common surname',
-    note: 'Sheffield Tyrone Smith — disambiguation stress test',
+    note: 'Disambiguation stress test',
   },
   {
     rowIndex: 208,
     scenario: 'Rural no contact',
-    note: 'Gatha Darecer White — Kinard, no email/phone',
+    note: 'Unincorporated, no email/phone',
   },
   {
     rowIndex: 32,
     scenario: 'Long / hyphenated name',
-    note: 'Maria Del Rosario Trejo Gonzalez — Altha, name matching edge case',
+    note: 'Name-matching edge case',
   },
 ];
 
@@ -52,37 +54,37 @@ export const ALACHUA_SUGGESTED_TEST_ROWS: SuggestedTestRow[] = [
   {
     rowIndex: 2,
     scenario: 'Thin OSINT (baseline)',
-    note: 'Janelle Rayjean Steward — Gainesville, no email/phone',
+    note: 'City, no email/phone',
   },
   {
     rowIndex: 114,
-    scenario: 'UF email + phone',
-    note: 'Marie Nancy Seraphin — nseraphin@ufl.edu, best LinkedIn/social bet in county',
+    scenario: 'Campus email + phone',
+    note: 'Best LinkedIn/social bet in county (contact on file)',
   },
   {
     rowIndex: 6,
     scenario: 'Phone only',
-    note: "Hannah Nicole O'Neill — Newberry, phone but no email",
+    note: 'Nearby town, phone but no email',
   },
   {
     rowIndex: 4,
-    scenario: 'Gainesville email + phone',
-    note: 'Alexandra Elizabeth Meier — DNCNGVET07@YAHOO.COM, high turnout + primary',
+    scenario: 'City email + phone',
+    note: 'High turnout + primary',
   },
   {
     rowIndex: 332,
     scenario: 'Common surname',
-    note: 'Evan Bailey Johnson — ~248 Johnsons in file, email + phone',
+    note: 'Many same-surname rows; email + phone',
   },
   {
     rowIndex: 12,
     scenario: 'Small-town no contact',
-    note: 'Erica Ashley Ramirez — Alachua (city), no contact vs Gainesville bulk',
+    note: 'Small city vs county-seat bulk',
   },
   {
     rowIndex: 52,
     scenario: 'Long / hyphenated name',
-    note: 'Jean-Paul William Perez — jeanpaul.w.perez@gmail.com + phone',
+    note: 'Email + phone on file',
   },
 ];
 

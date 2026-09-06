@@ -40,8 +40,8 @@ When registration party and public-evidence lean disagree, the **deliverable** u
 | `conflict_undetermined` | Withhold lean |
 
 Dashboard: evidence workspace **Lean conflict rule** select. API: `PATCH /api/uploads/[id]`
-with `{ "lean_precedence": "wallet" }`. Optional `accounts.lean_precedence` seeds new billed
-generic uploads.
+with `{ "lean_precedence": "wallet" }`. Optional `accounts.lean_precedence` seeds new
+generic uploads that carry an `account_id`.
 
 ## 1. Clone, env, install
 
@@ -98,10 +98,10 @@ Full order:
 | `006_reference_data.sql` | FL contributions + Sunbiz officer bulk indexes |
 | `007_committee_lean.sql` | researcher committee→lean labels |
 | `008_generic_intake_and_settlement.sql` | generic-intake source + completeness cols; waterfall `settled_*` cols |
-| `009_billing.sql` | `accounts`, `billing_ledger`, `rate_cards` (+ default seed), `voter_uploads.account_id` |
+| `009_billing.sql` | `accounts` / ledger tables (leftover schema; not a product to sell) |
 | `010_fec_retry.sql` | `fec_lookup_results.retry_attempts` + `last_attempt_at` (background retry of failed FEC lookups) |
-| `011_initiation_and_review.sql` | `initiation` ledger kind + `rate_cards.initiation_usd` (seeded $2,500); `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
-| `012_fl_extract_unbilled.sql` | posture guardrail: `CHECK` that an `fl_extract` upload never carries a billing `account_id` (D-027) |
+| `011_initiation_and_review.sql` | `voter_lean_fusion.review_status` / `research_status` (accept-freeze / re-enroll) |
+| `012_fl_extract_unbilled.sql` | `CHECK` that an `fl_extract` upload never carries an `account_id` (D-027) |
 | `013_fec_indiv_index.sql` | `fec_contributions` bulk index (FL-filtered FEC federal Schedule A) + `reference_snapshots.completed_at`; makes Tier 1 a local lookup (D-028) |
 | `014_arm_runs.sql` | Per-arm run progress (`arm_runs`) for box-score live strip |
 | `015`–`018` | Sunbiz/fl_contrib indexes + unlabeled-committees partial index (perf) |
@@ -117,6 +117,31 @@ EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is s
 `CREATE POLICY ... already exists` error just means 007 is already applied — skip it and
 continue with 008/009. RLS is enabled per table — the app sets `app.current_user` per
 transaction, so nothing extra is needed at the DB level.
+
+### Park / unpark Neon compute
+
+Use **your** Neon project (pooled connection string in `.env.local`). Do **not** put
+project / endpoint / org ids in git. Park by **disabling compute**, not by deleting
+the project or branch.
+
+| Mode | Compute | Max CU | Vercel crons (`vercel.json`) | You pay |
+|---|---|---|---|---|
+| Parked | Disabled | 1 | None (`crons: []`) | Storage only |
+| Active | Enabled | 1 | Sweeper + FEC-retry (below) | Storage + intermittent CU-hours |
+| County-scale burst | Enabled | **4–8** | Same crons | Storage + active compute |
+
+**Park:** Neon Console → compute → **Disable**. Empty `crons` in `vercel.json` and
+deploy so production does not ping Postgres on a schedule. Data and connection
+strings stay.
+
+**Unpark:**
+
+1. Neon Console → compute → **Enable**.
+2. For a big FEC/ingest wave: raise **max CU to 4–8**, then dial back to **1**.
+3. Restore crons in `vercel.json` and push `main`:
+   - `/api/cron/job-sweeper` — `*/10` or `*/15`, not every minute (that blocks scale-to-zero)
+   - `/api/cron/fec-retry` — hourly unless recovering API errors
+4. Confirm `DATABASE_URL` still works: `node scripts/check-migrations.ts`.
 
 ## 3. Google OAuth
 
@@ -142,14 +167,16 @@ full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when bat
 
 ## 5. Vercel deploy
 
-1. Import the repo into Vercel (team Liberty Concierge). **Pro plan is required** — the
+1. Import the repo into your Vercel team. **Pro plan is required** — the
    worker route sets `maxDuration = 800` (≈13 min), which exceeds Hobby limits. On Hobby,
    workers are killed early and jobs stall in perpetual sweeper retries.
 2. Set every `.env.local` var in the Vercel project (set `NEXTAUTH_URL` to the prod URL).
-3. `vercel.json` registers two crons: `/api/cron/job-sweeper` (every minute, stall recovery)
-   and `/api/cron/fec-retry` (every 5 min — re-attempts FEC lookups that failed on a transient
-   API error; recovered hits flow into the evidence ledger and settle/bill). Vercel sends
-   `x-vercel-cron: 1`; both routes also accept `Authorization: Bearer $CRON_SECRET`.
+3. **Crons:** this repo currently has `"crons": []` (compute-parked posture). When you want
+   scheduled recovery, restore:
+   - `/api/cron/job-sweeper` (stall recovery — **not** every minute; see park/unpark above)
+   - `/api/cron/fec-retry` (re-attempts transient FEC API errors; recovered hits can settle)
+   Vercel sends `x-vercel-cron: 1`; both routes also accept
+   `Authorization: Bearer $CRON_SECRET`.
 4. Deploy by pushing to `main` (`git push origin HEAD:main`) — Vercel auto-builds. Do **not**
    run `vercel --prod` (double build). Commit author email must be a valid GitHub account or
    Vercel blocks the deploy.
@@ -164,35 +191,24 @@ full-file job unless `LEANLINK_ENABLE_BATCH_INFERENCE=true`. Export CSV when bat
 These contain PII and are **gitignored** — keep them local; never commit.
 
 **FL extracts are research-track only (D-027):** FL DOS registration data carries use
-restrictions that exclude commercial use, so uploads from this path can never bill to a
-client account — the route never attaches one, and migration 012's CHECK constraint refuses
-it at the database. Paid client work uses the generic intake path in §7 (client-supplied
-lists, per-client accounts).
+restrictions that exclude commercial/marketing use of *that file*. Uploads from this path
+never get an `account_id` — the route never attaches one, and migration 012's CHECK
+constraint refuses it at the database. Generic lists (your own file) use §7.
 
-## 7. Client-list intake + prepaid billing (generic path)
+## 7. Generic-list intake
 
-Beyond the FL DOS extract, LeanLink accepts an **arbitrary client voter list** and bills
-research to a prepaid account. To try it in prod:
+Beyond the FL DOS extract, LeanLink accepts an **arbitrary voter list**.
 
-1. **Billing console** (`/dashboard/accounts`) → create an account (a slug "campaign id",
-   e.g. `smith-for-senate`; optional FEC committee id) → **Record deposit**. The **Bill
-   initiation fee** checkbox (default on) charges the one-time kickoff at the rate-card price
-   ($2,500 default); uncheck for internal/test accounts. Existing accounts get a "Charge
-   initiation fee" button (deduped — a second charge no-ops).
-2. **Client list intake** (`/dashboard/intake`) → paste/drop a CSV (header row; any of
-   `name, county, address, city, state, zip, dob, email, phone, employer, party`) → pick
-   the account → **Ingest list**. Rows need a name + at least one of county/ZIP/address
-   (the anchor gate); each accepted record incurs the **baseline fee**.
-3. Back on the dashboard, select the new upload and run **FEC → FL/Sunbiz → OSINT**. The
+1. **List intake** (`/dashboard/intake`) → paste/drop a CSV (header row; any of
+   `name, county, address, city, state, zip, dob, email, phone, employer, party`) →
+   **Ingest list**. Rows need a name + at least one of county/ZIP/address
+   (the anchor gate).
+2. Back on the dashboard, select the new upload and run **FEC → FL/Sunbiz → OSINT**. The
    waterfall **settles** a voter once a confident lean is found and **excludes** it from
-   later (pricier) arms; each settlement bills its tier fee, and each OSINT attempt bills
-   the attempt fee. The scoreboard shows "Settled by tier" + "Billed $…"; the Billing
-   console shows the per-batch invoice + ledger.
+   later arms.
 
-Fees are editable in the Billing console rate-card editor (`default` + per-account
-overrides). Verify the billing engine without the UI via `npx tsx scripts/smoke-billing.ts`
-(runs against your DB in a rolled-back transaction — nothing persists). Settlement
-threshold is `LEANLINK_SETTLE_THRESHOLD` (default 60).
+Settlement threshold is `LEANLINK_SETTLE_THRESHOLD` (default 60). The software is MIT
+(D-045) — any purpose. Four Plums · four-plums.com · Michael@Four-Plums.com.
 
 **Scoring canaries:** `npx tsx scripts/smoke-golden-voters.ts` runs known-answer synthetic
 voters through identity → lean → fusion (regressions for DEF-005/006/D-030, registry-seed

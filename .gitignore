@@ -53,9 +53,12 @@ Thumbs.db
 *.swo
 *~
 
-# Florida voter extracts — PII; keep local only, never push to GitHub
+# Florida voter extracts — PII; keep local only, never push to GitHub.
+# DOS files are CCC_YYYYMMDD.txt / CCC_H_*.txt (any county, not just Calhoun).
 CAL_*.txt
 CAL_H_*.txt
+[A-Z][A-Z][A-Z]_*.txt
+[A-Z][A-Z][A-Z]_H_*.txt
 *_H_*.txt
 samples/*.txt
 samples/*.csv
@@ -85,3 +88,26 @@ LeanLink - Political lean - on the record.pdf
 
 # ENH-010 re-pass baselines (voter ids + fusion state — never commit)
 repass-baseline-*.json
+
+# Statewide campaign / ops (local disk paths, research dumps, PII-adjacent)
+docs/ops/
+
+# Owner OSINT self-tests (personal identifiers)
+scripts/osint-self-test*.ts
+
+# Statewide campaign CLIs write into gitignored docs/ops/; keep them local
+# until paths and membership JSON are reviewed for a later commit.
+scripts/run-campaign-wave.ts
+scripts/campaign-board.ts
+scripts/export-campaign-run.ts
+scripts/build-election-margins.ts
+
+# Commercial pitch / offering / one-pagers — local sales copy, not this repo
+leanlink-pitch.html
+leanlink-one-pager.html
+leanlink-offering.html
+onrecord-pitch.html
+onrecord-one-pager.html
+onrecord-offering.html
+docs/evidence-accumulator-pitch.html
+LeanLink-Plan.html

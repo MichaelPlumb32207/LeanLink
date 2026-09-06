@@ -65,7 +65,7 @@ function cookieHeader(cookies: Record<string, string>): string {
 
 export async function fetchFlContribSessionCookies(): Promise<Record<string, string>> {
   const res = await fetch(CONTRIB_PAGE, {
-    headers: { 'User-Agent': 'LeanLink/1.0 (research POC; meplumb@gmail.com)' },
+    headers: { 'User-Agent': 'LeanLink/1.0 (+https://four-plums.com; Michael@Four-Plums.com)' },
   });
   const raw = res.headers.getSetCookie?.() ?? [];
   const cookies = parseSetCookie(raw);
@@ -132,7 +132,7 @@ export async function downloadFlContribMonth(params: {
   const res = await fetch(CONTRIB_POST, {
     method: 'POST',
     headers: {
-      'User-Agent': 'LeanLink/1.0 (research POC; meplumb@gmail.com)',
+      'User-Agent': 'LeanLink/1.0 (+https://four-plums.com; Michael@Four-Plums.com)',
       'Content-Type': 'application/x-www-form-urlencoded',
       Cookie: cookieHeader(params.cookies),
     },

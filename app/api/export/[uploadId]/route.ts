@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { withUserDb } from '@/lib/db';
+import type { VoterHistorySummary } from '@/lib/fl-voter-history';
+import {
+  HISTORY_EXPORT_HEADERS,
+  historyExportValues,
+} from '@/lib/history/export-fields';
 
 export async function GET(request: Request, context: { params: Promise<{ uploadId: string }> }) {
   try {
@@ -22,7 +27,8 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
                 r.matched_social,
                 r.audit_log,
                 r.voter_hash,
-                vr.raw_data
+                vr.raw_data,
+                vr.history_summary
          FROM lean_results r
          JOIN voter_records vr ON vr.id = r.voter_record_id
          WHERE r.upload_id = $1 AND r.user_id = $2
@@ -43,23 +49,47 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
         'city',
         'precinct',
         'evidence',
+        ...HISTORY_EXPORT_HEADERS,
       ];
       const lines = rows.map((row) => {
         const raw = row.raw_data as { residence?: { city?: string }; precinct?: string };
         const evidence = Array.isArray(row.evidence)
           ? row.evidence.join(' | ')
           : JSON.stringify(row.evidence);
+        // Prefer live history_summary on the voter; fall back to lean_results copies.
+        const hist = (row.history_summary as VoterHistorySummary | null) ?? {
+          total_events: row.turnout_score != null ? 1 : 0,
+          general_elections_voted: 0,
+          general_elections_available: 0,
+          primary_elections_voted: 0,
+          last_vote_date: null,
+          turnout_score: row.turnout_score ?? 0,
+          turnout_propensity: row.turnout_propensity ?? 'Low',
+          primary_count: 0,
+          primary_engagement: row.primary_engagement ?? 'No',
+        };
+        const h = historyExportValues(
+          row.history_summary
+            ? (row.history_summary as VoterHistorySummary)
+            : row.turnout_propensity != null
+              ? hist
+              : null,
+        );
         return [
           row.voter_hash,
           row.lean,
           row.confidence,
-          row.turnout_propensity ?? '',
-          row.turnout_score ?? '',
+          row.turnout_propensity ?? h['LeanLink Turnout Propensity'],
+          row.turnout_score ?? h['LeanLink Turnout Score'],
           row.primary_engagement ?? '',
           row.opposition_mobilization_score ?? '',
           raw?.residence?.city ?? '',
           raw?.precinct ?? '',
           `"${String(evidence).replaceAll('"', '""')}"`,
+          ...HISTORY_EXPORT_HEADERS.map((k) => {
+            const cell = h[k];
+            return /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
+          }),
         ].join(',');
       });
 

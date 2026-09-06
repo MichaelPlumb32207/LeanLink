@@ -37,7 +37,8 @@ async function main() {
   const county = process.argv.includes('--county')
     ? process.argv[process.argv.indexOf('--county') + 1] ?? 'CAL'
     : 'CAL';
-  const user = process.env.ALLOWED_USER_EMAIL ?? 'meplumb@gmail.com';
+  const user = process.env.ALLOWED_USER_EMAIL;
+  if (!user) throw new Error('ALLOWED_USER_EMAIL required');
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,

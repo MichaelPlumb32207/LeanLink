@@ -8,7 +8,7 @@
  * Usage:
  *   npx tsx scripts/probe-exa-people.ts --county ALA --row 114
  *   npx tsx scripts/probe-exa-people.ts --upload <uuid> --row 0
- *   npx tsx scripts/probe-exa-people.ts --name "Marie Nancy Seraphin" --city Gainesville --county-label "Alachua County"
+ *   npx tsx scripts/probe-exa-people.ts --name "Alex Thomas Golden" --city Altha --county-label "Calhoun County"
  *
  * Requires EXA_API_KEY (+ DATABASE_URL / ALLOWED_USER_EMAIL for DB load paths).
  */

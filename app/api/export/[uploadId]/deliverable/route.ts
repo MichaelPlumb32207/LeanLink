@@ -8,6 +8,11 @@ import {
   resolveDeliverableLean,
   type LeanPrecedenceMode,
 } from '@/lib/lean-precedence';
+import type { VoterHistorySummary } from '@/lib/fl-voter-history';
+import {
+  HISTORY_EXPORT_HEADERS,
+  historyExportRow,
+} from '@/lib/history/export-fields';
 
 /**
  * Default: **client deliverable** (D-042 layers 1–2) — submitted list echoed back with
@@ -46,6 +51,7 @@ const APPENDED = [
   'LeanLink Source',
   'LeanLink Status',
   'LeanLink Evidence',
+  ...HISTORY_EXPORT_HEADERS,
 ] as const;
 
 const EVIDENCE_HEADLINES = 3;
@@ -57,6 +63,7 @@ interface SourceCol {
 
 interface Row {
   raw_data: ParsedFlVoterRecord & { _source?: SourceCol[]; party?: string };
+  history_summary: VoterHistorySummary | null;
   lean: string | null;
   confidence: number | null;
   fusion_status: string | null;
@@ -225,6 +232,7 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
       );
       const recs = await client.query<Row>(
         `SELECT vr.raw_data,
+                vr.history_summary,
                 f.lean, f.confidence, f.fusion_status, f.review_status,
                 f.settled_arm, f.contributing_arms, f.evidence_summary
          FROM voter_records vr
@@ -261,6 +269,7 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
       if (!source && resolved.lean !== 'Undetermined') {
         source = ARM_LABEL.party_prior;
       }
+      const historyCells = historyExportRow(row.history_summary);
       return {
         original: templateCols.map((h) => byHeader.get(h) ?? ''),
         appended: [
@@ -269,6 +278,7 @@ export async function GET(request: Request, context: { params: Promise<{ uploadI
           source,
           statusLabel(row),
           evidenceParts.join(' | '),
+          ...historyCells,
         ],
         meta: {
           lean_tension: resolved.tension,

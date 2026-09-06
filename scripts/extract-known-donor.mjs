@@ -14,7 +14,11 @@ import { resolve } from 'node:path';
 import pg from 'pg';
 
 const { Pool } = pg;
-const OPERATOR = process.env.ALLOWED_USER_EMAIL || 'meplumb@gmail.com';
+const OPERATOR = process.env.ALLOWED_USER_EMAIL;
+if (!OPERATOR) {
+  console.error('ALLOWED_USER_EMAIL required');
+  process.exit(1);
+}
 
 function loadDatabaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;

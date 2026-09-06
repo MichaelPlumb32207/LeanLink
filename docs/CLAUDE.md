@@ -4,8 +4,12 @@
 
 Began as a proof-of-concept for a **University of Florida political-science professor**
 (research question: can a public FL voter record be linked to its **online persona**
-using only public data + OSINT?). As of **2026-07-04 (D-027)** it is also a **billed
-commercial service** — client-supplied voter lists researched for political lean.
+using only public data + OSINT?). Built by **Four Plums, LLC**
+([four-plums.com](https://four-plums.com)). **MIT** — free for any purpose
+(D-045, [`LICENSE`](../LICENSE)). Contact: Michael@Four-Plums.com.
+Tips: `bc1qac237n8ekdr370ueyv8795fmm3gerdd5n27ahr`.
+As of **2026-07-04 (D-027)** it can also ingest **operator-supplied lists**
+(isolated from FL-extract data).
 
 **Two-track use posture (D-027)** — the constraint lives with the *data source*, not
 the activity:
@@ -14,33 +18,34 @@ the activity:
   test data (Calhoun, Alachua) and any professor work use the FL voter-registration
   extract, which carries use restrictions that exclude commercial/marketing use.
   Everything derived from those uploads stays research/validation-only: **never
-  attached to a billing account** (structural — `voter_uploads_fl_extract_unbilled`
-  CHECK, migration 012; the upload route never sets `account_id` on that path) and
-  **never included in a client deliverable**. PII/gitignore rules for these files
-  stand (`CAL_*.txt`, `*_H_*.txt`, `samples/*.txt` never enter git).
-- **Track B — client engagements (commercial).** Clients supply **their own lists**
-  through generic intake, billed to **their own account**. Enrichment draws only on
-  public records (FEC, FL campaign-finance, Sunbiz, open web). Output derives solely
-  from the client's rows + public reference data. Isolation from Track A is
-  structural, not procedural: per-upload processing (evidence, fusion, household
-  index are all upload-scoped), per-client accounts, disjoint identity-hash schemes
-  (`hashVoterPii` is voterId-keyed; `hashGenericVoter` is name/address/dob-keyed —
-  they can never collide), plus the migration-012 constraint. The client's lawful
-  basis for the list they hand us is **the client's responsibility** — capture that
-  in engagement terms.
+  attached to an `account_id`** (structural — `voter_uploads_fl_extract_unbilled`
+  CHECK, migration 012; the upload route never sets `account_id` on that path).
+  PII/gitignore rules for these files stand (`CAL_*.txt`, `*_H_*.txt`,
+  `samples/*.txt` never enter git).
+- **Track B — operator-supplied lists.** Operators supply **their own lists**
+  through generic intake. Enrichment draws only on public records (FEC, FL
+  campaign-finance, Sunbiz, open web). Output derives solely from those rows + public
+  reference data. Isolation from Track A is structural, not procedural: per-upload
+  processing (evidence, fusion, household index are all upload-scoped), disjoint
+  identity-hash schemes (`hashVoterPii` is voterId-keyed; `hashGenericVoter` is
+  name/address/dob-keyed — they can never collide), plus the migration-012
+  constraint. The lawful basis for a list someone supplies is **their
+  responsibility**.
 
-Both tracks share the standing integrity rules (also client-facing promises in
-`leanlink-pitch.html`): public data only, no data brokers, race/gender never used as
-inputs, **conflicting public-evidence arms** → fusion withholds the label, no resale or
-pooling of results. Separately, **registration party vs public-evidence** tension is a
-client product policy (`lean_precedence`, D-044) — default **wallet** (donations win), not
-the fusion withhold rule.
+Both tracks share the standing integrity rules: public data only, no data brokers,
+race/gender never used as inputs, **conflicting public-evidence arms** → fusion
+withholds the label, no resale or pooling of results. Separately, **registration party
+vs public-evidence** tension is an operator policy (`lean_precedence`, D-044) — default
+**wallet** (donations win), not the fusion withhold rule. The software license is
+MIT (D-045) — any purpose.
 
 ## Stack (as built — supersedes the original plan HTML)
 
-- **Frontend/host:** Next.js 15 (App Router) on Vercel — team Liberty Concierge, **Pro** plan.
+- **Frontend/host:** Next.js 15 (App Router) on Vercel — **Pro** plan (worker `maxDuration`).
 - **DB:** Neon Postgres (`us-east-1`), raw `pg` + parameterized SQL. RLS as defense-in-depth.
-- **Background jobs:** self-chaining Vercel function worker + Vercel cron sweeper.
+  Project / endpoint ids live in the operator console / `.env.local`, not in this repo.
+  Park/unpark: `docs/SETUP.md`.
+- **Background jobs:** self-chaining Vercel function worker + optional Vercel crons.
   No n8n. Worker `maxDuration = 800s` relies on the Pro plan's extended duration.
 - **Auth:** NextAuth Google provider, single allowed user (`ALLOWED_USER_EMAIL`).
 - **AI judgment:** xAI / Grok via Responses API (`lib/xai/client.ts`, `lib/enrichment/grok-pipeline.ts`).
@@ -52,15 +57,14 @@ the fusion withhold rule.
 - **FEC Open API:** direct Schedule A contributor lookup (`lib/fec/contributor-lookup.ts`,
   optional `FEC_API_KEY`; no Grok).
 
-> The original `LeanLink-Plan.html` was drafted before these choices were finalized.
-> It has been reconciled to the above (no Supabase, no n8n, OSINT-only enrichment).
+> Early plan HTML lived outside git (local only). `docs/DECISIONS.md` is the
+> authoritative record of stack choices (no Supabase, no n8n, OSINT-only enrichment).
 
-## Tiered / prepaid / waterfall product (2026-07-03)
+## Waterfall + generic intake (2026-07-03)
 
-The engine now supports the model the one-pager (`leanlink-one-pager.html`) sells: submit a
-voter list, run cheap arms first, bill per successful lean at a rising per-tier rate.
+Submit a voter list, run cheap arms first, skip voters who already settled.
 
-- **Generic intake** (`lib/generic-voter-list.ts`) accepts an arbitrary client list
+- **Generic intake** (`lib/generic-voter-list.ts`) accepts an arbitrary list
   (CSV/TSV/paste/JSON, fuzzy headers) and normalizes each row into a `ParsedFlVoterRecord`,
   so **all existing arms consume it unchanged**. No FL voter file, no voter ID. Anchor gate:
   name + ≥1 of county/ZIP/street address. Identity hash for these rows is `hashGenericVoter`
@@ -81,52 +85,35 @@ voter list, run cheap arms first, bill per successful lean at a rising per-tier 
     collision noise); the layer-2 bridge only bridges address-corroborated officers.
     fl_contrib uses it as a soft bonus + a recency-aware zip penalty. FEC stays zip+city (no
     street field). In-memory, no migration; `SCORER_VERSION` → 3.
-- **Prepaid billing** (`lib/billing/*`, migration 009): `accounts` hold a `prepaid_balance_usd`
-  (keyed by a slug `account_id`, optional `fec_committee_id`); `billing_ledger` is the
-  append-only signed money log (its `amount_usd` is the rate snapshot, so a later rate edit
-  never re-prices a billed batch); `rate_cards` holds a `default` scope plus per-account
-  overrides (`resolveRates` merges them, no redeploy). Charge points: **baseline** per accepted
-  record at intake, **tier fee** once per settled voter (partial-unique-indexed), **OSINT
-  attempt** per paid `/api/enrichment/test` run. `voter_uploads.account_id` links a batch;
-  `NULL` = internal/test (unbilled). APIs: `/api/accounts`, `/api/accounts/[id]`,
-  `/api/rate-cards`; UI `/dashboard/accounts`.
 
-- **Initiation fee + researcher review (2026-07-04, migration 011, D-026):**
-  `billing_ledger` gains an `initiation` kind ($2,500 default via `rate_cards.initiation_usd`,
-  once per account ever — billed at account creation or from the Billing console).
+- **Researcher review (2026-07-04, migration 011, D-026):**
   `voter_lean_fusion` gains `review_status` / `research_status`: **Accept**
   (`/api/voters/[id]/review`) freezes a voter's fused lean (fusion early-returns, deliverable
   Status = `accepted`) and excludes them from every arm; **Re-enroll** (same route, or cohort
-  via `/api/uploads/[id]/re-enroll`) pushes settled voters back into later arms without
-  re-billing. Claim-query predicate everywhere: locked → never claim; re-enrolled → claim even
-  if settled; default → unsettled only. The **client deliverable** export lists lean + confidence
+  via `/api/uploads/[id]/re-enroll`) pushes settled voters back into later arms.
+  Claim-query predicate everywhere: locked → never claim; re-enrolled → claim even
+  if settled; default → unsettled only. The **deliverable** export lists lean + confidence
   + source *labels* (settled arm first among contributing arms). Full `?format=audit` per-event
-  provenance is **operator-internal** (D-042) — may be screen-shared, not a standard client handoff.
+  provenance is **operator-internal** (D-042).
   **Lean conflict precedence (D-044 / migration 023):** when registration party and
   public-evidence lean disagree, deliverable uses `voter_uploads.lean_precedence`
   (`wallet` default | `registration` | `conflict_undetermined`) via
-  `resolveDeliverableLean` — presentation only; accepted freezes fusion; optional
-  account default for new billed generic uploads.
+  `resolveDeliverableLean` — presentation only; accepted freezes fusion.
 
-**Config knobs (money-sensitive, reversible):** `LEANLINK_SETTLE_THRESHOLD`; all fees via the
-`rate_cards` table. OSINT currently bills attempt **and** tier-3 on a hit — set
-`osint_attempt_usd=0` for tier-3-only. **Provided-party (T0)** is stored on intake and is
+**Config:** `LEANLINK_SETTLE_THRESHOLD`. **Provided-party (T0)** is stored on intake and is
 **not** auto-written as a fusion evidence event / settle arm (box score: pre-game context).
-The **client deliverable** may still surface a registration prior or resolve party-vs-wallet
-tension via `lean_precedence` (D-044, default wallet) — never billed for echoing a
-registration; never rewrites fusion.
+The deliverable may still surface a registration prior or resolve party-vs-wallet
+tension via `lean_precedence` (D-044, default wallet) — never rewrites fusion.
 
-**Posture note:** commercial deployment on client-supplied lists is now the operating model
-(D-027, 2026-07-04) — see the two-track posture at the top of this doc. FL-extract uploads
-remain research-track and structurally unbillable.
+**Posture note:** Track B (operator-supplied lists) is available (D-027, 2026-07-04).
+FL-extract uploads remain research-track (`account_id` stays NULL). License is MIT (D-045).
 
 ## Enrichment policy (both tracks)
 
 **OSINT only.** No Clearbit / FullContact / commercial data-broker enrichment — on the
-research track *or* for clients. What started as POC prudence is now a **product
-promise**: the pitch's integrity box commits to "public records and open sources only —
-no data brokers, ever." If a paid enrichment source is ever reconsidered, it is a
-deliberate, counsel-reviewed decision *and* a client-communication event, not a default.
+research track *or* on operator-supplied lists. Public records and open sources only —
+no data brokers. If a paid enrichment source is ever reconsidered, it is a deliberate,
+counsel-reviewed decision, not a default.
 
 ## AI vendor verification (xAI / Grok)
 

@@ -17,5 +17,13 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "scripts/osint-self-test*.ts",
+    "scripts/debug-fec.ts",
+    "scripts/run-campaign-wave.ts",
+    "scripts/campaign-board.ts",
+    "scripts/export-campaign-run.ts",
+    "scripts/build-election-margins.ts"
+  ]
 }

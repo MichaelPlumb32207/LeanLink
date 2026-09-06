@@ -78,42 +78,34 @@ export function GenericIntake({ onUploaded }: { onUploaded?: (uploadId: string) 
     }
   }
 
-  const selectedAccount = accounts.find((a) => a.account_id === accountId);
-
   return (
     <section className="panel rounded-2xl p-6">
-      <h2 className="mb-1 text-xl font-semibold">Client list intake</h2>
+      <h2 className="mb-1 text-xl font-semibold">List intake</h2>
       <p className="mb-4 text-sm opacity-75">
-        Paste or drop a client voter list. Required per row: a name plus at least one of county,
+        Paste or drop a voter list. Required per row: a name plus at least one of county,
         ZIP, or street address. Everything else is optional and sharpens matching.
       </p>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
           <label className="mb-1 block text-[10px] uppercase tracking-wide opacity-60">
-            Bill to account
+            Account (optional)
           </label>
           <select
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             className="mb-3 block w-full rounded-lg border bg-black/20 px-2 py-2 text-sm"
           >
-            <option value="">— Unbilled (internal / test) —</option>
+            <option value="">— No account —</option>
             {accounts.map((a) => (
               <option key={a.account_id} value={a.account_id}>
-                {a.display_name} ({a.account_id}) · ${Number(a.prepaid_balance_usd).toFixed(2)}
+                {a.display_name} ({a.account_id})
               </option>
             ))}
           </select>
-          {selectedAccount && (
-            <p className="mb-3 text-xs opacity-70">
-              Baseline fee applies to every accepted record; balance $
-              {Number(selectedAccount.prepaid_balance_usd).toFixed(2)}.
-            </p>
-          )}
           {accounts.length === 0 && (
             <p className="mb-3 text-xs opacity-60">
-              No accounts yet — create one in the Billing console to bill a batch.
+              Optional: create an account on /dashboard/accounts to label a batch.
             </p>
           )}
 

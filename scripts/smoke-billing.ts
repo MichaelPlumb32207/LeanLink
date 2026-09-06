@@ -18,7 +18,12 @@ import {
   chargeOsintAttempt,
 } from '@/lib/billing/ledger';
 
-const OPERATOR = process.env.ALLOWED_USER_EMAIL || 'meplumb@gmail.com';
+function requireAllowedUser(): string {
+  const email = process.env.ALLOWED_USER_EMAIL;
+  if (!email) throw new Error('ALLOWED_USER_EMAIL required');
+  return email;
+}
+const OPERATOR = requireAllowedUser();
 const ACCOUNT = 'smoke-test-co';
 
 function loadDatabaseUrl(): string | null {

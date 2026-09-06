@@ -413,7 +413,7 @@ export function EvidenceWorkspace({
                 onClick={() =>
                   void reEnrollCohort(
                     { maxConfidence: 70 },
-                    'Re-enroll settled voters with fused confidence ≤ 70 into later arms?\n\nBilling is unaffected (settlement fees are charged once, ever), but later paid arms will spend on these voters again.',
+                    'Re-enroll settled voters with fused confidence ≤ 70 into later arms?',
                   )
                 }
                 className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 hover:opacity-90 disabled:opacity-50"
@@ -427,7 +427,7 @@ export function EvidenceWorkspace({
                 onClick={() =>
                   void reEnrollCohort(
                     { tierLte: 1 },
-                    'Re-enroll every FEC-settled (tier 1) voter into later arms for corroboration?\n\nBilling is unaffected, but later paid arms will spend on these voters again.',
+                    'Re-enroll every FEC-settled (tier 1) voter into later arms for corroboration?',
                   )
                 }
                 className="rounded-lg border border-sky-300/50 bg-sky-500/10 px-3 py-1 hover:opacity-90 disabled:opacity-50"
