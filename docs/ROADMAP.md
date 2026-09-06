@@ -17,7 +17,7 @@ Legend: **Now** = in flight · **Next** = near-term · **Later** = planned · **
 
 | Item | State | Notes |
 |---|---|---|
-| **Public-repo giveaway (D-045)** | Done | **MIT** — any purpose. History purged of the Calhoun export CSV and priced pitch HTML before visibility flip. |
+| **Public-repo giveaway (D-045)** | Done | **MIT** — any purpose. Hosted Vercel app **paused** (no live demo); Neon compute stays disabled (storage only). |
 | **FEC live-API sweep as primary** | Done in code | Local bulk index (D-028) is Tier 1; API sweep is fallback only (D-035). Remaining operator work: load older cycles. |
 
 ## Next

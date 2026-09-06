@@ -1,7 +1,7 @@
 # LeanLink — Build status
 
 What’s actually built vs. gated vs. not started. A **scoreboard**, not a session log.
-Last reviewed: 2026-09-06 (public MIT).
+Last reviewed: 2026-09-06 (public MIT; hosted app sunset).
 
 Session pickup notes live **outside the public tree** (not in git).
 

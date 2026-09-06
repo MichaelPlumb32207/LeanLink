@@ -118,6 +118,13 @@ EXISTS`; policies use `DROP POLICY IF EXISTS` then `CREATE`), so re-running is s
 continue with 008/009. RLS is enabled per table — the app sets `app.current_user` per
 transaction, so nothing extra is needed at the DB level.
 
+### Hosted app sunset (2026-09-06)
+
+The Vercel project **lean-link** is **paused** (production returns 503). Git
+deploys are skipped (`vercel.json` `ignoreCommand`). Neon compute for this
+instance is **disabled**; data is kept (storage still bills). Re-engage: unpause
+Vercel, enable Neon compute, remove `ignoreCommand`, restore crons if needed.
+
 ### Park / unpark Neon compute
 
 Use **your** Neon project (pooled connection string in `.env.local`). Do **not** put

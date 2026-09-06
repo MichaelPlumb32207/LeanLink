@@ -251,7 +251,8 @@ sweep is gone from the UI (D-035); freshness = reload a newer FEC bulk snapshot 
 
 ## Deploy
 
-`git push origin HEAD:main` only — Vercel auto-deploys `main` (Pro plan required).
-Run `npm run build` locally first; do not run `vercel --prod` (double-builds). The
+`git push origin HEAD:main`. The **hosted Vercel app is paused** (sunset 2026-09-06);
+`vercel.json` `ignoreCommand` skips git builds. To re-host: unpause the project, drop
+`ignoreCommand`, enable Neon compute, then push. Run `npm run build` locally first. The
 commit-author email must be a GitHub account email linked to the Vercel project or
 Vercel blocks the deploy.

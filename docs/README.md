@@ -2,6 +2,7 @@
 
 Living artifacts for the codebase (architecture, decisions, backlog, how to run it).
 Read in this order when joining cold. Operator session diaries are **not** in this tree.
+There is **no live hosted demo** (Vercel paused 2026-09-06); run locally.
 
 | Doc | Purpose | Update when |
 |---|---|---|

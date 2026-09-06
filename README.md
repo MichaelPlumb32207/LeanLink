@@ -12,6 +12,10 @@ Questions or collabs: **[Michael@Four-Plums.com](mailto:Michael@Four-Plums.com)*
 **[MIT](LICENSE)** — free and open source. Use it for any purpose, including
 commercial and political work. Keep the copyright notice.
 
+There is **no live hosted demo.** The Vercel app is sunset; run it locally
+(`docs/SETUP.md`). If you find this on GitHub and want help standing it up,
+email [Michael@Four-Plums.com](mailto:Michael@Four-Plums.com).
+
 There is **no telemetry and no phone-home**. We will not know you cloned it
 unless you fork in public, show up in GitHub’s 14-day traffic stats, or write us.
 
